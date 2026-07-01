@@ -3,6 +3,7 @@
 #include "VulkanContext.h"
 
 #include <filesystem>
+#include <array>
 class Scene
 {
 public:
@@ -26,18 +27,18 @@ protected:
 	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
 	VkPipeline pipeline = VK_NULL_HANDLE;
 
-	VkCommandBuffer cmd = VK_NULL_HANDLE;
+	std::array<VkCommandBuffer, VulkanContext::MAX_CONCURRENT_FRAMES> cmd{ VK_NULL_HANDLE };
 private:
-	VkShaderModule vertShader;
-	VkShaderModule fragShader;
+	VkShaderModule vertShader = VK_NULL_HANDLE;
+	VkShaderModule fragShader = VK_NULL_HANDLE;
 
 	struct
 	{
 		VkSemaphore imageAvailable = VK_NULL_HANDLE;
-		VkSemaphore renderFinished = VK_NULL_HANDLE;
-		VkSemaphore presentComplete = VK_NULL_HANDLE;
-	} semaphores;
-	VkFence inFlightFence = VK_NULL_HANDLE;
+	} semaphores[VulkanContext::MAX_CONCURRENT_FRAMES];
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::array<VkFence, VulkanContext::MAX_CONCURRENT_FRAMES> inFlightFence{ VK_NULL_HANDLE };
 
-	uint32_t imgIdx = 0;
+	uint32_t currentImgIdx = 0;
+	uint32_t currentFrame = 0;
 };

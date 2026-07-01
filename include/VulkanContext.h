@@ -51,6 +51,8 @@ private:
 	void ClearSwapChain();
 
 	auto FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const -> uint32_t;
+public:
+	static constexpr uint32_t MAX_CONCURRENT_FRAMES{ 2 };
 private:
 	const Window& window;
 

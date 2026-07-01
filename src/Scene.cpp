@@ -18,14 +18,17 @@ void Scene::Init()
 
 void Scene::Clear()
 {
-	vkDestroyFence(ctx.GetDevice(), inFlightFence, nullptr);
-	inFlightFence = VK_NULL_HANDLE;
-	vkDestroySemaphore(ctx.GetDevice(), semaphores.presentComplete, nullptr);
-	semaphores.presentComplete = VK_NULL_HANDLE;
-	vkDestroySemaphore(ctx.GetDevice(), semaphores.renderFinished, nullptr);
-	semaphores.renderFinished = VK_NULL_HANDLE;
-	vkDestroySemaphore(ctx.GetDevice(), semaphores.imageAvailable, nullptr);
-	semaphores.imageAvailable = VK_NULL_HANDLE;
+	vkDeviceWaitIdle(ctx.GetDevice());
+	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
+	{
+		vkDestroyFence(ctx.GetDevice(), inFlightFence[i], nullptr);
+		inFlightFence[i] = VK_NULL_HANDLE;
+		vkDestroySemaphore(ctx.GetDevice(), semaphores[i].imageAvailable, nullptr);
+		semaphores[i].imageAvailable = VK_NULL_HANDLE;
+	}
+	for (VkSemaphore& semaphore : renderFinishedSemaphores)
+		vkDestroySemaphore(ctx.GetDevice(), semaphore, nullptr);
+	renderFinishedSemaphores.clear();
 
 	vkDestroyPipeline(ctx.GetDevice(), pipeline, nullptr);
 	pipeline = VK_NULL_HANDLE;
@@ -49,33 +52,39 @@ void Scene::Render()
 
 void Scene::CreateSyncObjects()
 {
-	VkSemaphoreCreateInfo ci{};
-	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	const VkSemaphoreCreateInfo ci
+	{
+		.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+	};
 
-	if (VkResult result = vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphores.imageAvailable); result != VkResult::VK_SUCCESS)
+	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
 	{
-		SH_ERROR_FORMAT("Failed to create semaphore!: {}", string_VkResult(result));
-		throw std::runtime_error{ "Failed to create semaphore!" };
-	}
-	if (VkResult result = vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphores.renderFinished); result != VkResult::VK_SUCCESS)
-	{
-		SH_ERROR_FORMAT("Failed to create semaphore!: {}", string_VkResult(result));
-		throw std::runtime_error{ "Failed to create semaphore!" };
-	}
-	if (VkResult result = vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphores.presentComplete); result != VkResult::VK_SUCCESS)
-	{
-		SH_ERROR_FORMAT("Failed to create semaphore!: {}", string_VkResult(result));
-		throw std::runtime_error{ "Failed to create semaphore!" };
-	}
+		if (VkResult result = vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphores[i].imageAvailable); result != VkResult::VK_SUCCESS)
+		{
+			SH_ERROR_FORMAT("Failed to create semaphore!: {}", string_VkResult(result));
+			throw std::runtime_error{ "Failed to create semaphore!" };
+		}
 
-	VkFenceCreateInfo fenceCi{};
-	fenceCi.sType = VkStructureType::VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceCi.flags = VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT;
-	fenceCi.pNext = nullptr;
-	if (VkResult result = vkCreateFence(ctx.GetDevice(), &fenceCi, nullptr, &inFlightFence); result != VkResult::VK_SUCCESS)
+		const VkFenceCreateInfo fenceCi
+		{
+			.sType = VkStructureType::VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT,
+		};
+		if (VkResult result = vkCreateFence(ctx.GetDevice(), &fenceCi, nullptr, &inFlightFence[i]); result != VkResult::VK_SUCCESS)
+		{
+			SH_ERROR_FORMAT("Failed to create fence!: {}", string_VkResult(result));
+			throw std::runtime_error{ "Failed to create fence!" };
+		}
+	}
+	renderFinishedSemaphores.resize(ctx.GetSwapChainImages().size());
+	for (VkSemaphore& semaphore : renderFinishedSemaphores)
 	{
-		SH_ERROR_FORMAT("Failed to create fence!: {}", string_VkResult(result));
-		throw std::runtime_error{ "Failed to create fence!" };
+		if (VkResult result = vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphore); result != VkResult::VK_SUCCESS)
+		{
+			SH_ERROR_FORMAT("Failed to create semaphore!: {}", string_VkResult(result));
+			throw std::runtime_error{ "Failed to create semaphore!" };
+		}
 	}
 }
 
@@ -261,16 +270,19 @@ void Scene::PrepareCommandBuffer()
 	info.level = VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	info.commandBufferCount = 1;
 
-	if (VkResult result = vkAllocateCommandBuffers(ctx.GetDevice(), &info, &cmd); result != VkResult::VK_SUCCESS)
+	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
 	{
-		SH_ERROR_FORMAT("Failed to allocate command buffer!: {}", string_VkResult(result));
-		throw std::runtime_error{ "Failed to allocate command buffer!" };
+		if (VkResult result = vkAllocateCommandBuffers(ctx.GetDevice(), &info, &cmd[i]); result != VkResult::VK_SUCCESS)
+		{
+			SH_ERROR_FORMAT("Failed to allocate command buffer!: {}", string_VkResult(result));
+			throw std::runtime_error{ "Failed to allocate command buffer!" };
+		}
 	}
 }
 
 void Scene::BuildCommandBuffer()
 {
-	vkResetCommandBuffer(cmd, 0);
+	vkResetCommandBuffer(cmd[currentFrame], 0);
 
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -279,7 +291,7 @@ void Scene::BuildCommandBuffer()
 	VkRenderingAttachmentInfo colorAttachment{};
 	colorAttachment.sType = VkStructureType::VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	colorAttachment.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	colorAttachment.imageView = ctx.GetSwapChainImageViews()[imgIdx];
+	colorAttachment.imageView = ctx.GetSwapChainImageViews()[currentImgIdx];
 	colorAttachment.clearValue.color = { {0.f, 0.f, 0.f, 1.f} };
 	colorAttachment.loadOp = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachment.storeOp = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE;
@@ -287,7 +299,7 @@ void Scene::BuildCommandBuffer()
 	VkRenderingAttachmentInfo depthAttachment{};
 	depthAttachment.sType = VkStructureType::VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	depthAttachment.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	depthAttachment.imageView = ctx.GetSwapChainDepthImageViews()[imgIdx];
+	depthAttachment.imageView = ctx.GetSwapChainDepthImageViews()[currentImgIdx];
 	depthAttachment.clearValue.depthStencil = { 1.f, 0 };
 	depthAttachment.loadOp = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE;
@@ -305,25 +317,25 @@ void Scene::BuildCommandBuffer()
 	const float y = 0.f;
 	const float w = ctx.GetSwapChainExtent().width;
 	const float h = ctx.GetSwapChainExtent().height;
-	vkBeginCommandBuffer(cmd, &beginInfo);
+	vkBeginCommandBuffer(cmd[currentFrame], &beginInfo);
 
-	ctx.BarrierCommand(cmd, ctx.GetSwapChainImages()[imgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+	ctx.BarrierCommand(cmd[currentFrame], ctx.GetSwapChainImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED, 
 		VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 
+		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		0, 
 		VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
-	ctx.BarrierCommand(cmd, ctx.GetSwapChainDepthImages()[imgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT | VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT,
+	ctx.BarrierCommand(cmd[currentFrame], ctx.GetSwapChainDepthImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT | VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED, 
 		VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 
+		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VkPipelineStageFlagBits::VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VkPipelineStageFlagBits::VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
 		0, 
-		VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT);
+		VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
-	vkCmdBeginRendering(cmd, &renderingInfo);
+	vkCmdBeginRendering(cmd[currentFrame], &renderingInfo);
 
 	VkViewport viewport{};
 	viewport.minDepth = 0.0f;
@@ -339,39 +351,37 @@ void Scene::BuildCommandBuffer()
 	rect.extent.width = w;
 	rect.extent.height = h;
 	
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-	vkCmdSetScissor(cmd, 0, 1, &rect);
+	vkCmdSetViewport(cmd[currentFrame], 0, 1, &viewport);
+	vkCmdSetScissor(cmd[currentFrame], 0, 1, &rect);
 
-	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-	vkCmdDraw(cmd, 3, 1, 0, 0);
+	vkCmdBindPipeline(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+	vkCmdDraw(cmd[currentFrame], 3, 1, 0, 0);
 
-	vkCmdEndRendering(cmd);
+	vkCmdEndRendering(cmd[currentFrame]);
 
-	ctx.BarrierCommand(cmd, ctx.GetSwapChainImages()[imgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+	ctx.BarrierCommand(cmd[currentFrame], ctx.GetSwapChainImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-		VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+		VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 		0);
-	vkEndCommandBuffer(cmd);
+	vkEndCommandBuffer(cmd[currentFrame]);
 }
 
 void Scene::SubmitCommandBuffer()
 {
 	VkPipelineStageFlags waitStages[] = { VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSemaphore waits[] = { semaphores.imageAvailable };
-	VkSemaphore signals[] = { semaphores.renderFinished };
 	VkSubmitInfo info{};
 	info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	info.commandBufferCount = 1;
-	info.pCommandBuffers = &cmd;
+	info.pCommandBuffers = &cmd[currentFrame];
 	info.waitSemaphoreCount = 1;
-	info.pWaitSemaphores = waits;
+	info.pWaitSemaphores = &semaphores[currentFrame].imageAvailable;
 	info.signalSemaphoreCount = 1;
-	info.pSignalSemaphores = signals;
+	info.pSignalSemaphores = &renderFinishedSemaphores[currentImgIdx];
 	info.pWaitDstStageMask = waitStages;
-	if (VkResult result = vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, inFlightFence); result != VkResult::VK_SUCCESS)
+	if (VkResult result = vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, inFlightFence[currentFrame]); result != VkResult::VK_SUCCESS)
 	{
 		SH_ERROR_FORMAT("Failed to submit draw command buffer!: {}", string_VkResult(result));
 		throw std::runtime_error("Failed to submit draw command buffer!");
@@ -381,21 +391,22 @@ void Scene::SubmitCommandBuffer()
 	VkPresentInfoKHR presentInfo{};
 	presentInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = signals;
+	presentInfo.pWaitSemaphores = &renderFinishedSemaphores[currentImgIdx];
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = swapChains;
-	presentInfo.pImageIndices = &imgIdx;
+	presentInfo.pImageIndices = &currentImgIdx;
 	vkQueuePresentKHR(ctx.GetPresentQueue(), &presentInfo);
-	vkQueueWaitIdle(ctx.GetPresentQueue());
+	
+	currentFrame = (currentFrame + 1) % VulkanContext::MAX_CONCURRENT_FRAMES;
 }
 
 auto Scene::PrepareFrame() -> bool
 {
-	vkWaitForFences(ctx.GetDevice(), 1, &inFlightFence, VK_TRUE, UINT64_MAX);
+	vkWaitForFences(ctx.GetDevice(), 1, &inFlightFence[currentFrame], VK_TRUE, UINT64_MAX);
 	
-	if (!ctx.AcquireNextImage(semaphores.imageAvailable, nullptr, &imgIdx))
+	if (!ctx.AcquireNextImage(semaphores[currentFrame].imageAvailable, nullptr, &currentImgIdx))
 		return false;
-	vkResetFences(ctx.GetDevice(), 1, &inFlightFence);
+	vkResetFences(ctx.GetDevice(), 1, &inFlightFence[currentFrame]);
 	return true;
 }
 
