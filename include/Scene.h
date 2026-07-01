@@ -10,10 +10,11 @@
 #include <array>
 
 class VulkanBuffer;
+class ImGUI;
 class Scene
 {
 public:
-	Scene(VulkanContext& ctx);
+	Scene(VulkanContext& ctx, const ImGUI& imgui);
 
 	virtual void Init();
 	virtual void Clear();
@@ -31,6 +32,7 @@ protected:
 	static auto LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule;
 public:
 	VulkanContext& ctx;
+	const ImGUI& imgui;
 protected:
 	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
 	VkPipeline pipeline = VK_NULL_HANDLE;

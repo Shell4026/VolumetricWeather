@@ -33,15 +33,19 @@ public:
 		VkAccessFlags srcAccess, VkAccessFlags dstAccess);
 
 	auto GetMemoryTypeIndex(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) const -> std::optional<uint32_t>;
+	auto GetInstance() const -> VkInstance { return instancePtr; }
 	auto GetDevice() const -> VkDevice { return device; }
+	auto GetPhysicalDevice() const -> VkPhysicalDevice { return gpu; }
 	auto GetCommandPool() const -> VkCommandPool { return commandPool; }
 	auto GetSwapChain() const -> VkSwapchainKHR { return swapChain; }
 	auto GetSwapChainImagesFormat() const -> VkFormat { return swapChainImageFormat; }
+	auto GetSwapChainDepthFormat() const -> VkFormat { return swapChainDepthFormat; }
 	auto GetSwapChainImages() const -> const std::vector<VkImage>& { return swapChainImages; }
 	auto GetSwapChainImageViews() const -> const std::vector<VkImageView>& { return swapChainImageViews; }
 	auto GetSwapChainDepthImages() const -> const std::vector<VkImage>& { return swapChainDepthImages; }
 	auto GetSwapChainDepthImageViews() const -> const std::vector<VkImageView>& { return swapChainDepthImageViews; }
 	auto GetSwapChainExtent() const -> const VkExtent2D& { return swapChainExtent; }
+	auto GetGraphicsQueueFamily() const -> uint32_t { return graphicsQueueFamily; }
 	auto GetGraphicsQueue() const -> VkQueue { return graphicsQueue; }
 	auto GetPresentQueue() const -> VkQueue { return presentQueue; }
 private:
@@ -102,6 +106,7 @@ private:
 	VkSwapchainKHR swapChain = VK_NULL_HANDLE;
 	
 	VkFormat swapChainImageFormat;
+	VkFormat swapChainDepthFormat = VkFormat::VK_FORMAT_D24_UNORM_S8_UINT;
 	VkExtent2D swapChainExtent;
 	std::vector<VkImage> swapChainImages;
 	std::vector<VkImage> swapChainDepthImages;

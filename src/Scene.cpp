@@ -2,12 +2,14 @@
 #include "Logger.h"
 #include "VulkanBuffer.h"
 
+#include "imgui/backends/imgui_impl_vulkan.h"
+
 #include <fstream>
 #include <vector>
 #include <cstdint>
 #include <array>
-Scene::Scene(VulkanContext& ctx) :
-	ctx(ctx)
+Scene::Scene(VulkanContext& ctx, const ImGUI& imgui) :
+	ctx(ctx), imgui(imgui)
 {
 }
 void Scene::Init()
@@ -347,6 +349,10 @@ void Scene::BuildCommandBuffer()
 	vkCmdBindPipeline(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	vkCmdBindDescriptorSets(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSets[currentFrame], 0, nullptr);
 	vkCmdDraw(cmd[currentFrame], 3, 1, 0, 0);
+
+	ImDrawData* drawData = ImGui::GetDrawData();
+	if (drawData != nullptr)
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd[currentFrame]);
 
 	vkCmdEndRendering(cmd[currentFrame]);
 

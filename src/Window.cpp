@@ -1,6 +1,7 @@
 #include "Window.h"
 
 #include <iostream>
+
 Window::Window()
 {
 	instance = GetModuleHandleW(nullptr);
@@ -44,6 +45,11 @@ void Window::Update()
 	}
 }
 
+void Window::AddEventHook(const std::function<void(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)>& fn)
+{
+	eventHooks.push_back(fn);
+}
+
 LRESULT Window::EventHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	if (msg == WM_CREATE)
@@ -57,7 +63,11 @@ LRESULT Window::EventHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	Window* const win = reinterpret_cast<Window*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
 	if (win != nullptr)
+	{
 		win->ProcessEvents(msg, wParam, lParam);
+		for (auto& hook : win->eventHooks)
+			hook(hwnd, msg, wParam, lParam);
+	}
 
 	if (msg == WM_CLOSE)
 		return 0;
@@ -78,6 +88,10 @@ void Window::ProcessEvents(UINT msg, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_CLOSE:
 		Close();
+		break;
+	case WM_MOUSEMOVE:
+		mouseX = static_cast<int16_t>(LOWORD(lParam));
+		mouseY = static_cast<int16_t>(LOWORD(lParam));
 		break;
 	}
 }
