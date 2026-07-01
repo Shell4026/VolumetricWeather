@@ -3,11 +3,18 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
 
+#define VK_RESULT_CHECK(func)\
+if (VkResult result = func; result != VkResult::VK_SUCCESS)\
+{\
+	SH_ERROR_FORMAT("Failed to {}: {}", #func, string_VkResult(result));\
+	throw std::runtime_error{ "VkResult is not VK_SUCCESS!" };\
+}
+
 #include <vulkan/vulkan.hpp>
 #include "vulkan/vk_enum_string_helper.h"
 
 #include <vector>
-
+#include <optional>
 class Window;
 class VulkanContext
 {
@@ -25,6 +32,7 @@ public:
 		VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
 		VkAccessFlags srcAccess, VkAccessFlags dstAccess);
 
+	auto GetMemoryTypeIndex(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) const -> std::optional<uint32_t>;
 	auto GetDevice() const -> VkDevice { return device; }
 	auto GetCommandPool() const -> VkCommandPool { return commandPool; }
 	auto GetSwapChain() const -> VkSwapchainKHR { return swapChain; }
@@ -66,6 +74,7 @@ private:
 	VkPhysicalDevice gpu = VK_NULL_HANDLE;
 	VkPhysicalDeviceProperties gpuProps;
 	VkPhysicalDeviceFeatures gpuFeatures;
+	VkPhysicalDeviceMemoryProperties gpuMemProps;
 
 	VkDevice device = VK_NULL_HANDLE;
 

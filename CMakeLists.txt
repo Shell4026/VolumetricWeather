@@ -1,11 +1,13 @@
 ﻿cmake_minimum_required (VERSION 3.8)
 
+include(FetchContent)
+
 project ("VolumetricWeather" LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 
-add_executable (VolumetricWeather "main.cpp" "include/Logger.h" "src/Logger.cpp" "src/VulkanContext.cpp" "include/VulkanContext.h" "include/Window.h" "src/Window.cpp" "include/PCH.h" "src/Scene.cpp" "include/Scene.h")
+add_executable (VolumetricWeather "main.cpp" "include/Logger.h" "src/Logger.cpp" "src/VulkanContext.cpp" "include/VulkanContext.h" "include/Window.h" "src/Window.cpp" "include/PCH.h" "src/Scene.cpp" "include/Scene.h" "src/VulkanBuffer.cpp" "include/VulkanBuffer.h")
 
 find_package(Vulkan)
 
@@ -20,8 +22,16 @@ else()
 	message("Vulkan found!")
 endif()
 
+FetchContent_Declare(
+  GLM
+  GIT_REPOSITORY "https://github.com/g-truc/glm"
+  GIT_TAG "1.0.1"
+  )
+FetchContent_MakeAvailable(GLM)
+
 target_precompile_headers(VolumetricWeather PRIVATE "include/PCH.h")
 target_link_libraries(VolumetricWeather PRIVATE Vulkan::Vulkan)
+target_link_libraries(VolumetricWeather PRIVATE glm)
 target_include_directories(VolumetricWeather PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 file(GLOB spvFiles "${CMAKE_SOURCE_DIR}/resource/*.spv")

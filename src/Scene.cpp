@@ -1,5 +1,6 @@
 #include "Scene.h"
 #include "Logger.h"
+#include "VulkanBuffer.h"
 
 #include <fstream>
 #include <vector>
@@ -11,14 +12,24 @@ Scene::Scene(VulkanContext& ctx) :
 }
 void Scene::Init()
 {
+	uniformData.color = { 1.f, 1.f, 1.f, 1.f };
+
 	CreateSyncObjects();
-	CreatePipeline();
 	PrepareCommandBuffer();
+	PrepareUniformBuffer();
+	SetupDescriptor();
+	CreatePipeline();
 }
 
 void Scene::Clear()
 {
 	vkDeviceWaitIdle(ctx.GetDevice());
+
+	vkDestroyDescriptorSetLayout(ctx.GetDevice(), descSetLayout, nullptr);
+	descSetLayout = VK_NULL_HANDLE;
+	vkDestroyDescriptorPool(ctx.GetDevice(), descPool, nullptr);
+	descPool = VK_NULL_HANDLE;
+
 	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
 	{
 		vkDestroyFence(ctx.GetDevice(), inFlightFence[i], nullptr);
@@ -42,10 +53,17 @@ void Scene::Clear()
 	pipelineLayout = VK_NULL_HANDLE;
 }
 
-void Scene::Render()
+void Scene::Render(double dt)
 {
 	if (!PrepareFrame())
 		return;
+
+	static float x = 0.f;
+	x += dt;
+	float r = (glm::sin(x) + 1) * 0.5f;
+	uniformData.color = { r, 1 - r, r, 1.f };
+	uniformBuffers[currentFrame]->SetData(&uniformData);
+
 	BuildCommandBuffer();
 	SubmitCommandBuffer();
 }
@@ -59,11 +77,7 @@ void Scene::CreateSyncObjects()
 
 	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
 	{
-		if (VkResult result = vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphores[i].imageAvailable); result != VkResult::VK_SUCCESS)
-		{
-			SH_ERROR_FORMAT("Failed to create semaphore!: {}", string_VkResult(result));
-			throw std::runtime_error{ "Failed to create semaphore!" };
-		}
+		VK_RESULT_CHECK(vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphores[i].imageAvailable));
 
 		const VkFenceCreateInfo fenceCi
 		{
@@ -71,37 +85,23 @@ void Scene::CreateSyncObjects()
 			.pNext = nullptr,
 			.flags = VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT,
 		};
-		if (VkResult result = vkCreateFence(ctx.GetDevice(), &fenceCi, nullptr, &inFlightFence[i]); result != VkResult::VK_SUCCESS)
-		{
-			SH_ERROR_FORMAT("Failed to create fence!: {}", string_VkResult(result));
-			throw std::runtime_error{ "Failed to create fence!" };
-		}
+		VK_RESULT_CHECK(vkCreateFence(ctx.GetDevice(), &fenceCi, nullptr, &inFlightFence[i]));
 	}
 	renderFinishedSemaphores.resize(ctx.GetSwapChainImages().size());
 	for (VkSemaphore& semaphore : renderFinishedSemaphores)
-	{
-		if (VkResult result = vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphore); result != VkResult::VK_SUCCESS)
-		{
-			SH_ERROR_FORMAT("Failed to create semaphore!: {}", string_VkResult(result));
-			throw std::runtime_error{ "Failed to create semaphore!" };
-		}
-	}
+		VK_RESULT_CHECK(vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphore));
 }
 
 void Scene::CreatePipeline()
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pSetLayouts = nullptr;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &descSetLayout;
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
-	if (VkResult result = vkCreatePipelineLayout(ctx.GetDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout); result != VK_SUCCESS)
-	{
-		SH_ERROR_FORMAT("Failed to create pipeline layout!: {}", string_VkResult(result));
-		throw std::runtime_error("Failed to create pipeline layout!");
-	}
+	VK_RESULT_CHECK(vkCreatePipelineLayout(ctx.GetDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
 	vertShader = LoadShader(ctx.GetDevice(), "shaders/triangle.vert.spv");
 	fragShader = LoadShader(ctx.GetDevice(), "shaders/triangle.frag.spv");
@@ -255,11 +255,7 @@ void Scene::CreatePipeline()
 	pipelineInfo.basePipelineIndex = -1;
 	pipelineInfo.pNext = &pipelineRenderingCI;
 
-	if (VkResult result = vkCreateGraphicsPipelines(ctx.GetDevice(), nullptr, 1, &pipelineInfo, nullptr, &pipeline); result != VkResult::VK_SUCCESS)
-	{
-		SH_ERROR_FORMAT("Failed to create graphics pipeline!: {}", string_VkResult(result));
-		throw std::runtime_error{ "Failed to create graphics pipeline!" };
-	}
+	VK_RESULT_CHECK(vkCreateGraphicsPipelines(ctx.GetDevice(), nullptr, 1, &pipelineInfo, nullptr, &pipeline));
 }
 
 void Scene::PrepareCommandBuffer()
@@ -271,13 +267,7 @@ void Scene::PrepareCommandBuffer()
 	info.commandBufferCount = 1;
 
 	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
-	{
-		if (VkResult result = vkAllocateCommandBuffers(ctx.GetDevice(), &info, &cmd[i]); result != VkResult::VK_SUCCESS)
-		{
-			SH_ERROR_FORMAT("Failed to allocate command buffer!: {}", string_VkResult(result));
-			throw std::runtime_error{ "Failed to allocate command buffer!" };
-		}
-	}
+		VK_RESULT_CHECK(vkAllocateCommandBuffers(ctx.GetDevice(), &info, &cmd[i]));
 }
 
 void Scene::BuildCommandBuffer()
@@ -355,6 +345,7 @@ void Scene::BuildCommandBuffer()
 	vkCmdSetScissor(cmd[currentFrame], 0, 1, &rect);
 
 	vkCmdBindPipeline(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+	vkCmdBindDescriptorSets(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSets[currentFrame], 0, nullptr);
 	vkCmdDraw(cmd[currentFrame], 3, 1, 0, 0);
 
 	vkCmdEndRendering(cmd[currentFrame]);
@@ -408,6 +399,65 @@ auto Scene::PrepareFrame() -> bool
 		return false;
 	vkResetFences(ctx.GetDevice(), 1, &inFlightFence[currentFrame]);
 	return true;
+}
+
+void Scene::PrepareUniformBuffer()
+{
+	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
+	{
+		const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+		uniformBuffers[i] = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(UniformData)));
+		uniformBuffers[i]->Map();
+		uniformBuffers[i]->SetData(&uniformData);
+	}
+}
+
+void Scene::SetupDescriptor()
+{
+	const VkDescriptorPoolSize poolSize
+	{
+		.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		.descriptorCount = VulkanContext::MAX_CONCURRENT_FRAMES
+	};
+	VkDescriptorPoolCreateInfo poolCi{};
+	poolCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolCi.maxSets = VulkanContext::MAX_CONCURRENT_FRAMES;
+	poolCi.poolSizeCount = 1;
+	poolCi.pPoolSizes = &poolSize;
+	VK_RESULT_CHECK(vkCreateDescriptorPool(ctx.GetDevice(), &poolCi, nullptr, &descPool));
+
+	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
+	VkDescriptorSetLayoutBinding& binding0 = setLayoutBindings.emplace_back();
+	binding0.binding = 0;
+	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	binding0.descriptorCount = 1;
+
+	VkDescriptorSetLayoutCreateInfo layoutCi{};
+	layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutCi.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
+	layoutCi.pBindings = setLayoutBindings.data();
+	VK_RESULT_CHECK(vkCreateDescriptorSetLayout(ctx.GetDevice(), &layoutCi, nullptr, &descSetLayout));
+
+	VkDescriptorSetAllocateInfo descSetAllocInfo{};
+	descSetAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descSetAllocInfo.descriptorPool = descPool;
+	descSetAllocInfo.pSetLayouts = &descSetLayout;
+	descSetAllocInfo.descriptorSetCount = 1;
+	for (std::size_t i = 0; i < uniformBuffers.size(); ++i)
+	{
+		VK_RESULT_CHECK(vkAllocateDescriptorSets(ctx.GetDevice(), &descSetAllocInfo, &descSets[i]));
+
+		VkWriteDescriptorSet writeSet{};
+		writeSet.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeSet.dstSet = descSets[i];
+		writeSet.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeSet.dstBinding = 0;
+		writeSet.pBufferInfo = &uniformBuffers[i]->GetDescriptorBufferInfo();
+		writeSet.descriptorCount = 1;
+		vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
+	}
+	
 }
 
 auto Scene::LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule

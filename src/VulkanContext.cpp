@@ -139,6 +139,20 @@ void VulkanContext::BarrierCommand(VkCommandBuffer cmd, VkImage img, VkImageAspe
         1, &barrier);
 }
 
+auto VulkanContext::GetMemoryTypeIndex(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) const -> std::optional<uint32_t>
+{
+    for (uint32_t i = 0; i < gpuMemProps.memoryTypeCount; i++)
+    {
+        if ((memoryTypeBits & 1) == 1)
+        {
+            if ((gpuMemProps.memoryTypes[i].propertyFlags & properties) == properties)
+                return i;
+        }
+        memoryTypeBits >>= 1;
+    }
+    return {};
+}
+
 void VulkanContext::QueryInstanceLayers()
 {
     std::vector<VkLayerProperties> layerProps;
@@ -304,6 +318,7 @@ void VulkanContext::QueryPhysicalDevice()
         if (gpuProps.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ||
             gpuProps.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_CPU)
         {
+            vkGetPhysicalDeviceMemoryProperties(gpu, &gpuMemProps);
             this->gpu = gpu;
             return;
         }
