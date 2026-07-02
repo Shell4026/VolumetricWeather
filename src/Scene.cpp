@@ -1,4 +1,4 @@
-#include "Scene.h"
+﻿#include "Scene.h"
 #include "Logger.h"
 #include "VulkanBuffer.h"
 
@@ -18,14 +18,19 @@ void Scene::Init()
 
 	CreateSyncObjects();
 	PrepareCommandBuffer();
+
+	PrepareResource();
 	PrepareUniformBuffer();
 	SetupDescriptor();
+
 	CreatePipeline();
 }
 
 void Scene::Clear()
 {
 	vkDeviceWaitIdle(ctx.GetDevice());
+
+	plane.Clear();
 
 	vkDestroyDescriptorSetLayout(ctx.GetDevice(), descSetLayout, nullptr);
 	descSetLayout = VK_NULL_HANDLE;
@@ -122,12 +127,22 @@ void Scene::CreatePipeline()
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages = { vertShaderStageInfo, fragShaderStageInfo };
 
+	VkVertexInputBindingDescription vertexBindingDesc{};
+	vertexBindingDesc.binding = 0;
+	vertexBindingDesc.stride = sizeof(Vertex);
+	vertexBindingDesc.inputRate = VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX;
+	VkVertexInputAttributeDescription attrDesc{};
+	attrDesc.binding = 0;
+	attrDesc.location = 0;
+	attrDesc.format = VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
+	attrDesc.offset = offsetof(Vertex, v);
+
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 0;
-	vertexInputInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &vertexBindingDesc;
+	vertexInputInfo.vertexAttributeDescriptionCount = 1;
+	vertexInputInfo.pVertexAttributeDescriptions = &attrDesc;
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 	inputAssembly.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -153,7 +168,7 @@ void Scene::CreatePipeline()
 	rasterizer.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterizer.depthClampEnable = VK_FALSE;
 	rasterizer.rasterizerDiscardEnable = VK_FALSE;
-	rasterizer.polygonMode = VkPolygonMode::VK_POLYGON_MODE_FILL; //ä���
+	rasterizer.polygonMode = VkPolygonMode::VK_POLYGON_MODE_FILL; //채우기
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.frontFace = VkFrontFace::VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
@@ -270,6 +285,11 @@ void Scene::PrepareCommandBuffer()
 
 	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
 		VK_RESULT_CHECK(vkAllocateCommandBuffers(ctx.GetDevice(), &info, &cmd[i]));
+
+	// 컴퓨트용
+	info.commandPool = ctx.GetComputeCommandPool();
+	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
+		VK_RESULT_CHECK(vkAllocateCommandBuffers(ctx.GetDevice(), &info, &compute.cmd[i]));
 }
 
 void Scene::BuildCommandBuffer()
@@ -348,7 +368,12 @@ void Scene::BuildCommandBuffer()
 
 	vkCmdBindPipeline(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	vkCmdBindDescriptorSets(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSets[currentFrame], 0, nullptr);
-	vkCmdDraw(cmd[currentFrame], 3, 1, 0, 0);
+
+	VkBuffer vertBuffers[] = { plane.GetVertexBuffer()->GetBuffer() };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(cmd[currentFrame], 0, 1, vertBuffers, offsets);
+	vkCmdBindIndexBuffer(cmd[currentFrame], plane.GetIndexBuffer()->GetBuffer(), 0, VkIndexType::VK_INDEX_TYPE_UINT32);
+	vkCmdDrawIndexed(cmd[currentFrame], plane.GetIndices().size(), 1, 0, 0, 0);
 
 	ImDrawData* drawData = ImGui::GetDrawData();
 	if (drawData != nullptr)
@@ -464,6 +489,76 @@ void Scene::SetupDescriptor()
 		vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
 	}
 	
+}
+
+void Scene::PrepareResource()
+{
+	//plane
+	{
+		std::vector<Vertex> verts
+		{
+			{ { -0.5f, 0.5f, 0.f } },
+			{ { 0.5f, 0.5f, 0.f } },
+			{ { 0.5f, -0.5f, 0.f } },
+			{ { -0.5f, -0.5f, 0.f} },
+		};
+		std::vector<uint32_t> indices
+		{
+			0, 1, 2, 2, 3, 0
+		};
+		plane.Init(std::move(verts), std::move(indices));
+		plane.CreateBuffer(ctx);
+	}
+	//// 이미지
+	//{
+	//	VkImageCreateInfo imgCi{};
+	//	imgCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	//	imgCi.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
+	//	imgCi.initialLayout = compute.storageImg.layout;
+	//	imgCi.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
+	//	imgCi.imageType = VkImageType::VK_IMAGE_TYPE_2D;
+	//	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT;
+	//	imgCi.extent = { ctx.GetSwapChainExtent().width, ctx.GetSwapChainExtent().height, 1 };
+	//	imgCi.mipLevels = 1;
+	//	imgCi.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
+	//	imgCi.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
+	//	VK_RESULT_CHECK(vkCreateImage(ctx.GetDevice(), &imgCi, nullptr, &compute.storageImg.img));
+
+	//	VkMemoryRequirements memReqs;
+	//	vkGetImageMemoryRequirements(ctx.GetDevice(), compute.storageImg.img, &memReqs);
+	//	VkMemoryAllocateInfo memAllocInfo{};
+	//	memAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	//	memAllocInfo.allocationSize = memReqs.size;
+	//	memAllocInfo.memoryTypeIndex = ctx.FindMemoryType(memReqs.memoryTypeBits, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	//	VK_RESULT_CHECK(vkAllocateMemory(ctx.GetDevice(), &memAllocInfo, nullptr, &compute.storageImg.mem));
+	//	VK_RESULT_CHECK(vkBindImageMemory(ctx.GetDevice(), compute.storageImg.img, compute.storageImg.mem, 0));
+
+	//	VkSamplerCreateInfo samplerCi{};
+	//	samplerCi.magFilter = VkFilter::VK_FILTER_LINEAR;
+	//	samplerCi.minFilter = VkFilter::VK_FILTER_LINEAR;
+	//	samplerCi.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	//	samplerCi.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	//	samplerCi.addressModeV = samplerCi.addressModeU;
+	//	samplerCi.addressModeW = samplerCi.addressModeU;
+	//	samplerCi.mipLodBias = 0.0f;
+	//	samplerCi.maxAnisotropy = 1.0f;
+	//	samplerCi.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
+	//	samplerCi.minLod = 0.0f;
+	//	samplerCi.maxLod = 1.0f;
+	//	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+	//	VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &compute.storageImg.sampler));
+
+	//	VkImageViewCreateInfo viewCi{};
+	//	viewCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	//	viewCi.viewType = VkImageViewType::VK_IMAGE_VIEW_TYPE_2D;
+	//	viewCi.format = imgCi.format;
+	//	viewCi.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+	//	viewCi.image = compute.storageImg.img;
+	//	VK_RESULT_CHECK(vkCreateImageView(ctx.GetDevice(), &viewCi, nullptr, &compute.storageImg.view));
+
+	//	compute.storageImg.descInfo.sampler = compute.storageImg.sampler;
+	//	compute.storageImg.descInfo.imageView = compute.storageImg.view;
+	//}
 }
 
 auto Scene::LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule

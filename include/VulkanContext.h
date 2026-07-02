@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #ifndef VK_USE_PLATFORM_WIN32_KHR
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
@@ -32,11 +32,14 @@ public:
 		VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
 		VkAccessFlags srcAccess, VkAccessFlags dstAccess);
 
+	auto FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const -> uint32_t;
+
 	auto GetMemoryTypeIndex(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) const -> std::optional<uint32_t>;
 	auto GetInstance() const -> VkInstance { return instancePtr; }
 	auto GetDevice() const -> VkDevice { return device; }
 	auto GetPhysicalDevice() const -> VkPhysicalDevice { return gpu; }
-	auto GetCommandPool() const -> VkCommandPool { return commandPool; }
+	auto GetCommandPool() const -> VkCommandPool { return graphicsCommandPool; }
+	auto GetComputeCommandPool() const -> VkCommandPool { return computeCommandPool; }
 	auto GetSwapChain() const -> VkSwapchainKHR { return swapChain; }
 	auto GetSwapChainImagesFormat() const -> VkFormat { return swapChainImageFormat; }
 	auto GetSwapChainDepthFormat() const -> VkFormat { return swapChainDepthFormat; }
@@ -48,6 +51,8 @@ public:
 	auto GetGraphicsQueueFamily() const -> uint32_t { return graphicsQueueFamily; }
 	auto GetGraphicsQueue() const -> VkQueue { return graphicsQueue; }
 	auto GetPresentQueue() const -> VkQueue { return presentQueue; }
+	auto GetComputeQueueFamily() const -> uint32_t { return computeQueueFamily; }
+	auto GetComputeQueue() const -> VkQueue { return computeQueue; }
 private:
 	void QueryInstanceLayers();
 	void CreateDebugInfo();
@@ -61,14 +66,12 @@ private:
 	void CreateSwapChain();
 	void CreateCommandPool();
 	void ClearSwapChain();
-
-	auto FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const -> uint32_t;
 public:
 	static constexpr uint32_t MAX_CONCURRENT_FRAMES{ 2 };
 private:
 	const Window& window;
 
-	// ÀÎ½ºÅÏ½º, µğ¹ÙÀÌ½º
+	// ì¸ìŠ¤í„´ìŠ¤, ë””ë°”ì´ìŠ¤
 	VkInstance instancePtr = VK_NULL_HANDLE;
 
 	std::vector<const char*> reqLayers;
@@ -82,7 +85,7 @@ private:
 
 	VkDevice device = VK_NULL_HANDLE;
 
-	// ·¹ÀÌ¾î, È®Àå
+	// ë ˆì´ì–´, í™•ì¥
 	struct LayerProperty
 	{
 		VkLayerProperties layer;
@@ -91,13 +94,13 @@ private:
 	std::vector<LayerProperty> props;
 	std::vector<VkExtensionProperties> extensions;
 
-	// µğ¹ö°Å
+	// ë””ë²„ê±°
 	VkDebugUtilsMessengerCreateInfoEXT debugInfo{};
 	std::vector<VkValidationFeatureEnableEXT> validationEnables;
 	VkValidationFeaturesEXT validationFeatures{};
 	VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 
-	// ½º¿ÒÃ¼ÀÎ
+	// ìŠ¤ì™‘ì²´ì¸
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	std::vector<VkSurfaceFormatKHR> surfaceFormats;
 	std::vector<VkPresentModeKHR> presentModes;
@@ -114,14 +117,17 @@ private:
 	std::vector<VkImageView> swapChainImageViews;
 	std::vector<VkImageView> swapChainDepthImageViews;
 
-	// Å¥
+	// í
 	uint32_t graphicsQueueFamily = 0xFFFFFFFF;
 	uint32_t presentQueueFamily = 0xFFFFFFFF;
+	uint32_t computeQueueFamily = 0xFFFFFFFF;
 	VkQueue graphicsQueue = VK_NULL_HANDLE;
 	VkQueue presentQueue = VK_NULL_HANDLE;
+	VkQueue computeQueue = VK_NULL_HANDLE;
 
-	// Ä¿¸Çµå ¹öÆÛ
-	VkCommandPool commandPool = VK_NULL_HANDLE;
+	// ì»¤ë§¨ë“œ ë²„í¼
+	VkCommandPool graphicsCommandPool = VK_NULL_HANDLE;
+	VkCommandPool computeCommandPool = VK_NULL_HANDLE;
 
 	bool bEnableValidationLayers = true;
 };

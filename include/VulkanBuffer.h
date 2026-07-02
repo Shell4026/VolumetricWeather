@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "VulkanContext.h"
 class VulkanBuffer
@@ -28,6 +28,7 @@ public:
 
 	static auto Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, void* data = nullptr) -> VulkanBuffer;
 
+	auto GetBuffer() const -> VkBuffer { return buffer; }
 	auto GetDescriptorBufferInfo() const -> const VkDescriptorBufferInfo& { return descriptorInfo; }
 protected:
 	VulkanBuffer() = default;

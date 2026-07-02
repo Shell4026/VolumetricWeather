@@ -1,4 +1,4 @@
-#include "VulkanContext.h"
+ï»¿#include "VulkanContext.h"
 #include "Logger.h"
 #include "Window.h"
 
@@ -45,8 +45,15 @@ VulkanContext::~VulkanContext()
     if (instancePtr == nullptr)
         return;
 
-    vkDestroyCommandPool(device, commandPool, nullptr);
-    commandPool = VK_NULL_HANDLE;
+    if (graphicsCommandPool == computeCommandPool)
+        computeCommandPool = VK_NULL_HANDLE;
+    else
+    {
+        vkDestroyCommandPool(device, computeCommandPool, nullptr);
+        computeCommandPool = VK_NULL_HANDLE;
+    }
+    vkDestroyCommandPool(device, graphicsCommandPool, nullptr);
+    graphicsCommandPool = VK_NULL_HANDLE;
 
     ClearSwapChain();
 
@@ -137,6 +144,22 @@ void VulkanContext::BarrierCommand(VkCommandBuffer cmd, VkImage img, VkImageAspe
         0, nullptr,
         0, nullptr,
         1, &barrier);
+}
+
+
+auto VulkanContext::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const -> uint32_t
+{
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(gpu, &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+    {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+            return i;
+    }
+
+    SH_ERROR("Failed to find suitable memory type!");
+    throw std::runtime_error("Failed to find suitable memory type!");
 }
 
 auto VulkanContext::GetMemoryTypeIndex(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties) const -> std::optional<uint32_t>
@@ -273,13 +296,7 @@ void VulkanContext::CreateSurface()
     ci.hinstance = window.GetInstance();
     ci.hwnd = window.GetHWND();
     
-    VkResult result = vkCreateWin32SurfaceKHR(instancePtr, &ci, nullptr, &surface);
-    assert(result == VkResult::VK_SUCCESS);
-    if (result != VkResult::VK_SUCCESS)
-    {
-        SH_ERROR_FORMAT("Error in vkCreateWin32SurfaceKHR: {}", string_VkResult(result));
-        throw std::runtime_error{ "Failed to vkCreateWin32SurfaceKHR" };
-    }
+    VK_RESULT_CHECK(vkCreateWin32SurfaceKHR(instancePtr, &ci, nullptr, &surface));
 }
 
 void VulkanContext::QueryPhysicalDevice()
@@ -334,17 +351,32 @@ void VulkanContext::SelectQueue()
 
     for (int i = 0; i < queueProps.size(); ++i)
     {
+        if (graphicsQueueFamily != 0xFFFFFFFF && presentQueueFamily != 0xFFFFFFFF && computeQueueFamily != 0xFFFFFFFF) // ë‹¤ ê³ ë¥¸ ìƒíƒœ
+            break;
+
         const auto& p = queueProps[i];
         if (p.queueCount == 0)
             continue;
 
-        if (p.queueFlags & VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT)
-            graphicsQueueFamily = i;
+        if (graphicsQueueFamily == 0xFFFFFFFF)
+        {
+            if (p.queueFlags & VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT)
+                graphicsQueueFamily = i;
+        }
         
-        VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, surface, &presentSupport);
-        if (presentSupport)
-            presentQueueFamily = i;
+        if (presentQueueFamily == 0xFFFFFFFF)
+        {
+            VkBool32 presentSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, surface, &presentSupport);
+            if (presentSupport)
+                presentQueueFamily = i;
+        }
+
+        if (computeQueueFamily = 0xFFFFFFFF)
+        {
+            if (p.queueFlags & VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT)
+                computeQueueFamily = i;
+        }
     }
     if (graphicsQueueFamily == 0xFFFFFFFF)
     {
@@ -355,6 +387,11 @@ void VulkanContext::SelectQueue()
     {
         SH_ERROR("Not found presentQueueFamily!");
         throw std::runtime_error{ "Not found presentQueueFamily!" };
+    }
+    if (computeQueueFamily == 0xFFFFFFFF)
+    {
+        SH_ERROR("Not found computeQueueFamily!");
+        throw std::runtime_error{ "Not found computeQueueFamily!" };
     }
 }
 
@@ -403,6 +440,7 @@ void VulkanContext::CreateDevice()
 
     vkGetDeviceQueue(device, graphicsQueueFamily, 0, &graphicsQueue);
     vkGetDeviceQueue(device, presentQueueFamily, 0, &presentQueue);
+    vkGetDeviceQueue(device, computeQueueFamily, 0, &computeQueue);
 }
 
 void VulkanContext::CreateSwapChain()
@@ -422,7 +460,7 @@ void VulkanContext::CreateSwapChain()
     VkPresentModeKHR selectPresentMode = VkPresentModeKHR::VK_PRESENT_MODE_FIFO_KHR;
     for (const VkPresentModeKHR& mode : presentModes)
     {
-        //»ïÁß ¹öÆÛ¸µ
+        //ì‚¼ì¤‘ ë²„í¼ë§
         if (mode == VkPresentModeKHR::VK_PRESENT_MODE_MAILBOX_KHR)
         {
             SH_INFO("VK_PRESENT_MODE_MAILBOX_KHR");
@@ -456,7 +494,7 @@ void VulkanContext::CreateSwapChain()
     info.presentMode = selectPresentMode;
     info.clipped = true;
     info.oldSwapchain = oldSwapchain;
-    if (graphicsQueue == presentQueue)
+    if (graphicsQueueFamily == presentQueueFamily)
     {
         info.imageSharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
         info.queueFamilyIndexCount = 0;
@@ -469,12 +507,7 @@ void VulkanContext::CreateSwapChain()
         info.queueFamilyIndexCount = 2;
         info.pQueueFamilyIndices = fams;
     }
-    VkResult result = vkCreateSwapchainKHR(device, &info, nullptr, &swapChain);
-    if (result != VkResult::VK_SUCCESS)
-    {
-        SH_ERROR_FORMAT("Failed to vkCreateSwapchainKHR!: {}", string_VkResult(result));
-        throw std::runtime_error("Failed to vkCreateSwapchainKHR!");
-    }
+    VK_RESULT_CHECK(vkCreateSwapchainKHR(device, &info, nullptr, &swapChain));
 
     uint32_t imageCount = 0;
     vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
@@ -501,18 +534,13 @@ void VulkanContext::CreateSwapChain()
         ci.subresourceRange.levelCount = 1;
         ci.subresourceRange.baseArrayLayer = 0;
         ci.subresourceRange.layerCount = 1;
-
-        if (VkResult result = vkCreateImageView(device, &ci, nullptr, &swapChainImageViews[i]); result != VkResult::VK_SUCCESS)
-        {
-            SH_ERROR_FORMAT("Failed to create image views!: {}", string_VkResult(result));
-            throw std::runtime_error("Failed to create image views!");
-        }
+        VK_RESULT_CHECK(vkCreateImageView(device, &ci, nullptr, &swapChainImageViews[i]));
     }
 
     swapChainDepthImages.resize(swapChainImages.size());
     swapChainDepthMemories.resize(swapChainImages.size());
     swapChainDepthImageViews.resize(swapChainImages.size());
-    // ±íÀÌ ¹öÆÛ
+    // ê¹Šì´ ë²„í¼
     for (std::size_t i = 0; i < swapChainDepthImages.size(); ++i)
     {
         VkImage& depthImg = swapChainDepthImages[i];
@@ -534,12 +562,7 @@ void VulkanContext::CreateSwapChain()
         imageCi.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
         imageCi.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
         imageCi.flags = 0;
-
-        if (VkResult result = vkCreateImage(device, &imageCi, nullptr, &depthImg); result != VkResult::VK_SUCCESS)
-        {
-            SH_ERROR_FORMAT("Failed to create depth image!: {}", string_VkResult(result));
-            throw std::runtime_error{ "Failed to create depth image!" };
-        }
+        VK_RESULT_CHECK(vkCreateImage(device, &imageCi, nullptr, &depthImg));
 
         VkMemoryRequirements memRequirements;
         vkGetImageMemoryRequirements(device, depthImg, &memRequirements);
@@ -549,11 +572,7 @@ void VulkanContext::CreateSwapChain()
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        if (VkResult result = vkAllocateMemory(device, &allocInfo, nullptr, &depthMem); result != VK_SUCCESS) 
-        {
-            SH_ERROR_FORMAT("Failed to allocate image memory!: {}", string_VkResult(result));
-            throw std::runtime_error("Failed to allocate image memory!");
-        }
+        VK_RESULT_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &depthMem));
         vkBindImageMemory(device, depthImg, depthMem, 0);
 
         VkImageViewCreateInfo ci{};
@@ -570,12 +589,7 @@ void VulkanContext::CreateSwapChain()
         ci.subresourceRange.levelCount = 1;
         ci.subresourceRange.baseArrayLayer = 0;
         ci.subresourceRange.layerCount = 1;
-
-        if (VkResult result = vkCreateImageView(device, &ci, nullptr, &depthView); result != VkResult::VK_SUCCESS)
-        {
-            SH_ERROR_FORMAT("Failed to create image views!: {}", string_VkResult(result));
-            throw std::runtime_error("Failed to create image views!");
-        }
+        VK_RESULT_CHECK(vkCreateImageView(device, &ci, nullptr, &depthView));
     }
 
 }
@@ -587,10 +601,14 @@ void VulkanContext::CreateCommandPool()
     ci.queueFamilyIndex = graphicsQueueFamily;
     ci.flags = VkCommandPoolCreateFlagBits::VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    if (VkResult result = vkCreateCommandPool(device, &ci, nullptr, &commandPool); result != VkResult::VK_SUCCESS)
+    VK_RESULT_CHECK(vkCreateCommandPool(device, &ci, nullptr, &graphicsCommandPool));
+
+    if (graphicsQueueFamily == computeQueueFamily)
+        computeCommandPool = graphicsCommandPool;
+    else
     {
-        SH_ERROR_FORMAT("Failed to create command pool!: {}", string_VkResult(result));
-        throw std::runtime_error{ "Failed to create command pool!" };
+        ci.queueFamilyIndex = computeQueueFamily;
+        VK_RESULT_CHECK(vkCreateCommandPool(device, &ci, nullptr, &computeCommandPool));
     }
 }
 
@@ -612,19 +630,4 @@ void VulkanContext::ClearSwapChain()
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
-}
-
-auto VulkanContext::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const -> uint32_t
-{
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(gpu, &memProperties);
-
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-    {
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) 
-            return i;
-    }
-
-    SH_ERROR("Failed to find suitable memory type!");
-    throw std::runtime_error("Failed to find suitable memory type!");
 }
