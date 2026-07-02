@@ -110,8 +110,8 @@ void Scene::CreatePipeline()
 
 	VK_RESULT_CHECK(vkCreatePipelineLayout(ctx.GetDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
-	vertShader = LoadShader(ctx.GetDevice(), "shaders/triangle.vert.spv");
-	fragShader = LoadShader(ctx.GetDevice(), "shaders/triangle.frag.spv");
+	vertShader = LoadShader(ctx.GetDevice(), "shaders/mesh.vert.spv");
+	fragShader = LoadShader(ctx.GetDevice(), "shaders/mesh.frag.spv");
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 	vertShaderStageInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
