@@ -3,6 +3,8 @@
 #include "VulkanBuffer.h"
 
 #include "imgui/backends/imgui_impl_vulkan.h"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/quaternion.hpp"
 
 #include <fstream>
 #include <vector>
@@ -14,7 +16,10 @@ Scene::Scene(VulkanContext& ctx, const ImGUI& imgui) :
 }
 void Scene::Init()
 {
-	uniformData.color = { 1.f, 1.f, 1.f, 1.f };
+	camera.UpdateMatrix();
+	cameraUniformData.view = camera.GetMatrixView();
+	cameraUniformData.proj = camera.GetMatrixProj();
+	uniformData.color = glm::vec4{ 0.f, 1.f, 0.f, 1.f };
 
 	CreateSyncObjects();
 	PrepareCommandBuffer();
@@ -65,11 +70,14 @@ void Scene::Render(double dt)
 	if (!PrepareFrame())
 		return;
 
-	static float x = 0.f;
-	x += dt;
-	float r = (glm::sin(x) + 1) * 0.5f;
-	uniformData.color = { r, 1 - r, r, 1.f };
+	cameraUniformBuffers[currentFrame]->SetData(&cameraUniformData);
 	uniformBuffers[currentFrame]->SetData(&uniformData);
+
+	static float ydir = 0.f;
+	ydir += 30 * dt;
+	glm::quat quat{ glm::radians(glm::vec3{0.f, ydir, 0.f}) };
+
+	modelMatrix = glm::mat4_cast(quat) * glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, 0.f });
 
 	BuildCommandBuffer();
 	SubmitCommandBuffer();
@@ -101,12 +109,17 @@ void Scene::CreateSyncObjects()
 
 void Scene::CreatePipeline()
 {
+	VkPushConstantRange pushConstantRange{};
+	pushConstantRange.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(glm::mat4);
+
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &descSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
-	pipelineLayoutInfo.pPushConstantRanges = nullptr;
+	pipelineLayoutInfo.pushConstantRangeCount = 1;
+	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
 	VK_RESULT_CHECK(vkCreatePipelineLayout(ctx.GetDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
@@ -373,6 +386,8 @@ void Scene::BuildCommandBuffer()
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(cmd[currentFrame], 0, 1, vertBuffers, offsets);
 	vkCmdBindIndexBuffer(cmd[currentFrame], plane.GetIndexBuffer()->GetBuffer(), 0, VkIndexType::VK_INDEX_TYPE_UINT32);
+	glm::mat4 model{ 1.f };
+	vkCmdPushConstants(cmd[currentFrame], pipelineLayout, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &modelMatrix);
 	vkCmdDrawIndexed(cmd[currentFrame], plane.GetIndices().size(), 1, 0, 0, 0);
 
 	ImDrawData* drawData = ImGui::GetDrawData();
@@ -437,19 +452,21 @@ void Scene::PrepareUniformBuffer()
 	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
 	{
 		const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-		uniformBuffers[i] = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(UniformData)));
+		uniformBuffers[i] = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData)));
 		uniformBuffers[i]->Map();
 		uniformBuffers[i]->SetData(&uniformData);
+
+		cameraUniformBuffers[i] = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData)));
+		cameraUniformBuffers[i]->Map();
+		cameraUniformBuffers[i]->SetData(&cameraUniformData);
 	}
 }
 
 void Scene::SetupDescriptor()
 {
-	const VkDescriptorPoolSize poolSize
-	{
-		.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		.descriptorCount = VulkanContext::MAX_CONCURRENT_FRAMES
-	};
+	VkDescriptorPoolSize poolSize{};
+	poolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize.descriptorCount = VulkanContext::MAX_CONCURRENT_FRAMES;
 	VkDescriptorPoolCreateInfo poolCi{};
 	poolCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	poolCi.maxSets = VulkanContext::MAX_CONCURRENT_FRAMES;
@@ -460,9 +477,14 @@ void Scene::SetupDescriptor()
 	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 	VkDescriptorSetLayoutBinding& binding0 = setLayoutBindings.emplace_back();
 	binding0.binding = 0;
-	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
 	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	binding0.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding1 = setLayoutBindings.emplace_back();
+	binding1.binding = 1;
+	binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	binding1.descriptorCount = 1;
 
 	VkDescriptorSetLayoutCreateInfo layoutCi{};
 	layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -483,9 +505,12 @@ void Scene::SetupDescriptor()
 		writeSet.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		writeSet.dstSet = descSets[i];
 		writeSet.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		writeSet.dstBinding = 0;
-		writeSet.pBufferInfo = &uniformBuffers[i]->GetDescriptorBufferInfo();
 		writeSet.descriptorCount = 1;
+		writeSet.dstBinding = 0;
+		writeSet.pBufferInfo = &cameraUniformBuffers[i]->GetDescriptorBufferInfo();
+		vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
+		writeSet.dstBinding = 1;
+		writeSet.pBufferInfo = &uniformBuffers[i]->GetDescriptorBufferInfo();
 		vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
 	}
 	

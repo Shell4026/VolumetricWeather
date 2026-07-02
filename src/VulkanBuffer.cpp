@@ -1,4 +1,4 @@
-#include "VulkanBuffer.h"
+﻿#include "VulkanBuffer.h"
 
 #include "Logger.h"
 VulkanBuffer::~VulkanBuffer()
@@ -48,7 +48,6 @@ void VulkanBuffer::SetData(void* data)
 	{
 		Map();
 		std::memcpy(mapped, data, size);
-		UnMap();
 	}
 }
 auto VulkanBuffer::Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, void* data) -> VulkanBuffer

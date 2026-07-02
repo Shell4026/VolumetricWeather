@@ -2,6 +2,7 @@
 #include "VulkanContext.h"
 #include "VulkanBuffer.h"
 #include "Mesh.h"
+#include "Camera.h"
 
 #include <glm/glm.hpp>
 
@@ -55,14 +56,8 @@ private:
 	VkDescriptorPool descPool = VK_NULL_HANDLE;
 	VkDescriptorSetLayout descSetLayout = VK_NULL_HANDLE;
 	std::array<VkDescriptorSet, VulkanContext::MAX_CONCURRENT_FRAMES> descSets{ VK_NULL_HANDLE };
+	std::array<std::unique_ptr<VulkanBuffer>, VulkanContext::MAX_CONCURRENT_FRAMES> cameraUniformBuffers;
 	std::array<std::unique_ptr<VulkanBuffer>, VulkanContext::MAX_CONCURRENT_FRAMES> uniformBuffers;
-
-	struct Vertex
-	{
-		glm::vec3 v;
-	};
-	Mesh<Vertex> plane;
-
 	struct Compute
 	{
 		struct Image
@@ -84,8 +79,23 @@ private:
 	uint32_t currentFrame = 0;
 
 	// 일반 리소스
-	struct UniformData
+	Camera camera;
+
+	struct Vertex
+	{
+		glm::vec3 v;
+	};
+	Mesh<Vertex> plane;
+
+	struct alignas(16) CameraUniform
+	{
+		glm::mat4 view;
+		glm::mat4 proj;
+	} cameraUniformData;
+	struct alignas(16) Uniform
 	{
 		glm::vec4 color;
 	} uniformData;
+
+	glm::mat4 modelMatrix{ 1.f };
 };
