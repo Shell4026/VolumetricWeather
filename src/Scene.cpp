@@ -26,32 +26,33 @@ void Scene::Init()
 
 	PrepareResource();
 	PrepareUniformBuffer();
+	SetupDescriptorPool();
 	SetupDescriptor();
 
 	CreatePipeline();
+
+	BuildComputeCommandBuffer();
 }
 
 void Scene::Clear()
 {
 	vkDeviceWaitIdle(ctx.GetDevice());
 
-	plane.Clear();
+	atomosphere.Clear(ctx);
 
+	plane.Clear();
 	vkDestroyDescriptorSetLayout(ctx.GetDevice(), descSetLayout, nullptr);
 	descSetLayout = VK_NULL_HANDLE;
 	vkDestroyDescriptorPool(ctx.GetDevice(), descPool, nullptr);
 	descPool = VK_NULL_HANDLE;
 
-	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
-	{
-		vkDestroyFence(ctx.GetDevice(), inFlightFence[i], nullptr);
-		inFlightFence[i] = VK_NULL_HANDLE;
-		vkDestroySemaphore(ctx.GetDevice(), semaphores[i].imageAvailable, nullptr);
-		semaphores[i].imageAvailable = VK_NULL_HANDLE;
-	}
-	for (VkSemaphore& semaphore : renderFinishedSemaphores)
-		vkDestroySemaphore(ctx.GetDevice(), semaphore, nullptr);
+	vkDestroySemaphore(ctx.GetDevice(), imageAvailableSemaphore, nullptr);
+	imageAvailableSemaphore = VK_NULL_HANDLE;
+	for (VkSemaphore semaphore : renderFinishedSemaphores)
+	vkDestroySemaphore(ctx.GetDevice(), semaphore, nullptr);
 	renderFinishedSemaphores.clear();
+	vkDestroyFence(ctx.GetDevice(), inFlightFence, nullptr);
+	inFlightFence = VK_NULL_HANDLE;
 
 	vkDestroyPipeline(ctx.GetDevice(), pipeline, nullptr);
 	pipeline = VK_NULL_HANDLE;
@@ -64,47 +65,47 @@ void Scene::Clear()
 	vkDestroyPipelineLayout(ctx.GetDevice(), pipelineLayout, nullptr);
 	pipelineLayout = VK_NULL_HANDLE;
 }
+void Scene::Atomosphere::Clear(const VulkanContext& ctx)
+{
+	vkDestroySampler(ctx.GetDevice(), storageImgSampler, nullptr);
+	storageImg.reset();
+	vkDestroyDescriptorSetLayout(ctx.GetDevice(), descSetLayout, nullptr);
+	descSetLayout = VK_NULL_HANDLE;
+	vkDestroyPipeline(ctx.GetDevice(), pipeline, nullptr);
+	pipeline = VK_NULL_HANDLE;
+	vkDestroyShaderModule(ctx.GetDevice(), computeShader, nullptr);
+	computeShader = VK_NULL_HANDLE;
+	vkDestroyPipelineLayout(ctx.GetDevice(), pipelineLayout, nullptr);
+	pipelineLayout = VK_NULL_HANDLE;
+}
 
 void Scene::Render(double dt)
 {
-	if (!PrepareFrame())
-		return;
-
-	cameraUniformBuffers[currentFrame]->SetData(&cameraUniformData);
-	uniformBuffers[currentFrame]->SetData(&uniformData);
-
 	static float ydir = 0.f;
 	ydir += 30 * dt;
 	glm::quat quat{ glm::radians(glm::vec3{0.f, ydir, 0.f}) };
-
 	modelMatrix = glm::mat4_cast(quat) * glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, 0.f });
 
+	BeginFrame();
+	cameraUniformBuffers->SetData(&cameraUniformData);
+	uniformBuffers->SetData(&uniformData);
 	BuildCommandBuffer();
 	SubmitCommandBuffer();
 }
 
 void Scene::CreateSyncObjects()
 {
-	const VkSemaphoreCreateInfo ci
-	{
-		.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-	};
-
-	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
-	{
-		VK_RESULT_CHECK(vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphores[i].imageAvailable));
-
-		const VkFenceCreateInfo fenceCi
-		{
-			.sType = VkStructureType::VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT,
-		};
-		VK_RESULT_CHECK(vkCreateFence(ctx.GetDevice(), &fenceCi, nullptr, &inFlightFence[i]));
-	}
+	VkSemaphoreCreateInfo ci{};
+	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	VK_RESULT_CHECK(vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &imageAvailableSemaphore));
 	renderFinishedSemaphores.resize(ctx.GetSwapChainImages().size());
-	for (VkSemaphore& semaphore : renderFinishedSemaphores)
-		VK_RESULT_CHECK(vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &semaphore));
+	for (std::size_t i = 0; i < ctx.GetSwapChainImages().size(); ++i)
+		VK_RESULT_CHECK(vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &renderFinishedSemaphores[i]));
+
+	VkFenceCreateInfo fenceCi{};
+	fenceCi.sType = VkStructureType::VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceCi.flags = VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT;
+	VK_RESULT_CHECK(vkCreateFence(ctx.GetDevice(), &fenceCi, nullptr, &inFlightFence));
 }
 
 void Scene::CreatePipeline()
@@ -286,6 +287,8 @@ void Scene::CreatePipeline()
 	pipelineInfo.pNext = &pipelineRenderingCI;
 
 	VK_RESULT_CHECK(vkCreateGraphicsPipelines(ctx.GetDevice(), nullptr, 1, &pipelineInfo, nullptr, &pipeline));
+
+	CreateAtmospherePipeline();
 }
 
 void Scene::PrepareCommandBuffer()
@@ -295,23 +298,18 @@ void Scene::PrepareCommandBuffer()
 	info.commandPool = ctx.GetCommandPool();
 	info.level = VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	info.commandBufferCount = 1;
-
-	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
-		VK_RESULT_CHECK(vkAllocateCommandBuffers(ctx.GetDevice(), &info, &cmd[i]));
+	VK_RESULT_CHECK(vkAllocateCommandBuffers(ctx.GetDevice(), &info, &cmd));
 
 	// 컴퓨트용
 	info.commandPool = ctx.GetComputeCommandPool();
-	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
-		VK_RESULT_CHECK(vkAllocateCommandBuffers(ctx.GetDevice(), &info, &compute.cmd[i]));
+	VK_RESULT_CHECK(vkAllocateCommandBuffers(ctx.GetDevice(), &info, &compute.cmd));
 }
 
 void Scene::BuildCommandBuffer()
 {
-	vkResetCommandBuffer(cmd[currentFrame], 0);
+	BuildComputeCommandBuffer();
 
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.pNext = nullptr;
+	vkResetCommandBuffer(cmd, 0);
 
 	VkRenderingAttachmentInfo colorAttachment{};
 	colorAttachment.sType = VkStructureType::VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -342,25 +340,36 @@ void Scene::BuildCommandBuffer()
 	const float y = 0.f;
 	const float w = ctx.GetSwapChainExtent().width;
 	const float h = ctx.GetSwapChainExtent().height;
-	vkBeginCommandBuffer(cmd[currentFrame], &beginInfo);
 
-	ctx.BarrierCommand(cmd[currentFrame], ctx.GetSwapChainImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-		VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED, 
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.pNext = nullptr;
+	vkBeginCommandBuffer(cmd, &beginInfo);
+
+	ctx.BarrierCommand(cmd, ctx.GetSwapChainImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
 		VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		0, 
+		0,
 		VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
-	ctx.BarrierCommand(cmd[currentFrame], ctx.GetSwapChainDepthImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT | VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT,
-		VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED, 
+	ctx.BarrierCommand(cmd, ctx.GetSwapChainDepthImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT | VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
 		VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VkPipelineStageFlagBits::VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VkPipelineStageFlagBits::VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-		0, 
+		0,
 		VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+	//ctx.BarrierCommand(cmd, atomosphere.storageImg[currentFrame], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+	//	VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+	//	VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	//	VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+	//	VkPipelineStageFlagBits::VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+	//	VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT,
+	//	VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_READ_BIT);
 
-	vkCmdBeginRendering(cmd[currentFrame], &renderingInfo);
+	vkCmdBeginRendering(cmd, &renderingInfo);
 
 	VkViewport viewport{};
 	viewport.minDepth = 0.0f;
@@ -375,53 +384,67 @@ void Scene::BuildCommandBuffer()
 	rect.offset.y = y;
 	rect.extent.width = w;
 	rect.extent.height = h;
-	
-	vkCmdSetViewport(cmd[currentFrame], 0, 1, &viewport);
-	vkCmdSetScissor(cmd[currentFrame], 0, 1, &rect);
 
-	vkCmdBindPipeline(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-	vkCmdBindDescriptorSets(cmd[currentFrame], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSets[currentFrame], 0, nullptr);
+	vkCmdSetViewport(cmd, 0, 1, &viewport);
+	vkCmdSetScissor(cmd, 0, 1, &rect);
+
+	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descSets, 0, nullptr);
 
 	VkBuffer vertBuffers[] = { plane.GetVertexBuffer()->GetBuffer() };
 	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(cmd[currentFrame], 0, 1, vertBuffers, offsets);
-	vkCmdBindIndexBuffer(cmd[currentFrame], plane.GetIndexBuffer()->GetBuffer(), 0, VkIndexType::VK_INDEX_TYPE_UINT32);
-	glm::mat4 model{ 1.f };
-	vkCmdPushConstants(cmd[currentFrame], pipelineLayout, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &modelMatrix);
-	vkCmdDrawIndexed(cmd[currentFrame], plane.GetIndices().size(), 1, 0, 0, 0);
+	vkCmdBindVertexBuffers(cmd, 0, 1, vertBuffers, offsets);
+	vkCmdBindIndexBuffer(cmd, plane.GetIndexBuffer()->GetBuffer(), 0, VkIndexType::VK_INDEX_TYPE_UINT32);
+	vkCmdPushConstants(cmd, pipelineLayout, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &modelMatrix);
+	vkCmdDrawIndexed(cmd, plane.GetIndices().size(), 1, 0, 0, 0);
 
 	ImDrawData* drawData = ImGui::GetDrawData();
 	if (drawData != nullptr)
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd[currentFrame]);
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
-	vkCmdEndRendering(cmd[currentFrame]);
+	vkCmdEndRendering(cmd);
 
-	ctx.BarrierCommand(cmd[currentFrame], ctx.GetSwapChainImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+	ctx.BarrierCommand(cmd, ctx.GetSwapChainImages()[currentImgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
 		VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 		0);
-	vkEndCommandBuffer(cmd[currentFrame]);
+
+	vkEndCommandBuffer(cmd);
+}
+
+auto Scene::BeginFrame() -> bool
+{
+	vkWaitForFences(ctx.GetDevice(), 1, &inFlightFence, VK_TRUE, UINT64_MAX);
+	if (!ctx.AcquireNextImage(imageAvailableSemaphore, nullptr, &currentImgIdx))
+		return false;
+	vkResetFences(ctx.GetDevice(), 1, &inFlightFence);
+	return true;
 }
 
 void Scene::SubmitCommandBuffer()
 {
-	VkPipelineStageFlags waitStages[] = { VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSubmitInfo info{};
-	info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	info.commandBufferCount = 1;
-	info.pCommandBuffers = &cmd[currentFrame];
-	info.waitSemaphoreCount = 1;
-	info.pWaitSemaphores = &semaphores[currentFrame].imageAvailable;
-	info.signalSemaphoreCount = 1;
-	info.pSignalSemaphores = &renderFinishedSemaphores[currentImgIdx];
-	info.pWaitDstStageMask = waitStages;
-	if (VkResult result = vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, inFlightFence[currentFrame]); result != VkResult::VK_SUCCESS)
 	{
-		SH_ERROR_FORMAT("Failed to submit draw command buffer!: {}", string_VkResult(result));
-		throw std::runtime_error("Failed to submit draw command buffer!");
+		VkSubmitInfo info{};
+		info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		info.commandBufferCount = 1;
+		info.pCommandBuffers = &compute.cmd;
+		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
+	}
+	{
+		VkPipelineStageFlags waitStages[] = { VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		VkSubmitInfo info{};
+		info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		info.commandBufferCount = 1;
+		info.pCommandBuffers = &cmd;
+		info.waitSemaphoreCount = 1;
+		info.pWaitSemaphores = &imageAvailableSemaphore;
+		info.signalSemaphoreCount = 1;
+		info.pSignalSemaphores = &renderFinishedSemaphores[currentImgIdx];
+		info.pWaitDstStageMask = waitStages;
+		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, inFlightFence));
 	}
 
 	VkSwapchainKHR swapChains[] = { ctx.GetSwapChain() };
@@ -433,47 +456,40 @@ void Scene::SubmitCommandBuffer()
 	presentInfo.pSwapchains = swapChains;
 	presentInfo.pImageIndices = &currentImgIdx;
 	vkQueuePresentKHR(ctx.GetPresentQueue(), &presentInfo);
-	
-	currentFrame = (currentFrame + 1) % VulkanContext::MAX_CONCURRENT_FRAMES;
-}
-
-auto Scene::PrepareFrame() -> bool
-{
-	vkWaitForFences(ctx.GetDevice(), 1, &inFlightFence[currentFrame], VK_TRUE, UINT64_MAX);
-	
-	if (!ctx.AcquireNextImage(semaphores[currentFrame].imageAvailable, nullptr, &currentImgIdx))
-		return false;
-	vkResetFences(ctx.GetDevice(), 1, &inFlightFence[currentFrame]);
-	return true;
 }
 
 void Scene::PrepareUniformBuffer()
 {
-	for (uint32_t i = 0; i < VulkanContext::MAX_CONCURRENT_FRAMES; ++i)
-	{
-		const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-		uniformBuffers[i] = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData)));
-		uniformBuffers[i]->Map();
-		uniformBuffers[i]->SetData(&uniformData);
+	const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+	uniformBuffers = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData)));
+	uniformBuffers->Map();
+	uniformBuffers->SetData(&uniformData);
 
-		cameraUniformBuffers[i] = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData)));
-		cameraUniformBuffers[i]->Map();
-		cameraUniformBuffers[i]->SetData(&cameraUniformData);
-	}
+	cameraUniformBuffers = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData)));
+	cameraUniformBuffers->Map();
+	cameraUniformBuffers->SetData(&cameraUniformData);
+}
+
+void Scene::SetupDescriptorPool()
+{
+	std::vector<VkDescriptorPoolSize> poolSizes;
+	VkDescriptorPoolSize& uniformBufferPoolSize = poolSizes.emplace_back();
+	uniformBufferPoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uniformBufferPoolSize.descriptorCount = VulkanContext::MAX_CONCURRENT_FRAMES;
+	VkDescriptorPoolSize& storageImagePoolSize = poolSizes.emplace_back();
+	storageImagePoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	storageImagePoolSize.descriptorCount = VulkanContext::MAX_CONCURRENT_FRAMES;
+
+	VkDescriptorPoolCreateInfo poolCi{};
+	poolCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolCi.maxSets = VulkanContext::MAX_CONCURRENT_FRAMES * 2;
+	poolCi.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	poolCi.pPoolSizes = poolSizes.data();
+	VK_RESULT_CHECK(vkCreateDescriptorPool(ctx.GetDevice(), &poolCi, nullptr, &descPool));
 }
 
 void Scene::SetupDescriptor()
 {
-	VkDescriptorPoolSize poolSize{};
-	poolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSize.descriptorCount = VulkanContext::MAX_CONCURRENT_FRAMES;
-	VkDescriptorPoolCreateInfo poolCi{};
-	poolCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolCi.maxSets = VulkanContext::MAX_CONCURRENT_FRAMES;
-	poolCi.poolSizeCount = 1;
-	poolCi.pPoolSizes = &poolSize;
-	VK_RESULT_CHECK(vkCreateDescriptorPool(ctx.GetDevice(), &poolCi, nullptr, &descPool));
-
 	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 	VkDescriptorSetLayoutBinding& binding0 = setLayoutBindings.emplace_back();
 	binding0.binding = 0;
@@ -497,23 +513,21 @@ void Scene::SetupDescriptor()
 	descSetAllocInfo.descriptorPool = descPool;
 	descSetAllocInfo.pSetLayouts = &descSetLayout;
 	descSetAllocInfo.descriptorSetCount = 1;
-	for (std::size_t i = 0; i < uniformBuffers.size(); ++i)
-	{
-		VK_RESULT_CHECK(vkAllocateDescriptorSets(ctx.GetDevice(), &descSetAllocInfo, &descSets[i]));
+	VK_RESULT_CHECK(vkAllocateDescriptorSets(ctx.GetDevice(), &descSetAllocInfo, &descSets));
 
-		VkWriteDescriptorSet writeSet{};
-		writeSet.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeSet.dstSet = descSets[i];
-		writeSet.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		writeSet.descriptorCount = 1;
-		writeSet.dstBinding = 0;
-		writeSet.pBufferInfo = &cameraUniformBuffers[i]->GetDescriptorBufferInfo();
-		vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
-		writeSet.dstBinding = 1;
-		writeSet.pBufferInfo = &uniformBuffers[i]->GetDescriptorBufferInfo();
-		vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
-	}
-	
+	VkWriteDescriptorSet writeSet{};
+	writeSet.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeSet.dstSet = descSets;
+	writeSet.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeSet.descriptorCount = 1;
+	writeSet.dstBinding = 0;
+	writeSet.pBufferInfo = &cameraUniformBuffers->GetDescriptorBufferInfo();
+	vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
+	writeSet.dstBinding = 1;
+	writeSet.pBufferInfo = &uniformBuffers->GetDescriptorBufferInfo();
+	vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
+
+	SetupAtmosphereDescriptor();
 }
 
 void Scene::PrepareResource()
@@ -534,56 +548,43 @@ void Scene::PrepareResource()
 		plane.Init(std::move(verts), std::move(indices));
 		plane.CreateBuffer(ctx);
 	}
-	//// 이미지
-	//{
-	//	VkImageCreateInfo imgCi{};
-	//	imgCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	//	imgCi.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
-	//	imgCi.initialLayout = compute.storageImg.layout;
-	//	imgCi.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
-	//	imgCi.imageType = VkImageType::VK_IMAGE_TYPE_2D;
-	//	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT;
-	//	imgCi.extent = { ctx.GetSwapChainExtent().width, ctx.GetSwapChainExtent().height, 1 };
-	//	imgCi.mipLevels = 1;
-	//	imgCi.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
-	//	imgCi.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
-	//	VK_RESULT_CHECK(vkCreateImage(ctx.GetDevice(), &imgCi, nullptr, &compute.storageImg.img));
+	// 이미지
+	{
+		VkImageCreateInfo imgCi{};
+		imgCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imgCi.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
+		imgCi.initialLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
+		imgCi.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
+		imgCi.imageType = VkImageType::VK_IMAGE_TYPE_2D;
+		imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT;
+		imgCi.extent = { 1024, 768, 1 };
+		imgCi.mipLevels = 1;
+		imgCi.arrayLayers = 1;
+		imgCi.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
+		imgCi.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
+		atomosphere.storageImg = 
+			std::make_unique<VulkanImage>(VulkanImage::Create(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 
-	//	VkMemoryRequirements memReqs;
-	//	vkGetImageMemoryRequirements(ctx.GetDevice(), compute.storageImg.img, &memReqs);
-	//	VkMemoryAllocateInfo memAllocInfo{};
-	//	memAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	//	memAllocInfo.allocationSize = memReqs.size;
-	//	memAllocInfo.memoryTypeIndex = ctx.FindMemoryType(memReqs.memoryTypeBits, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	//	VK_RESULT_CHECK(vkAllocateMemory(ctx.GetDevice(), &memAllocInfo, nullptr, &compute.storageImg.mem));
-	//	VK_RESULT_CHECK(vkBindImageMemory(ctx.GetDevice(), compute.storageImg.img, compute.storageImg.mem, 0));
+		VkSamplerCreateInfo samplerCi{};
+		samplerCi.sType = VkStructureType::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerCi.magFilter = VkFilter::VK_FILTER_LINEAR;
+		samplerCi.minFilter = VkFilter::VK_FILTER_LINEAR;
+		samplerCi.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerCi.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		samplerCi.addressModeV = samplerCi.addressModeU;
+		samplerCi.addressModeW = samplerCi.addressModeU;
+		samplerCi.mipLodBias = 0.0f;
+		samplerCi.maxAnisotropy = 1.0f;
+		samplerCi.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
+		samplerCi.minLod = 0.0f;
+		samplerCi.maxLod = 1.0f;
+		samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+		VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &atomosphere.storageImgSampler));
 
-	//	VkSamplerCreateInfo samplerCi{};
-	//	samplerCi.magFilter = VkFilter::VK_FILTER_LINEAR;
-	//	samplerCi.minFilter = VkFilter::VK_FILTER_LINEAR;
-	//	samplerCi.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	//	samplerCi.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	//	samplerCi.addressModeV = samplerCi.addressModeU;
-	//	samplerCi.addressModeW = samplerCi.addressModeU;
-	//	samplerCi.mipLodBias = 0.0f;
-	//	samplerCi.maxAnisotropy = 1.0f;
-	//	samplerCi.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
-	//	samplerCi.minLod = 0.0f;
-	//	samplerCi.maxLod = 1.0f;
-	//	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-	//	VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &compute.storageImg.sampler));
-
-	//	VkImageViewCreateInfo viewCi{};
-	//	viewCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	//	viewCi.viewType = VkImageViewType::VK_IMAGE_VIEW_TYPE_2D;
-	//	viewCi.format = imgCi.format;
-	//	viewCi.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-	//	viewCi.image = compute.storageImg.img;
-	//	VK_RESULT_CHECK(vkCreateImageView(ctx.GetDevice(), &viewCi, nullptr, &compute.storageImg.view));
-
-	//	compute.storageImg.descInfo.sampler = compute.storageImg.sampler;
-	//	compute.storageImg.descInfo.imageView = compute.storageImg.view;
-	//}
+		atomosphere.storageImgDescInfo.sampler = atomosphere.storageImgSampler;
+		atomosphere.storageImgDescInfo.imageView = atomosphere.storageImg->GetView();
+		atomosphere.storageImgDescInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL;
+	}
 }
 
 auto Scene::LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule
@@ -612,4 +613,92 @@ auto Scene::LoadShader(VkDevice device, const std::filesystem::path& path) -> Vk
 		throw std::runtime_error("Failed to create shader module!");
 	}
 	return shader;
+}
+
+void Scene::SetupAtmosphereDescriptor()
+{
+	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
+	VkDescriptorSetLayoutBinding& binding0 = setLayoutBindings.emplace_back();
+	binding0.binding = 0;
+	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	binding0.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding1 = setLayoutBindings.emplace_back();
+	binding1.binding = 1;
+	binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	binding1.descriptorCount = 1;
+
+	VkDescriptorSetLayoutCreateInfo layoutCi{};
+	layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutCi.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
+	layoutCi.pBindings = setLayoutBindings.data();
+	VK_RESULT_CHECK(vkCreateDescriptorSetLayout(ctx.GetDevice(), &layoutCi, nullptr, &atomosphere.descSetLayout));
+
+	VkDescriptorSetAllocateInfo descSetAllocInfo{};
+	descSetAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descSetAllocInfo.descriptorPool = descPool;
+	descSetAllocInfo.pSetLayouts = &atomosphere.descSetLayout;
+	descSetAllocInfo.descriptorSetCount = 1;
+	VK_RESULT_CHECK(vkAllocateDescriptorSets(ctx.GetDevice(), &descSetAllocInfo, &atomosphere.descSets));
+
+	VkWriteDescriptorSet writeSet{};
+	writeSet.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeSet.dstSet = atomosphere.descSets;
+	writeSet.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeSet.descriptorCount = 1;
+	writeSet.dstBinding = 0;
+	writeSet.pImageInfo = &atomosphere.storageImgDescInfo;
+	vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
+	writeSet.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeSet.dstBinding = 1;
+	writeSet.pBufferInfo = &cameraUniformBuffers->GetDescriptorBufferInfo();
+	writeSet.pImageInfo = nullptr;
+	vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
+}
+
+void Scene::CreateAtmospherePipeline()
+{
+	atomosphere.computeShader = LoadShader(ctx.GetDevice(), "shaders/atomosphere.comp.spv");
+
+	VkPipelineShaderStageCreateInfo shaderStageCI{};
+	shaderStageCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStageCI.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+	shaderStageCI.module = atomosphere.computeShader;
+	shaderStageCI.pName = "main";
+
+	VkPipelineLayoutCreateInfo pipelineLayoutCI{};
+	pipelineLayoutCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCI.setLayoutCount = 1;
+	pipelineLayoutCI.pSetLayouts = &atomosphere.descSetLayout;
+	VK_RESULT_CHECK(vkCreatePipelineLayout(ctx.GetDevice(), &pipelineLayoutCI, nullptr, &atomosphere.pipelineLayout));
+
+	VkComputePipelineCreateInfo ci{};
+	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	ci.layout = atomosphere.pipelineLayout;
+	ci.stage = shaderStageCI;
+	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &atomosphere.pipeline));
+}
+
+void Scene::BuildComputeCommandBuffer()
+{
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	vkBeginCommandBuffer(compute.cmd, &beginInfo);
+
+	ctx.BarrierCommand(compute.cmd, atomosphere.storageImg->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+		VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+		0,
+		VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT
+	);
+
+	vkCmdBindPipeline(compute.cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, atomosphere.pipeline);
+	vkCmdBindDescriptorSets(compute.cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, atomosphere.pipelineLayout, 0, 1, &atomosphere.descSets, 0, nullptr);
+	const uint32_t width = atomosphere.storageImg->GetInfo().extent.width;
+	const uint32_t height = atomosphere.storageImg->GetInfo().extent.height;
+	vkCmdDispatch(compute.cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
+	vkEndCommandBuffer(compute.cmd);
 }
