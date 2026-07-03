@@ -375,7 +375,7 @@ void Scene::BuildCommandBuffer()
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 	viewport.x = x;
-	viewport.y = y + h;
+	viewport.y = h - y;
 	viewport.width = w;
 	viewport.height = -h;
 
