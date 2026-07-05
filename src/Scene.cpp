@@ -16,7 +16,11 @@ Scene::Scene(VulkanContext& ctx, const ImGUI& imgui) :
 }
 void Scene::Init()
 {
+	camera.SetPos({ 0.f, 0.f, 0.f });
+	camera.SetTo({ 0.f, 0.f, -1.f });
+
 	camera.UpdateMatrix();
+	cameraUniformData.pos = camera.GetPos();
 	cameraUniformData.view = camera.GetMatrixView();
 	cameraUniformData.proj = camera.GetMatrixProj();
 	uniformData.color = glm::vec4{ 0.f, 1.f, 0.f, 1.f };
@@ -38,7 +42,7 @@ void Scene::Clear()
 {
 	vkDeviceWaitIdle(ctx.GetDevice());
 
-	atomosphere.Clear(ctx);
+	atmosphere.Clear(ctx);
 
 	plane.Clear();
 	vkDestroyDescriptorSetLayout(ctx.GetDevice(), descSetLayout, nullptr);
@@ -65,7 +69,7 @@ void Scene::Clear()
 	vkDestroyPipelineLayout(ctx.GetDevice(), pipelineLayout, nullptr);
 	pipelineLayout = VK_NULL_HANDLE;
 }
-void Scene::Atomosphere::Clear(const VulkanContext& ctx)
+void Scene::Atmosphere::Clear(const VulkanContext& ctx)
 {
 	vkDestroySampler(ctx.GetDevice(), storageImgSampler, nullptr);
 	storageImg.reset();
@@ -361,7 +365,7 @@ void Scene::BuildCommandBuffer()
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VkPipelineStageFlagBits::VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
 		0,
 		VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
-	//ctx.BarrierCommand(cmd, atomosphere.storageImg[currentFrame], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+	//ctx.BarrierCommand(cmd, atmosphere.storageImg[currentFrame], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 	//	VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
 	//	VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 	//	VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -562,7 +566,7 @@ void Scene::PrepareResource()
 		imgCi.arrayLayers = 1;
 		imgCi.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
 		imgCi.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
-		atomosphere.storageImg = 
+		atmosphere.storageImg = 
 			std::make_unique<VulkanImage>(VulkanImage::Create(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 
 		VkSamplerCreateInfo samplerCi{};
@@ -579,11 +583,11 @@ void Scene::PrepareResource()
 		samplerCi.minLod = 0.0f;
 		samplerCi.maxLod = 1.0f;
 		samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-		VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &atomosphere.storageImgSampler));
+		VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &atmosphere.storageImgSampler));
 
-		atomosphere.storageImgDescInfo.sampler = atomosphere.storageImgSampler;
-		atomosphere.storageImgDescInfo.imageView = atomosphere.storageImg->GetView();
-		atomosphere.storageImgDescInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL;
+		atmosphere.storageImgDescInfo.sampler = atmosphere.storageImgSampler;
+		atmosphere.storageImgDescInfo.imageView = atmosphere.storageImg->GetView();
+		atmosphere.storageImgDescInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL;
 	}
 }
 
@@ -633,22 +637,22 @@ void Scene::SetupAtmosphereDescriptor()
 	layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutCi.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
 	layoutCi.pBindings = setLayoutBindings.data();
-	VK_RESULT_CHECK(vkCreateDescriptorSetLayout(ctx.GetDevice(), &layoutCi, nullptr, &atomosphere.descSetLayout));
+	VK_RESULT_CHECK(vkCreateDescriptorSetLayout(ctx.GetDevice(), &layoutCi, nullptr, &atmosphere.descSetLayout));
 
 	VkDescriptorSetAllocateInfo descSetAllocInfo{};
 	descSetAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	descSetAllocInfo.descriptorPool = descPool;
-	descSetAllocInfo.pSetLayouts = &atomosphere.descSetLayout;
+	descSetAllocInfo.pSetLayouts = &atmosphere.descSetLayout;
 	descSetAllocInfo.descriptorSetCount = 1;
-	VK_RESULT_CHECK(vkAllocateDescriptorSets(ctx.GetDevice(), &descSetAllocInfo, &atomosphere.descSets));
+	VK_RESULT_CHECK(vkAllocateDescriptorSets(ctx.GetDevice(), &descSetAllocInfo, &atmosphere.descSets));
 
 	VkWriteDescriptorSet writeSet{};
 	writeSet.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeSet.dstSet = atomosphere.descSets;
+	writeSet.dstSet = atmosphere.descSets;
 	writeSet.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	writeSet.descriptorCount = 1;
 	writeSet.dstBinding = 0;
-	writeSet.pImageInfo = &atomosphere.storageImgDescInfo;
+	writeSet.pImageInfo = &atmosphere.storageImgDescInfo;
 	vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
 	writeSet.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	writeSet.dstBinding = 1;
@@ -659,25 +663,25 @@ void Scene::SetupAtmosphereDescriptor()
 
 void Scene::CreateAtmospherePipeline()
 {
-	atomosphere.computeShader = LoadShader(ctx.GetDevice(), "shaders/atomosphere.comp.spv");
+	atmosphere.computeShader = LoadShader(ctx.GetDevice(), "shaders/atmosphere.comp.spv");
 
 	VkPipelineShaderStageCreateInfo shaderStageCI{};
 	shaderStageCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	shaderStageCI.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-	shaderStageCI.module = atomosphere.computeShader;
+	shaderStageCI.module = atmosphere.computeShader;
 	shaderStageCI.pName = "main";
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCI{};
 	pipelineLayoutCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCI.setLayoutCount = 1;
-	pipelineLayoutCI.pSetLayouts = &atomosphere.descSetLayout;
-	VK_RESULT_CHECK(vkCreatePipelineLayout(ctx.GetDevice(), &pipelineLayoutCI, nullptr, &atomosphere.pipelineLayout));
+	pipelineLayoutCI.pSetLayouts = &atmosphere.descSetLayout;
+	VK_RESULT_CHECK(vkCreatePipelineLayout(ctx.GetDevice(), &pipelineLayoutCI, nullptr, &atmosphere.pipelineLayout));
 
 	VkComputePipelineCreateInfo ci{};
 	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-	ci.layout = atomosphere.pipelineLayout;
+	ci.layout = atmosphere.pipelineLayout;
 	ci.stage = shaderStageCI;
-	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &atomosphere.pipeline));
+	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &atmosphere.pipeline));
 }
 
 void Scene::BuildComputeCommandBuffer()
@@ -686,7 +690,7 @@ void Scene::BuildComputeCommandBuffer()
 	beginInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	vkBeginCommandBuffer(compute.cmd, &beginInfo);
 
-	ctx.BarrierCommand(compute.cmd, atomosphere.storageImg->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+	ctx.BarrierCommand(compute.cmd, atmosphere.storageImg->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
 		VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
 		VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -695,10 +699,10 @@ void Scene::BuildComputeCommandBuffer()
 		VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT
 	);
 
-	vkCmdBindPipeline(compute.cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, atomosphere.pipeline);
-	vkCmdBindDescriptorSets(compute.cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, atomosphere.pipelineLayout, 0, 1, &atomosphere.descSets, 0, nullptr);
-	const uint32_t width = atomosphere.storageImg->GetInfo().extent.width;
-	const uint32_t height = atomosphere.storageImg->GetInfo().extent.height;
+	vkCmdBindPipeline(compute.cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, atmosphere.pipeline);
+	vkCmdBindDescriptorSets(compute.cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, atmosphere.pipelineLayout, 0, 1, &atmosphere.descSets, 0, nullptr);
+	const uint32_t width = atmosphere.storageImg->GetInfo().extent.width;
+	const uint32_t height = atmosphere.storageImg->GetInfo().extent.height;
 	vkCmdDispatch(compute.cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
 	vkEndCommandBuffer(compute.cmd);
 }

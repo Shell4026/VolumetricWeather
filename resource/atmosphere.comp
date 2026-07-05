@@ -1,0 +1,93 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(set = 0, binding = 0, rgba8) uniform writeonly image2D outImage;
+layout(set = 0, binding = 1) uniform Camera
+{
+	vec3 pos;
+	mat4 view;
+	mat4 proj;
+} camera;
+
+vec3 PixelToViewPos(ivec2 pixel, ivec2 size)
+{
+	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+	vec3 ndc = vec3(uv * 2.0 - 1.0, 1.0);
+	vec4 viewPos = inverse(camera.proj) * vec4(ndc, 1.0);
+	viewPos /= viewPos.w;
+	return viewPos.xyz;
+}
+
+vec3 rayleighScattering(float y)
+{
+	const vec3 rayleigh = vec3(5.802, 13.558, 33.1) * 1e-6;
+	return rayleigh * exp(-y / 8000.0);
+}
+
+vec3 mieScattering(float y)
+{
+	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6;
+	return mie * exp(-y / 1200.0);
+}
+
+vec3 ScatteringCoefficient(float y)
+{
+	vec3 sigma = rayleighScattering(y) + mieScattering(y);
+	// TODO 오존
+	return sigma;
+}
+
+vec3 AbsorptionCoefficient(float y)
+{
+	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6;
+	// TODO 오존
+	return mie * exp(-y / 1200.0);
+}
+
+float RayleighPhase(float mu)
+{
+	return 3 * (1 + mu * mu) / (16 * 3.141592);
+}
+
+float MiePhase(float mu, float g)
+{
+	return 3 * (1 - g * g) * (1 + mu * mu) / (8 * 3.141592 * (2 + g * g) * pow(1 + g * g - 2 * g * mu, 3.0/2.0));
+}
+
+void main()
+{
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(outImage);
+	if (pixel.x >= size.x || pixel.y >= size.y)
+		return;
+		
+	const vec3 sunDir = normalize(vec3(0.0, -1.0, 1.0));
+	
+	const vec3 viewPos = PixelToViewPos(pixel, size);
+	const vec3 worldPos = (inverse(camera.view) * vec4(viewPos, 1.0)).xyz;
+	const vec3 rayDir = normalize(worldPos - camera.pos);
+	
+	const float mu = dot(rayDir, -sunDir);
+	
+	const int steps = 16;
+	const float stepSize = 100000 / steps;
+	
+	vec3 scat = vec3(0.0, 0.0, 0.0);
+	vec3 transmittance = vec3(1.0, 1.0, 1.0);
+	for (int i = 0; i < steps; ++i)
+	{
+		const float t = (float(i) + 0.5) * stepSize;
+		const vec3 pos = camera.pos + rayDir * t;
+		
+		const vec3 sigmaS = ScatteringCoefficient(pos.y);
+		const vec3 sigmaA = AbsorptionCoefficient(pos.y);
+		const vec3 sigmaT = sigmaS + sigmaA;
+		
+		const vec3 inscatter = rayleighScattering(pos.y) * RayleighPhase(mu) + mieScattering(pos.y) * MiePhase(mu, 0.8);
+		
+		scat += transmittance * 1 * inscatter * 20 * stepSize;
+		transmittance *= exp(-sigmaT * stepSize);
+	}
+	
+	imageStore(outImage, pixel, vec4(scat, 1.0));
+}

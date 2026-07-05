@@ -61,7 +61,7 @@ private:
 	VkDescriptorSet descSets{ VK_NULL_HANDLE };
 	std::unique_ptr<VulkanBuffer> cameraUniformBuffers;
 	std::unique_ptr<VulkanBuffer> uniformBuffers;
-	struct Atomosphere
+	struct Atmosphere
 	{
 		VkPipeline pipeline = VK_NULL_HANDLE;
 		VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
@@ -74,9 +74,11 @@ private:
 
 		VkShaderModule computeShader = VK_NULL_HANDLE;
 
+		glm::vec3 sunDir;
+
 		//std::array<VkSemaphore>
 		void Clear(const VulkanContext& ctx);
-	} atomosphere;
+	} atmosphere;
 	struct Compute
 	{
 		VkCommandBuffer cmd{ VK_NULL_HANDLE };
@@ -93,10 +95,11 @@ private:
 	};
 	Mesh<Vertex> plane;
 
-	struct alignas(16) CameraUniform
+	struct CameraUniform
 	{
-		glm::mat4 view;
-		glm::mat4 proj;
+		alignas(16) glm::vec3 pos;
+		alignas(16) glm::mat4 view;
+		alignas(16) glm::mat4 proj;
 	} cameraUniformData;
 	struct alignas(16) Uniform
 	{
