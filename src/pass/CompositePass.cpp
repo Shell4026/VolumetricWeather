@@ -3,6 +3,8 @@
 #include "VulkanBuffer.h"
 #include "VulkanImage.h"
 
+#include "imgui/backends/imgui_impl_vulkan.h"
+
 #include <vector>
 CompositePass::CompositePass(const VulkanImage& atmosphereTex) :
 	atmosphereTex(atmosphereTex)
@@ -96,6 +98,10 @@ void CompositePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &descSet, 0, nullptr);
 	vkCmdDraw(cmd, 4, 1, 0, 0);
+
+	ImDrawData* drawData = ImGui::GetDrawData();
+	if (drawData != nullptr)
+		ImGui_ImplVulkan_RenderDrawData(drawData, cmd);
 
 	vkCmdEndRendering(cmd);
 }
