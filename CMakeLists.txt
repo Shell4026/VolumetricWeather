@@ -7,7 +7,7 @@ project ("VolumetricWeather" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 
-add_executable (VolumetricWeather "main.cpp" "include/Logger.h" "src/Logger.cpp" "src/VulkanContext.cpp" "include/VulkanContext.h" "include/Window.h" "src/Window.cpp" "include/PCH.h" "src/Scene.cpp" "include/Scene.h" "src/VulkanBuffer.cpp" "include/VulkanBuffer.h" "src/ImGUI.cpp" "include/ImGUI.h"   "src/Mesh.cpp" "include/Mesh.h" "src/Camera.cpp" "include/Camera.h" "src/VulkanImage.cpp" "include/VulkanImage.h")
+add_executable (VolumetricWeather "main.cpp" "include/Logger.h" "src/Logger.cpp" "src/VulkanContext.cpp" "include/VulkanContext.h" "include/Window.h" "src/Window.cpp" "include/PCH.h" "src/Scene.cpp" "include/Scene.h" "src/VulkanBuffer.cpp" "include/VulkanBuffer.h" "src/ImGUI.cpp" "include/ImGUI.h"   "src/Mesh.cpp" "include/Mesh.h" "src/Camera.cpp" "include/Camera.h" "src/VulkanImage.cpp" "include/VulkanImage.h" "src/pass/CompositePass.cpp" "include/pass/CompositePass.h" "include/pass/APass.h" "src/pass/APass.cpp" "include/FrameContext.h" "include/BarrierInfo.h" "src/pass/AtmospherePass.cpp" "include/pass/AtmospherePass.h")
 
 find_package(Vulkan)
 

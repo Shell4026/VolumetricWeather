@@ -419,6 +419,11 @@ void VulkanContext::CreateDevice()
     dynamicFeatures.dynamicRendering = true;
     dynamicFeatures.pNext = nullptr;
 
+    VkPhysicalDeviceTimelineSemaphoreFeatures tsFeatures{};
+    tsFeatures.sType = VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+    tsFeatures.timelineSemaphore = VK_TRUE;
+    tsFeatures.pNext = &dynamicFeatures;
+
     VkDeviceCreateInfo ci{};
     ci.sType = VkStructureType::VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     ci.pQueueCreateInfos = queueCreateInfos.data();
@@ -428,7 +433,7 @@ void VulkanContext::CreateDevice()
     ci.ppEnabledLayerNames = nullptr;
     ci.enabledExtensionCount = reqDeviceExtensions.size();
     ci.ppEnabledExtensionNames = reqDeviceExtensions.data();
-    ci.pNext = &dynamicFeatures;
+    ci.pNext = &tsFeatures;
 
     VkResult result = vkCreateDevice(gpu, &ci, nullptr, &device);
     assert(result == VkResult::VK_SUCCESS);

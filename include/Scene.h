@@ -4,6 +4,9 @@
 #include "VulkanImage.h"
 #include "Mesh.h"
 #include "Camera.h"
+#include "FrameContext.h"
+#include "pass/AtmospherePass.h"
+#include "pass/CompositePass.h"
 
 #include <glm/glm.hpp>
 
@@ -22,89 +25,41 @@ public:
 	virtual void Clear();
 	virtual void Render(double dt);
 protected:
-	virtual void CreateSyncObjects();
-	virtual void CreatePipeline();
-	virtual void PrepareCommandBuffer();
-	virtual void BuildCommandBuffer();
-	virtual auto BeginFrame() -> bool;
-	virtual void SubmitCommandBuffer();
-	virtual void PrepareUniformBuffer();
+	virtual void CreateBuffers();
 	virtual void SetupDescriptorPool();
 	virtual void SetupDescriptor();
-	virtual void PrepareResource();
+	virtual void InitFrameContext();
+	virtual void CreateSyncObjects();
 
-	static auto LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule;
-private:
-	void SetupAtmosphereDescriptor();
-	void CreateAtmospherePipeline();
-	void BuildComputeCommandBuffer();
+	virtual void BuildCommandBuffer();
+	virtual void SubmitCommandBuffer();
 public:
 	VulkanContext& ctx;
 	const ImGUI& imgui;
-protected:
-	VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-	VkPipeline pipeline = VK_NULL_HANDLE;
-
-	VkCommandBuffer cmd = VK_NULL_HANDLE;
 private:
+	std::array<FrameContext, VulkanContext::MAX_CONCURRENT_FRAMES> frames;
 	// 동기화 객체
-	VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
+	VkSemaphore timelineSemaphore = VK_NULL_HANDLE;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
-	VkFence inFlightFence = VK_NULL_HANDLE;
+	uint64_t nextSubmitValue = 1;
+	uint32_t currentImgIdx = 0;
+	uint32_t currentFrameIdx = 0;
 
 	// 불칸 리소스들
-	VkShaderModule vertShader = VK_NULL_HANDLE;
-	VkShaderModule fragShader = VK_NULL_HANDLE;
-
 	VkDescriptorPool descPool = VK_NULL_HANDLE;
-	VkDescriptorSetLayout descSetLayout = VK_NULL_HANDLE;
-	VkDescriptorSet descSets{ VK_NULL_HANDLE };
-	std::unique_ptr<VulkanBuffer> cameraUniformBuffers;
-	std::unique_ptr<VulkanBuffer> uniformBuffers;
-	struct Atmosphere
-	{
-		VkPipeline pipeline = VK_NULL_HANDLE;
-		VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-		VkDescriptorSetLayout descSetLayout = VK_NULL_HANDLE;
-		VkDescriptorSet descSets{ VK_NULL_HANDLE };
 
-		std::unique_ptr<VulkanImage> storageImg;
-		VkSampler storageImgSampler = VK_NULL_HANDLE;
-		VkDescriptorImageInfo storageImgDescInfo;
+	std::unique_ptr<AtmospherePass> atmospherePass;
+	std::unique_ptr<CompositePass> compositePass;
 
-		VkShaderModule computeShader = VK_NULL_HANDLE;
-
-		glm::vec3 sunDir;
-
-		//std::array<VkSemaphore>
-		void Clear(const VulkanContext& ctx);
-	} atmosphere;
-	struct Compute
-	{
-		VkCommandBuffer cmd{ VK_NULL_HANDLE };
-	} compute;
-	
-	uint32_t currentImgIdx = 0;
-
-	// 일반 리소스
+	// 카메라
 	Camera camera;
-
-	struct Vertex
-	{
-		glm::vec3 v;
-	};
-	Mesh<Vertex> plane;
-
 	struct CameraUniform
 	{
 		alignas(16) glm::vec3 pos;
 		alignas(16) glm::mat4 view;
 		alignas(16) glm::mat4 proj;
 	} cameraUniformData;
-	struct alignas(16) Uniform
-	{
-		glm::vec4 color;
-	} uniformData;
-
-	glm::mat4 modelMatrix{ 1.f };
+	std::unique_ptr<VulkanBuffer> cameraUniformBuffers;
+	VkDescriptorSetLayout cameraDescSetLayout = VK_NULL_HANDLE;
+	VkDescriptorSet cameraDescSet{ VK_NULL_HANDLE };
 };
