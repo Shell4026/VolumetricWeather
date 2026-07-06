@@ -1,5 +1,8 @@
-#pragma once
+﻿#pragma once
+#include "Event.h"
+
 #include <Windows.h>
+
 #include <functional>
 class Window
 {
@@ -21,6 +24,8 @@ public:
 private:
 	static LRESULT CALLBACK EventHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 	void ProcessEvents(UINT msg, WPARAM wParam, LPARAM lParam);
+
+	static auto ConvertKeycode(WPARAM wParam) -> Event::KeyType;
 private:
 	HMODULE instance = nullptr;
 	HWND hwnd = nullptr;

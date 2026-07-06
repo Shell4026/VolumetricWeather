@@ -13,6 +13,7 @@ public:
 	void SetHeight(float height) { this->height = height; }
 	void SetNear(float nearPlane) { this->nearPlane = nearPlane; }
 	void SetFar(float farPlane) { this->farPlane = farPlane; }
+
 	void UpdateMatrix();
 
 	auto GetPos() const -> const glm::vec3& { return pos; }

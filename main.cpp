@@ -22,8 +22,7 @@ int main()
 			imgui.ProcessEvent(msg, wParam, lParam);
 		}
 	);
-
-	Scene scene{ ctx, imgui };
+	Scene scene{ ctx, imgui, win };
 	scene.Init();
 
 	double dt = 0.0;

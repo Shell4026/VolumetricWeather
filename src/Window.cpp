@@ -1,4 +1,5 @@
-#include "Window.h"
+Ôªø#include "Window.h"
+#include "Input.h"
 
 #include <iostream>
 
@@ -57,7 +58,7 @@ LRESULT Window::EventHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		Window* const win = reinterpret_cast<Window*>(reinterpret_cast<CREATESTRUCTW*>(lParam)->lpCreateParams);
 		win->hwnd = hwnd;
 
-		//¿Ã∫•∆Æ∏¶ ¿¸¥ﬁ«— √¢¿« USERDATA¿« ∞™¿ª ºˆ¡§
+		//Ïù¥Î≤§Ìä∏Î•º Ï†ÑÎã¨Ìïú Ï∞ΩÏùò USERDATAÏùò Í∞íÏùÑ ÏàòÏ†ï
 		SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(win));
 	}
 
@@ -93,5 +94,80 @@ void Window::ProcessEvents(UINT msg, WPARAM wParam, LPARAM lParam)
 		mouseX = static_cast<int16_t>(LOWORD(lParam));
 		mouseY = static_cast<int16_t>(LOWORD(lParam));
 		break;
+	case WM_KEYDOWN:
+	{
+		Event::KeyType key = ConvertKeycode(wParam);
+		Input::keyPressing[static_cast<int>(key)] = true;
+		break;
 	}
+	case WM_KEYUP:
+	{
+		Event::KeyType key = ConvertKeycode(wParam);
+		Input::keyPressing[static_cast<int>(key)] = false;
+		break;
+	}
+	}
+}
+
+auto Window::ConvertKeycode(WPARAM wParam) -> Event::KeyType
+{
+	//0~9
+	if (wParam >= 0x30 && wParam <= 0x39)
+		return static_cast<Event::KeyType>(wParam - 0x30 + static_cast<int>(Event::KeyType::Num0));
+
+	//F1~F12
+	if (wParam >= VK_F1 && wParam <= VK_F12)
+		return static_cast<Event::KeyType>(wParam - VK_F1 + static_cast<int>(Event::KeyType::F1));
+
+	//A~Z
+	if (wParam >= 0x41 && wParam <= 0x5A)
+		return static_cast<Event::KeyType>(wParam - 0x41 + static_cast<int>(Event::KeyType::A));
+
+	//Left Up Right Down
+	if (wParam >= VK_LEFT && wParam <= VK_DOWN)
+		return static_cast<Event::KeyType>(wParam - VK_LEFT + static_cast<int>(Event::KeyType::Left));
+
+	//PageUp PageDown End Home
+	if (wParam >= VK_PRIOR && wParam <= VK_HOME)
+		return static_cast<Event::KeyType>(wParam - VK_PRIOR + static_cast<int>(Event::KeyType::PageUp));
+
+	//Numpad0~9
+	if (wParam >= VK_NUMPAD0 && wParam <= VK_NUMPAD9)
+		return static_cast<Event::KeyType>(wParam - VK_NUMPAD0 + static_cast<int>(Event::KeyType::Numpad0));
+
+	switch (wParam)
+	{
+	case VK_SHIFT: return Event::KeyType::Shift;
+	case VK_CONTROL: return Event::KeyType::LCtrl;
+	case VK_MENU: return Event::KeyType::LAlt;
+	case VK_SPACE: return Event::KeyType::Space;
+	case VK_BACK: return Event::KeyType::BackSpace;
+	case VK_RETURN: return Event::KeyType::Enter;
+	case VK_TAB: return Event::KeyType::Tab;
+	case VK_ESCAPE: return Event::KeyType::Esc;
+	case VK_INSERT: return Event::KeyType::Insert;
+	case VK_DELETE: return Event::KeyType::Delete;
+	case VK_ADD: return Event::KeyType::NumpadAdd;
+	case VK_SUBTRACT: return Event::KeyType::NumpadSubtract;
+	case VK_DIVIDE: return Event::KeyType::NumpadDivide;
+	case VK_MULTIPLY: return Event::KeyType::NumpadMultiply;
+	case VK_DECIMAL: return Event::KeyType::NumpadDecimal;
+	case VK_OEM_COMMA: return Event::KeyType::Comma;
+	case VK_OEM_PERIOD: return Event::KeyType::Period;
+	case VK_OEM_2: return Event::KeyType::Slash;
+	case VK_OEM_5: return Event::KeyType::BackSlash;
+	case VK_OEM_MINUS: return Event::KeyType::Minus;
+	case VK_OEM_PLUS: return Event::KeyType::Equal;
+	case VK_OEM_4: return Event::KeyType::LBracket;
+	case VK_OEM_6: return Event::KeyType::RBracket;
+	case VK_OEM_1: return Event::KeyType::Semicolon;
+	case VK_OEM_7: return Event::KeyType::Colon;
+	case VK_SNAPSHOT: return Event::KeyType::Print;
+	case VK_SCROLL: return Event::KeyType::Scroll;
+	case VK_PAUSE: return Event::KeyType::Pause;
+	case VK_NUMLOCK: return Event::KeyType::NumLock;
+	case VK_OEM_3: return Event::KeyType::Grave;
+	case VK_CAPITAL: return Event::KeyType::CapsLock;
+	}
+	return Event::KeyType::Unknown;
 }

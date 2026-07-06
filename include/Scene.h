@@ -3,7 +3,7 @@
 #include "VulkanBuffer.h"
 #include "VulkanImage.h"
 #include "Mesh.h"
-#include "Camera.h"
+#include "FPSCamera.h"
 #include "FrameContext.h"
 #include "pass/AtmospherePass.h"
 #include "pass/CompositePass.h"
@@ -16,10 +16,11 @@
 
 class VulkanBuffer;
 class ImGUI;
+class Window;
 class Scene
 {
 public:
-	Scene(VulkanContext& ctx, const ImGUI& imgui);
+	Scene(VulkanContext& ctx, const ImGUI& imgui, Window& window);
 
 	virtual void Init();
 	virtual void Clear();
@@ -36,6 +37,7 @@ protected:
 public:
 	VulkanContext& ctx;
 	const ImGUI& imgui;
+	Window& window;
 private:
 	std::array<FrameContext, VulkanContext::MAX_CONCURRENT_FRAMES> frames;
 	// 동기화 객체
@@ -52,7 +54,7 @@ private:
 	std::unique_ptr<CompositePass> compositePass;
 
 	// 카메라
-	Camera camera;
+	FPSCamera camera;
 	struct CameraUniform
 	{
 		alignas(16) glm::vec3 pos;

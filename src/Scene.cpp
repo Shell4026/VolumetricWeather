@@ -1,6 +1,8 @@
 ﻿#include "Scene.h"
 #include "Logger.h"
 #include "VulkanBuffer.h"
+#include "Window.h"
+#include "Input.h"
 
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "glm/gtc/matrix_transform.hpp"
@@ -10,15 +12,15 @@
 #include <vector>
 #include <cstdint>
 #include <array>
-Scene::Scene(VulkanContext& ctx, const ImGUI& imgui) :
-	ctx(ctx), imgui(imgui)
+Scene::Scene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
+	ctx(ctx), imgui(imgui), window(window)
 {
 }
 void Scene::Init()
 {
-	camera.SetPos({ 0.f, 0.f, 2.f });
-	camera.SetTo({ 0.f, 0.f, -1.f });
-
+	camera.SetPos(glm::vec3{ 0.f, 0.f, 0.f });
+	camera.SetYaw(-90.f);
+	camera.SetPitch(0.f);
 	camera.UpdateMatrix();
 	cameraUniformData.pos = camera.GetPos();
 	cameraUniformData.view = camera.GetMatrixView();
@@ -79,6 +81,38 @@ void Scene::Render(double dt)
 	waitInfo.pValues = &recentlyValue;
 	vkWaitSemaphores(ctx.GetDevice(), &waitInfo, UINT64_MAX);
 
+	if (Input::IsKeyDown(Event::KeyType::W))
+	{
+		camera.AddPitch(-30.0 * dt);
+		camera.UpdateMatrix();
+		cameraUniformData.pos = camera.GetPos();
+		cameraUniformData.view = camera.GetMatrixView();
+		cameraUniformData.proj = camera.GetMatrixProj();
+	}
+	if (Input::IsKeyDown(Event::KeyType::S))
+	{
+		camera.AddPitch(30.0 * dt);
+		camera.UpdateMatrix();
+		cameraUniformData.pos = camera.GetPos();
+		cameraUniformData.view = camera.GetMatrixView();
+		cameraUniformData.proj = camera.GetMatrixProj();
+	}
+	if (Input::IsKeyDown(Event::KeyType::A))
+	{
+		camera.AddYaw(-30.0 * dt);
+		camera.UpdateMatrix();
+		cameraUniformData.pos = camera.GetPos();
+		cameraUniformData.view = camera.GetMatrixView();
+		cameraUniformData.proj = camera.GetMatrixProj();
+	}
+	if (Input::IsKeyDown(Event::KeyType::D))
+	{
+		camera.AddYaw(30.0 * dt);
+		camera.UpdateMatrix();
+		cameraUniformData.pos = camera.GetPos();
+		cameraUniformData.view = camera.GetMatrixView();
+		cameraUniformData.proj = camera.GetMatrixProj();
+	}
 	cameraUniformBuffers->SetData(&cameraUniformData);
 
 	atmospherePass->SetUsages(ctx, frames[currentFrameIdx]);
@@ -103,6 +137,9 @@ void Scene::SetupDescriptorPool()
 	VkDescriptorPoolSize& storageImagePoolSize = poolSizes.emplace_back();
 	storageImagePoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	storageImagePoolSize.descriptorCount = 10;
+	VkDescriptorPoolSize& samplerPoolSize = poolSizes.emplace_back();
+	samplerPoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerPoolSize.descriptorCount = 10;
 
 	VkDescriptorPoolCreateInfo poolCi{};
 	poolCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
