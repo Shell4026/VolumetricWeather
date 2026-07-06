@@ -54,6 +54,12 @@ void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& fra
 	AddUsage(outputImage->GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 }
 
+void AtmospherePass::SetAtmosphere(const Atmosphere& atmosphere)
+{
+	this->atmosphere = atmosphere;
+	atmosphereBuffer->SetData(&this->atmosphere);
+}
+
 void AtmospherePass::PrepareResource(const VulkanContext& ctx)
 {
 	glm::vec3 sunDir = glm::normalize(glm::vec3{ 1.f, -1.f, 1.f });

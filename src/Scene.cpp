@@ -118,6 +118,21 @@ void Scene::Update(double dt)
 		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
 	}
 	ImGui::End();
+
+	ImGui::SetNextWindowSize(ImVec2{ 300.f, 300.f }, ImGuiCond_::ImGuiCond_Appearing);
+	if (ImGui::Begin("Debug"))
+	{
+		AtmospherePass::Atmosphere atmosphere = atmospherePass->GetAtmosphere();
+		ImGui::Text("Steps");
+		if (ImGui::SliderInt("##steps", &atmosphere.steps, 1, 256))
+			atmospherePass->SetAtmosphere(atmosphere);
+
+		ImGui::Text("Sun illuminance");
+		if (ImGui::SliderFloat("##SunIlluminance", &atmosphere.sun.w, 0.f, 1000.f))
+			atmospherePass->SetAtmosphere(atmosphere);
+
+		ImGui::End();
+	}
 }
 
 void Scene::Render(double dt)
