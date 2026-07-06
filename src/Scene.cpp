@@ -102,6 +102,22 @@ void Scene::Update(double dt)
 		cameraUniformData.view = camera.GetMatrixView();
 		cameraUniformData.proj = camera.GetMatrixProj();
 	}
+
+	ImGuiWindowFlags windowFlags =
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoDecoration |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoFocusOnAppearing |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoNav |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoInputs;
+	ImGui::SetNextWindowPos({ 0, 0 });
+	ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
+	if (ImGui::Begin("Overlay", nullptr, windowFlags))
+	{
+		const glm::vec3 to = camera.GetTo();
+		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
+	}
+	ImGui::End();
 }
 
 void Scene::Render(double dt)
