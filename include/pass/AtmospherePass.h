@@ -18,6 +18,7 @@ public:
 	};
 public:
 	void Clear(const VulkanContext& ctx, VkDescriptorPool descPool) override;
+	void Update(double dt) override;
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 

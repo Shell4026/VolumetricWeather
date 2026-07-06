@@ -33,6 +33,7 @@ int main()
 		win.Update();
 		imgui.Begin(dt);
 		ImGui::ShowDemoWindow();
+		scene.Update(dt);
 		imgui.End();
 		scene.Render(dt);
 

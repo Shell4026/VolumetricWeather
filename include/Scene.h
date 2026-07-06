@@ -24,6 +24,7 @@ public:
 
 	virtual void Init();
 	virtual void Clear();
+	virtual void Update(double dt);
 	virtual void Render(double dt);
 protected:
 	virtual void CreateBuffers();

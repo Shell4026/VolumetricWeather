@@ -32,6 +32,7 @@ void AtmospherePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 	atmosphereBuffer.reset();
 }
 
+void AtmospherePass::Update(double dt)
 void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();

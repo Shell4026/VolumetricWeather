@@ -65,25 +65,14 @@ void Scene::Clear()
 	timelineSemaphore = VK_NULL_HANDLE;
 }
 
-void Scene::Render(double dt)
+void Scene::Update(double dt)
 {
-	if (!ctx.AcquireNextImage(frames[currentFrameIdx].imageAvailableSemaphore, nullptr, &currentImgIdx))
-		return;
-	frames[currentFrameIdx].imgIdx = currentImgIdx;
-	uint64_t recentlyValue = 0;
-	for (FrameContext& frame : frames)
-		recentlyValue = std::max(recentlyValue, frame.submittedValue);
-
-	VkSemaphoreWaitInfo waitInfo{};
-	waitInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-	waitInfo.semaphoreCount = 1;
-	waitInfo.pSemaphores = &timelineSemaphore;
-	waitInfo.pValues = &recentlyValue;
-	vkWaitSemaphores(ctx.GetDevice(), &waitInfo, UINT64_MAX);
+	atmospherePass->Update(dt);
+	compositePass->Update(dt);
 
 	if (Input::IsKeyDown(Event::KeyType::W))
 	{
-		camera.AddPitch(-30.0 * dt);
+		camera.AddPitch(30.0 * dt);
 		camera.UpdateMatrix();
 		cameraUniformData.pos = camera.GetPos();
 		cameraUniformData.view = camera.GetMatrixView();
@@ -91,7 +80,7 @@ void Scene::Render(double dt)
 	}
 	if (Input::IsKeyDown(Event::KeyType::S))
 	{
-		camera.AddPitch(30.0 * dt);
+		camera.AddPitch(-30.0 * dt);
 		camera.UpdateMatrix();
 		cameraUniformData.pos = camera.GetPos();
 		cameraUniformData.view = camera.GetMatrixView();
@@ -113,6 +102,24 @@ void Scene::Render(double dt)
 		cameraUniformData.view = camera.GetMatrixView();
 		cameraUniformData.proj = camera.GetMatrixProj();
 	}
+}
+
+void Scene::Render(double dt)
+{
+	if (!ctx.AcquireNextImage(frames[currentFrameIdx].imageAvailableSemaphore, nullptr, &currentImgIdx))
+		return;
+	frames[currentFrameIdx].imgIdx = currentImgIdx;
+	uint64_t recentlyValue = 0;
+	for (FrameContext& frame : frames)
+		recentlyValue = std::max(recentlyValue, frame.submittedValue);
+
+	VkSemaphoreWaitInfo waitInfo{};
+	waitInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+	waitInfo.semaphoreCount = 1;
+	waitInfo.pSemaphores = &timelineSemaphore;
+	waitInfo.pValues = &recentlyValue;
+	vkWaitSemaphores(ctx.GetDevice(), &waitInfo, UINT64_MAX);
+
 	cameraUniformBuffers->SetData(&cameraUniformData);
 
 	atmospherePass->SetUsages(ctx, frames[currentFrameIdx]);

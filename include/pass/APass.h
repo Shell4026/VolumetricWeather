@@ -10,6 +10,7 @@ class APass
 public:
 	void Init(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout);
 	virtual void Clear(const VulkanContext& ctx, VkDescriptorPool descPool);
+	virtual void Update(double dt) {}
 
 	void BeginRecord(const std::vector<BarrierInfo>* barrierInfos = nullptr);
 	virtual void Record(const VulkanContext& ctx, const FrameContext& frame) = 0;
