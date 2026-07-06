@@ -33,6 +33,9 @@ void AtmospherePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 }
 
 void AtmospherePass::Update(double dt)
+{
+}
+
 void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
@@ -53,7 +56,8 @@ void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& fra
 
 void AtmospherePass::PrepareResource(const VulkanContext& ctx)
 {
-	atmosphere.sun = glm::vec4{ 0.f, -1.f, 1.f, 20.f };
+	glm::vec3 sunDir = glm::normalize(glm::vec3{ 1.f, -1.f, 1.f });
+	atmosphere.sun = glm::vec4{ sunDir, 20.f };
 	const VkBufferUsageFlags usage = VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	const VkMemoryPropertyFlags memProps = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 	atmosphereBuffer = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, usage, memProps, sizeof(atmosphere), &atmosphere));

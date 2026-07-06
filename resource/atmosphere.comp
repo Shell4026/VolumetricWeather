@@ -65,15 +65,14 @@ void main()
 	if (pixel.x >= size.x || pixel.y >= size.y)
 		return;
 		
-	const vec3 sunDir = normalize(vec3(0.0, -1.0, 1.0));
-	
+	const vec3 sunDir = atmosphere.sun.xyz;
 	const vec3 viewPos = PixelToViewPos(pixel, size);
 	const vec3 worldPos = (inverse(camera.view) * vec4(viewPos, 1.0)).xyz;
 	const vec3 rayDir = normalize(worldPos - camera.pos);
 	
 	const float mu = dot(rayDir, -sunDir);
 	
-	const int steps = 16;
+	const int steps = 32;
 	const float stepSize = 100000 / steps;
 	
 	vec3 scat = vec3(0.0, 0.0, 0.0);
@@ -89,7 +88,7 @@ void main()
 		
 		const vec3 inscatter = rayleighScattering(pos.y) * RayleighPhase(mu) + mieScattering(pos.y) * MiePhase(mu, 0.8);
 		
-		scat += transmittance * 1 * inscatter * 20 * stepSize;
+		scat += transmittance * 1 * inscatter * atmosphere.sun.w * stepSize;
 		transmittance *= exp(-sigmaT * stepSize);
 	}
 	
