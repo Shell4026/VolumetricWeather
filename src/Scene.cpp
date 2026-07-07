@@ -131,6 +131,16 @@ void Scene::Update(double dt)
 		if (ImGui::SliderFloat("##SunIlluminance", &atmosphere.sun.w, 0.f, 1000.f))
 			atmospherePass->SetAtmosphere(atmosphere);
 
+		ImGui::Text("Sun direction");
+		static float angle = 0.0f;
+		if (ImGui::SliderFloat("##SunDirection", &angle, 0.f, 360.f))
+		{
+			glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
+			glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, 1.f });
+			atmosphere.sun = glm::vec4(sunDir, atmosphere.sun.w);
+			atmospherePass->SetAtmosphere(atmosphere);
+		}
+
 		ImGui::End();
 	}
 }
