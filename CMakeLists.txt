@@ -14,6 +14,7 @@ set(HEADERS
 "include/Camera.h" 
 "include/FPSCamera.h" 
 "include/FrameContext.h" 
+"include/GPUTimer.h"
 "include/Mesh.h" 
 "include/Scene.h" 
 "include/VulkanBuffer.h" 
@@ -22,6 +23,7 @@ set(HEADERS
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
+"src/GPUTimer.cpp"
 "src/Mesh.cpp"
 "src/Scene.cpp"
 "src/VulkanBuffer.cpp"

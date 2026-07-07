@@ -54,7 +54,6 @@ public:
 	auto GetPresentQueue() const -> VkQueue { return presentQueue; }
 	auto GetComputeQueueFamily() const -> uint32_t { return computeQueueFamily; }
 	auto GetComputeQueue() const -> VkQueue { return computeQueue; }
-	auto GetQueryPool() const -> VkQueryPool { return queryPool; }
 private:
 	void QueryInstanceLayers();
 	void CreateDebugInfo();
@@ -68,7 +67,6 @@ private:
 	void CreateSwapChain();
 	void CreateCommandPool();
 	void ClearSwapChain();
-	void CreateQueryPool();
 public:
 	static constexpr uint32_t MAX_CONCURRENT_FRAMES{ 2 };
 private:
@@ -131,9 +129,6 @@ private:
 	// 커맨드 버퍼
 	VkCommandPool graphicsCommandPool = VK_NULL_HANDLE;
 	VkCommandPool computeCommandPool = VK_NULL_HANDLE;
-
-	// 쿼리
-	VkQueryPool queryPool = VK_NULL_HANDLE;
 
 	bool bEnableValidationLayers = true;
 };

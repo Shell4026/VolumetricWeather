@@ -45,9 +45,6 @@ VulkanContext::~VulkanContext()
     if (instancePtr == nullptr)
         return;
 
-    vkDestroyQueryPool(device, queryPool, nullptr);
-    queryPool = VK_NULL_HANDLE;
-
     if (graphicsCommandPool == computeCommandPool)
         computeCommandPool = VK_NULL_HANDLE;
     else
@@ -93,7 +90,6 @@ void VulkanContext::Init()
     CreateDevice();
     CreateSwapChain();
     CreateCommandPool();
-    CreateQueryPool();
 }
 
 void VulkanContext::ReSize()
@@ -639,13 +635,4 @@ void VulkanContext::ClearSwapChain()
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
-}
-
-void VulkanContext::CreateQueryPool()
-{
-    VkQueryPoolCreateInfo ci{};
-    ci.sType = VkStructureType::VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-    ci.queryType = VkQueryType::VK_QUERY_TYPE_TIMESTAMP;
-    ci.queryCount = 2;
-    vkCreateQueryPool(device, &ci, nullptr, &queryPool);
 }
