@@ -83,8 +83,8 @@ void main()
 		const vec3 pos = camera.pos + rayDir * t;
 		const float height = max(0.0, pos.y);
 		
-		const vec3 sigmaT = (ScatteringCoefficient(height) + AbsorptionCoefficient(height)) * stepSize;
-		sigmaSum += sigmaT;
+		const vec3 sigmaT = (ScatteringCoefficient(height) + AbsorptionCoefficient(height));
+		sigmaSum += sigmaT * stepSize;
 		const vec3 viewT = exp(-sigmaSum);
 
 		vec3 lightSigmaSum = vec3(0.0, 0.0, 0.0);
@@ -93,8 +93,8 @@ void main()
 			const float t = (float(j) + 0.5) * stepSize;
 			const vec3 lpos = pos + -sunDir * t;
 			const float lheight = max(0.0, lpos.y);
-			const vec3 sigmaT = (ScatteringCoefficient(lheight) + AbsorptionCoefficient(lheight)) * stepSize;
-			lightSigmaSum += sigmaT;
+			const vec3 sigmaT = (ScatteringCoefficient(lheight) + AbsorptionCoefficient(lheight));
+			lightSigmaSum += sigmaT * stepSize;
 		}
 		const vec3 lightT = exp(-lightSigmaSum);
 
