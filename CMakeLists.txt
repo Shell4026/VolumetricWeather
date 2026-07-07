@@ -6,8 +6,28 @@ project ("VolumetricWeather" LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
-
-add_executable (VolumetricWeather "main.cpp" "include/Logger.h" "src/Logger.cpp" "src/VulkanContext.cpp" "include/VulkanContext.h" "include/Window.h" "src/Window.cpp" "include/PCH.h" "src/Scene.cpp" "include/Scene.h" "src/VulkanBuffer.cpp" "include/VulkanBuffer.h" "src/ImGUI.cpp" "include/ImGUI.h"   "src/Mesh.cpp" "include/Mesh.h" "src/Camera.cpp" "include/Camera.h" "src/VulkanImage.cpp" "include/VulkanImage.h" "src/pass/CompositePass.cpp" "include/pass/CompositePass.h" "include/pass/APass.h" "src/pass/APass.cpp" "include/FrameContext.h" "include/BarrierInfo.h" "src/pass/AtmospherePass.cpp" "include/pass/AtmospherePass.h" "include/Event.h" "src/Event.cpp" "src/Input.cpp" "include/Input.h" "src/FPSCamera.cpp" "include/FPSCamera.h")
+set(CORE_HEADERS "include/core/Event.h" "include/core/ImGUI.h" "include/core/Input.h" "include/core/Logger.h" "include/core/Window.h")
+set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "src/core/Logger.cpp" "src/core/Window.cpp")
+set(PASS_HEADERS "include/pass/APass.h" "include/pass/AtmospherePass.h" "include/pass/CompositePass.h")
+set(PASS_CPPS "src/pass/APass.cpp" "src/pass/AtmospherePass.cpp" "src/pass/CompositePass.cpp")
+set(HEADERS 
+"include/Camera.h" 
+"include/FPSCamera.h" 
+"include/FrameContext.h" 
+"include/Mesh.h" 
+"include/Scene.h" 
+"include/VulkanBuffer.h" 
+"include/VulkanContext.h" 
+"include/VulkanImage.h")
+set(CPPS
+"src/Camera.cpp"
+"src/FPSCamera.cpp"
+"src/Mesh.cpp"
+"src/Scene.cpp"
+"src/VulkanBuffer.cpp"
+"src/VulkanContext.cpp"
+"src/VulkanImage.cpp")
+add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS})
 
 find_package(Vulkan)
 

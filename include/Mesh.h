@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "VulkanContext.h"
 #include "VulkanBuffer.h"
-#include "Logger.h"
+#include "core/Logger.h"
 
 #include <glm/glm.hpp>
 

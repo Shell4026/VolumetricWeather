@@ -1,4 +1,4 @@
-// dear imgui: Renderer Backend for Vulkan
+﻿// dear imgui: Renderer Backend for Vulkan
 // This needs to be used along with a Platform Backend (e.g. GLFW, SDL, Win32, custom..)
 
 // Implemented features:
@@ -27,7 +27,7 @@
 
 #pragma once
 #ifndef IMGUI_DISABLE
-#include "imgui.h"      // IMGUI_IMPL_API
+#include "../imgui.h"      // IMGUI_IMPL_API
 
 // [Configuration] in order to use a custom Vulkan function loader:
 // (1) You'll need to disable default Vulkan function prototypes.

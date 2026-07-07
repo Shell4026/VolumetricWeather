@@ -1,4 +1,4 @@
-﻿#include "Input.h"
+﻿#include "core/Input.h"
 
 std::bitset<100> Input::keyPressing{};
 

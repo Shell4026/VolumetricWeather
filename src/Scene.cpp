@@ -1,8 +1,8 @@
 ﻿#include "Scene.h"
-#include "Logger.h"
+#include "core/Logger.h"
+#include "core/Window.h"
+#include "core/Input.h"
 #include "VulkanBuffer.h"
-#include "Window.h"
-#include "Input.h"
 
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "glm/gtc/matrix_transform.hpp"

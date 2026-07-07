@@ -1,6 +1,6 @@
 ﻿#include "VulkanBuffer.h"
 
-#include "Logger.h"
+#include "core/Logger.h"
 VulkanBuffer::~VulkanBuffer()
 {
 	if (buffer != nullptr)
