@@ -26,12 +26,17 @@ void Scene::Init()
 	cameraUniformData.view = camera.GetMatrixView();
 	cameraUniformData.proj = camera.GetMatrixProj();
 
+	std::vector<GLBLoader::Node> nodes = GLBLoader::LoadGLB(ctx, "models/mountain_1.glb");
+	testMesh = std::move(nodes[5].meshPtr);
+
 	CreateBuffers();
 	SetupDescriptorPool();
 	SetupDescriptor();
 	InitFrameContext();
 	CreateSyncObjects();
 
+	opaquePass = std::make_unique<OpaquePass>();
+	opaquePass->Init(ctx, descPool, cameraDescSetLayout);
 	atmospherePass = std::make_unique<AtmospherePass>();
 	atmospherePass->Init(ctx, descPool, cameraDescSetLayout);
 	compositePass = std::make_unique<CompositePass>(*atmospherePass->GetOutputImage());
@@ -44,6 +49,7 @@ void Scene::Clear()
 
 	compositePass->Clear(ctx, descPool);
 	atmospherePass->Clear(ctx, descPool);
+	opaquePass->Clear(ctx, descPool);
 
 	vkDestroyDescriptorSetLayout(ctx.GetDevice(), cameraDescSetLayout, nullptr);
 	cameraDescSetLayout = VK_NULL_HANDLE;
@@ -186,7 +192,9 @@ void Scene::Render(double dt)
 	vkWaitSemaphores(ctx.GetDevice(), &waitInfo, UINT64_MAX);
 
 	cameraUniformBuffers->SetData(&cameraUniformData);
+	opaquePass->PushDrawMesh(*testMesh);
 
+	opaquePass->SetUsages(ctx, frames[currentFrameIdx]);
 	atmospherePass->SetUsages(ctx, frames[currentFrameIdx]);
 	compositePass->SetUsages(ctx, frames[currentFrameIdx]);
 	BuildCommandBuffer();
@@ -289,6 +297,24 @@ void Scene::BuildCommandBuffer()
 	FrameContext& frame = frames[currentFrameIdx];
 	{
 		std::vector<BarrierInfo> preBarriers;
+		for (const ImageUsage& usage : opaquePass->GetUsages())
+		{
+			BarrierInfo& barrier = preBarriers.emplace_back();
+			barrier.image = usage.image;
+			barrier.aspect = usage.aspect;
+			barrier.srcLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
+			barrier.dstLayout = usage.layout;
+			barrier.srcAccess = VkAccessFlagBits::VK_ACCESS_NONE;
+			barrier.dstAccess = usage.access;
+			barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			barrier.dstStage = usage.stage;
+		}
+		opaquePass->BeginRecord(&preBarriers);
+		opaquePass->Record(ctx, frame);
+		opaquePass->EndRecord();
+	}
+	{
+		std::vector<BarrierInfo> preBarriers;
 		for (const ImageUsage& usage : atmospherePass->GetUsages())
 		{
 			BarrierInfo& barrier = preBarriers.emplace_back();
@@ -344,6 +370,14 @@ void Scene::SubmitCommandBuffer()
 	FrameContext& frame = frames[currentFrameIdx];
 	frame.submittedValue = nextSubmitValue++;
 
+	{
+		const VkCommandBuffer cmd = opaquePass->GetCommandBuffer();
+		VkSubmitInfo info{};
+		info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		info.commandBufferCount = 1;
+		info.pCommandBuffers = &cmd;
+		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
+	}
 	{
 		const VkCommandBuffer cmd = atmospherePass->GetCommandBuffer();
 		VkSubmitInfo info{};

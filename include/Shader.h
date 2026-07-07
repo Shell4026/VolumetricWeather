@@ -9,12 +9,13 @@ class Shader
 public:
 	struct SetInfo
 	{
-		std::variant<VkDescriptorSetLayout, std::vector<VkDescriptorSetLayoutBinding>> createInfo;
+		VkDescriptorSetLayout otherLayout = VK_NULL_HANDLE;
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
 	};
 public:
 	~Shader() { Clear(); }
 	
-	void Init(VkDevice device, const std::vector<SetInfo>& setInfos);
+	void Init(VkDevice device, const std::vector<SetInfo>& setInfos, VkPushConstantRange* pushConstant = nullptr);
 	void Clear();
 	void LoadShaderModule(const std::filesystem::path& vertShader, const std::filesystem::path& fragShader);
 

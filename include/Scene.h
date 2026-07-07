@@ -5,6 +5,8 @@
 #include "Mesh.h"
 #include "FPSCamera.h"
 #include "FrameContext.h"
+#include "GLBLoader.h"
+#include "pass/OpaquePass.h"
 #include "pass/AtmospherePass.h"
 #include "pass/CompositePass.h"
 
@@ -51,6 +53,7 @@ private:
 	// 불칸 리소스들
 	VkDescriptorPool descPool = VK_NULL_HANDLE;
 
+	std::unique_ptr<OpaquePass> opaquePass;
 	std::unique_ptr<AtmospherePass> atmospherePass;
 	std::unique_ptr<CompositePass> compositePass;
 
@@ -65,4 +68,7 @@ private:
 	std::unique_ptr<VulkanBuffer> cameraUniformBuffers;
 	VkDescriptorSetLayout cameraDescSetLayout = VK_NULL_HANDLE;
 	VkDescriptorSet cameraDescSet{ VK_NULL_HANDLE };
+
+	//
+	std::unique_ptr<Mesh<GLBLoader::Vertex>> testMesh;
 };
