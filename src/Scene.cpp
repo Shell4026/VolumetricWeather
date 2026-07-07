@@ -102,6 +102,28 @@ void Scene::Update(double dt)
 		cameraUniformData.view = camera.GetMatrixView();
 		cameraUniformData.proj = camera.GetMatrixProj();
 	}
+	if (Input::IsKeyDown(Event::KeyType::Space))
+	{
+		glm::vec3 pos = camera.GetPos();
+		pos.y += 1000.0 * dt;
+		camera.SetPos(pos);
+		camera.CalcTo();
+		camera.UpdateMatrix();
+		cameraUniformData.pos = camera.GetPos();
+		cameraUniformData.view = camera.GetMatrixView();
+		cameraUniformData.proj = camera.GetMatrixProj();
+	}
+	if (Input::IsKeyDown(Event::KeyType::LCtrl))
+	{
+		glm::vec3 pos = camera.GetPos();
+		pos.y -= 1000.0 * dt;
+		camera.SetPos(pos);
+		camera.CalcTo();
+		camera.UpdateMatrix();
+		cameraUniformData.pos = camera.GetPos();
+		cameraUniformData.view = camera.GetMatrixView();
+		cameraUniformData.proj = camera.GetMatrixProj();
+	}
 
 	ImGuiWindowFlags windowFlags =
 		ImGuiWindowFlags_::ImGuiWindowFlags_NoDecoration |
@@ -114,7 +136,9 @@ void Scene::Update(double dt)
 	ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
 	if (ImGui::Begin("Overlay", nullptr, windowFlags))
 	{
-		const glm::vec3 to = camera.GetTo();
+		const glm::vec3& pos = camera.GetPos();
+		const glm::vec3& to = camera.GetTo();
+		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
 		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
 	}
 	ImGui::End();

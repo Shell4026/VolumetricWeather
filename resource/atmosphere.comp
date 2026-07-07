@@ -96,9 +96,10 @@ void main()
 			const vec3 sigmaT = (ScatteringCoefficient(lheight) + AbsorptionCoefficient(lheight)) * stepSize;
 			lightSigmaSum += sigmaT;
 		}
+		const vec3 lightT = exp(-lightSigmaSum);
 
 		const vec3 inscatter = (rayleighScattering(height) * RayleighPhase(mu) + mieScattering(height) * MiePhase(mu, 0.8)) * stepSize;
-		scat += viewT * exp(-lightSigmaSum) * inscatter * atmosphere.sun.w;
+		scat += viewT * lightT * inscatter * atmosphere.sun.w;
 	}
 	
 	imageStore(outImage, pixel, vec4(scat, 1.0));

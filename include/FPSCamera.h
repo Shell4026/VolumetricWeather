@@ -10,7 +10,6 @@ public:
 	void AddYaw(float degree);
 	void SetPitch(float degree);
 	void AddPitch(float degree);
-private:
 	void CalcTo();
 private:
 	float yaw = 0.f;
