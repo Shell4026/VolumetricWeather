@@ -62,7 +62,7 @@ void AtmospherePass::SetAtmosphere(const Atmosphere& atmosphere)
 
 void AtmospherePass::PrepareResource(const VulkanContext& ctx)
 {
-	glm::vec3 sunDir = glm::normalize(glm::vec3{ 1.f, -1.f, 1.f });
+	glm::vec3 sunDir = glm::normalize(glm::vec3{ -1.f, 0.f, 0.f });
 	atmosphere.sun = glm::vec4{ sunDir, 20.f };
 	const VkBufferUsageFlags usage = VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	const VkMemoryPropertyFlags memProps = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
@@ -70,7 +70,7 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx)
 
 	VkImageCreateInfo imgCi{};
 	imgCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imgCi.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
+	imgCi.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
 	imgCi.initialLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
 	imgCi.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
 	imgCi.imageType = VkImageType::VK_IMAGE_TYPE_2D;
