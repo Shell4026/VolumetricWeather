@@ -11,15 +11,16 @@ set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "sr
 set(PASS_HEADERS "include/pass/APass.h" "include/pass/AtmospherePass.h" "include/pass/CompositePass.h")
 set(PASS_CPPS "src/pass/APass.cpp" "src/pass/AtmospherePass.cpp" "src/pass/CompositePass.cpp")
 set(HEADERS 
-"include/Camera.h" 
-"include/FPSCamera.h" 
-"include/FrameContext.h" 
+"include/Camera.h"
+"include/FPSCamera.h"
+"include/FrameContext.h"
 "include/GPUTimer.h"
-"include/Mesh.h" 
-"include/Scene.h" 
-"include/VulkanBuffer.h" 
-"include/VulkanContext.h" 
-"include/VulkanImage.h")
+"include/Mesh.h"
+"include/Scene.h"
+"include/VulkanBuffer.h"
+"include/VulkanContext.h"
+"include/VulkanImage.h"
+"include/GLBLoader.h"
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
@@ -28,7 +29,8 @@ set(CPPS
 "src/Scene.cpp"
 "src/VulkanBuffer.cpp"
 "src/VulkanContext.cpp"
-"src/VulkanImage.cpp")
+"src/VulkanImage.cpp"
+"src/GLBLoader.cpp"
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS})
 
 find_package(Vulkan)
@@ -59,5 +61,6 @@ target_include_directories(VolumetricWeather PRIVATE ${CMAKE_SOURCE_DIR}/include
 target_include_directories(VolumetricWeather PRIVATE ${CMAKE_SOURCE_DIR}/external)
 file(GLOB spvFiles "${CMAKE_SOURCE_DIR}/resource/*.spv")
 file(COPY ${spvFiles} DESTINATION ${CMAKE_BINARY_DIR}/shaders)
-
+file(GLOB glbFiles "${CMAKE_SOURCE_DIR}/resource/*.glb")
+file(COPY ${glbFiles} DESTINATION ${CMAKE_BINARY_DIR}/models)
 add_subdirectory(external/imgui)

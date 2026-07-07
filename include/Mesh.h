@@ -13,6 +13,12 @@
 template<typename T>
 concept Vertex = std::is_class_v<T> && std::is_trivial_v<T>;
 
+struct SubMesh
+{
+	std::size_t indexOffset = 0;
+	std::size_t indexCount = 0;
+};
+
 template<Vertex T>
 class Mesh
 {
