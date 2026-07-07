@@ -21,17 +21,6 @@ void CompositePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 		atmosphereSampler = VK_NULL_HANDLE;
 	}
 
-	if (vertShader != VK_NULL_HANDLE)
-	{
-		vkDestroyShaderModule(device, vertShader, nullptr);
-		vertShader = VK_NULL_HANDLE;
-	}
-	if (fragShader != VK_NULL_HANDLE)
-	{
-		vkDestroyShaderModule(device, fragShader, nullptr);
-		fragShader = VK_NULL_HANDLE;
-	}
-
 	buffer.reset();
 
 	if (pipeline != VK_NULL_HANDLE)
@@ -39,19 +28,6 @@ void CompositePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 		vkDestroyPipeline(device, pipeline, nullptr);
 		pipeline = VK_NULL_HANDLE;
 	}
-	if (pipelineLayout != VK_NULL_HANDLE)
-	{
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		pipelineLayout = VK_NULL_HANDLE;
-	}
-	//if (descSet != VK_NULL_HANDLE)
-	//{
-	//	vkFreeDescriptorSets(device, descPool, 1, &descSet);
-	//	descSet = VK_NULL_HANDLE;
-	//}
-	for (VkDescriptorSetLayout& layout : descSetLayouts)
-		vkDestroyDescriptorSetLayout(device, layout, nullptr);
-	descSetLayouts.clear();
 }
 void CompositePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
@@ -96,7 +72,7 @@ void CompositePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdSetScissor(cmd, 0, 1, &rect);
 
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &descSet, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, compositeShader.GetPipelineLayout(), 1, 1, &descSet, 0, nullptr);
 	vkCmdDraw(cmd, 4, 1, 0, 0);
 
 	ImDrawData* drawData = ImGui::GetDrawData();
@@ -137,25 +113,23 @@ void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool 
 {
 	const VkDevice device = ctx.GetDevice();
 
-	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
-	VkDescriptorSetLayoutBinding& binding0 = setLayoutBindings.emplace_back();
+	std::vector<VkDescriptorSetLayoutBinding> set1LayoutBindings;
+	VkDescriptorSetLayoutBinding& binding0 = set1LayoutBindings.emplace_back();
 	binding0.binding = 0;
 	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
 	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding0.descriptorCount = 1;
 
-	descSetLayouts.resize(2);
-	VkDescriptorSetLayoutCreateInfo layoutCi{};
-	layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	VK_RESULT_CHECK(vkCreateDescriptorSetLayout(device, &layoutCi, nullptr, &descSetLayouts[0])); // 빈 디스크립터셋
-	layoutCi.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
-	layoutCi.pBindings = setLayoutBindings.data();
-	VK_RESULT_CHECK(vkCreateDescriptorSetLayout(device, &layoutCi, nullptr, &descSetLayouts[1]));
+	std::vector<Shader::SetInfo> shaderInfos(2);
+	shaderInfos[0].createInfo = VK_NULL_HANDLE;
+	shaderInfos[1].createInfo = std::move(set1LayoutBindings);
+	compositeShader.Init(ctx.GetDevice(), shaderInfos);
+	compositeShader.LoadShaderModule("shaders/composite.vert.spv", "shaders/composite.frag.spv");
 
 	VkDescriptorSetAllocateInfo descSetAllocInfo{};
 	descSetAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	descSetAllocInfo.descriptorPool = descPool;
-	descSetAllocInfo.pSetLayouts = &descSetLayouts[1];
+	descSetAllocInfo.pSetLayouts = &compositeShader.GetDescriptorSetLayouts()[1];
 	descSetAllocInfo.descriptorSetCount = 1;
 	VK_RESULT_CHECK(vkAllocateDescriptorSets(device, &descSetAllocInfo, &descSet));
 
@@ -177,14 +151,6 @@ void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool 
 void CompositePass::BuildPipeline(const VulkanContext& ctx)
 {
 	const VkDevice device = ctx.GetDevice();
-	vertShader = LoadShader(device, "shaders/composite.vert.spv");
-	fragShader = LoadShader(device, "shaders/composite.frag.spv");
-
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-	pipelineLayoutInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = descSetLayouts.size();
-	pipelineLayoutInfo.pSetLayouts = descSetLayouts.data();
-	VK_RESULT_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -281,18 +247,6 @@ void CompositePass::BuildPipeline(const VulkanContext& ctx)
 	depthStencil.front = stencilState;
 	depthStencil.back = stencilState;
 
-	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-	vertShaderStageInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertShaderStageInfo.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageInfo.module = vertShader;
-	vertShaderStageInfo.pName = "main";
-	VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-	fragShaderStageInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragShaderStageInfo.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageInfo.module = fragShader;
-	fragShaderStageInfo.pName = "main";
-	std::array<VkPipelineShaderStageCreateInfo, 2> stageInfos = { vertShaderStageInfo, fragShaderStageInfo };
-
 	const VkFormat formats[] = { ctx.GetSwapChainImagesFormat() };
 	VkPipelineRenderingCreateInfoKHR pipelineRenderingCI{};
 	pipelineRenderingCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
@@ -303,8 +257,8 @@ void CompositePass::BuildPipeline(const VulkanContext& ctx)
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.stageCount = stageInfos.size();
-	pipelineInfo.pStages = stageInfos.data();
+	pipelineInfo.stageCount = compositeShader.GetPipelineShaderStageCreateInfos().size();
+	pipelineInfo.pStages = compositeShader.GetPipelineShaderStageCreateInfos().data();
 	pipelineInfo.pVertexInputState = &vertexInputInfo;
 	pipelineInfo.pInputAssemblyState = &inputAssembly;
 	pipelineInfo.pViewportState = &viewportState;
@@ -313,7 +267,7 @@ void CompositePass::BuildPipeline(const VulkanContext& ctx)
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = pipelineLayout;
+	pipelineInfo.layout = compositeShader.GetPipelineLayout();
 	pipelineInfo.renderPass = VK_NULL_HANDLE;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = nullptr;
