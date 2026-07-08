@@ -5,6 +5,7 @@ layout(location = 0) out vec4 outColor;
 layout(location = 0) in vec2 fragUV;
 
 layout(set = 1, binding = 0) uniform sampler2D atmopshere;
+layout(set = 1, binding = 1) uniform sampler2D opaque;
 
 vec3 ACESFilm(vec3 x)
 {
@@ -20,7 +21,10 @@ vec3 ACESFilm(vec3 x)
 void main() 
 {
 	const float exposure = 1.f;
-	vec3 hdrColor = texture(atmopshere, fragUV).xyz;
+	vec3 sky = texture(atmopshere, fragUV).xyz;
+	vec4 opaque = texture(opaque, fragUV);
+	
+	vec3 hdrColor = sky * (1.0 - opaque.a) + opaque.xyz;
 	hdrColor *= exposure;
 	
     outColor = vec4(ACESFilm(hdrColor), 1.0);

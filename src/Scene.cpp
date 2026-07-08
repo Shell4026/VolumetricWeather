@@ -38,7 +38,7 @@ void Scene::Init()
 	opaquePass->Init(ctx, descPool, cameraDescSetLayout);
 	atmospherePass = std::make_unique<AtmospherePass>();
 	atmospherePass->Init(ctx, descPool, cameraDescSetLayout);
-	compositePass = std::make_unique<CompositePass>(*atmospherePass->GetOutputImage());
+	compositePass = std::make_unique<CompositePass>(*opaquePass->GetOutputImage(), *atmospherePass->GetOutputImage());
 	compositePass->Init(ctx, descPool, cameraDescSetLayout);
 }
 

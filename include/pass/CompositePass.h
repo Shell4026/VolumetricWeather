@@ -11,7 +11,7 @@ class VulkanImage;
 class CompositePass : public APass
 {
 public:
-	CompositePass(const VulkanImage& atmosphereTex);
+	CompositePass(const VulkanImage& opaqueTex, const VulkanImage & atmosphereTex);
 
 	void Clear(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 
@@ -32,6 +32,7 @@ private:
 	glm::vec4 color{ 0.f, 1.f, 0.f, 1.f };
 	std::unique_ptr<VulkanBuffer> buffer;
 
+	const VulkanImage& opaqueTex;
 	const VulkanImage& atmosphereTex;
 	VkSampler atmosphereSampler = VK_NULL_HANDLE;
 };

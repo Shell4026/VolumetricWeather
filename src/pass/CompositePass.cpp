@@ -6,8 +6,8 @@
 #include "imgui/backends/imgui_impl_vulkan.h"
 
 #include <vector>
-CompositePass::CompositePass(const VulkanImage& atmosphereTex) :
-	atmosphereTex(atmosphereTex)
+CompositePass::CompositePass(const VulkanImage& opaqueTex, const VulkanImage& atmosphereTex) :
+	opaqueTex(opaqueTex), atmosphereTex(atmosphereTex)
 {
 }
 void CompositePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
@@ -85,6 +85,7 @@ void CompositePass::SetUsages(const VulkanContext& ctx, const FrameContext& fram
 {
 	APass::SetUsages(ctx, frame);
 	AddUsage(ctx.GetSwapChainImages()[frame.imgIdx], VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	AddUsage(opaqueTex.GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(atmosphereTex.GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 void CompositePass::PrepareResource(const VulkanContext& ctx)
@@ -119,6 +120,11 @@ void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool 
 	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
 	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding0.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding1 = set1LayoutBindings.emplace_back();
+	binding1.binding = 1;
+	binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding1.descriptorCount = 1;
 
 	std::vector<Shader::SetInfo> shaderInfos(2);
 	shaderInfos[1].bindings = std::move(set1LayoutBindings);
@@ -136,7 +142,6 @@ void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool 
 	descImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	descImageInfo.imageView = atmosphereTex.GetView();
 	descImageInfo.sampler = atmosphereSampler;
-
 	VkWriteDescriptorSet write{};
 	write.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	write.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -144,6 +149,9 @@ void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool 
 	write.dstSet = descSet;
 	write.dstBinding = 0;
 	write.pImageInfo = &descImageInfo;
+	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+	descImageInfo.imageView = opaqueTex.GetView();
+	write.dstBinding = 1;
 	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
 }
 
