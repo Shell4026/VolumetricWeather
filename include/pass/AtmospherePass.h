@@ -23,6 +23,7 @@ public:
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetAtmosphere(const Atmosphere& atmosphere);
+	void SetOpaqueDepthTexture(const VulkanImage& opaqueDepthTex) { this->opaqueDepthTex = &opaqueDepthTex; }
 
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
 	auto GetAtmosphere() const -> const Atmosphere& { return atmosphere; }
@@ -41,4 +42,7 @@ private:
 	Atmosphere atmosphere;
 	std::unique_ptr<VulkanBuffer> atmosphereBuffer;
 	std::unique_ptr<VulkanImage> outputImage;
+
+	const VulkanImage* opaqueDepthTex = nullptr;
+	VkSampler opaqueDepthSampler = VK_NULL_HANDLE;
 };

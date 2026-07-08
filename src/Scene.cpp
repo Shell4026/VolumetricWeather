@@ -36,8 +36,11 @@ void Scene::Init()
 
 	opaquePass = std::make_unique<OpaquePass>();
 	opaquePass->Init(ctx, descPool, cameraDescSetLayout);
+
 	atmospherePass = std::make_unique<AtmospherePass>();
+	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	atmospherePass->Init(ctx, descPool, cameraDescSetLayout);
+
 	compositePass = std::make_unique<CompositePass>(*opaquePass->GetOutputImage(), *atmospherePass->GetOutputImage());
 	compositePass->Init(ctx, descPool, cameraDescSetLayout);
 }
@@ -390,8 +393,8 @@ void Scene::SubmitCommandBuffer()
 
 void Scene::CreateDrawables()
 {
-	mountainNodes = GLBLoader::LoadGLB(ctx, "models/cone.glb");
-	mountainNodes[0].modelMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, -5.f });
+	mountainNodes = GLBLoader::LoadGLB(ctx, "models/mountain_1.glb");
+	//mountainNodes[0].modelMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, -5.f });
 	struct BFSInfo
 	{
 		GLBLoader::Node* node;

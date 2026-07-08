@@ -1,6 +1,10 @@
 #version 430
 
 layout (location = 0) in vec3 verts;
+layout (location = 1) in vec2 uvs;
+layout (location = 2) in vec3 normal;
+
+layout (location = 0) out vec2 fragUVs;
 
 layout(set = 0, binding = 0) uniform Camera
 {
@@ -16,5 +20,7 @@ layout(push_constant) uniform PushConstants
 
 void main() 
 {
-    gl_Position = camera.proj * camera.view * pc.model * vec4(verts, 1.0);
+	vec4 worldPos = pc.model * vec4(verts, 1.0);
+    gl_Position = camera.proj * camera.view * worldPos;
+	fragUVs = uvs;
 }
