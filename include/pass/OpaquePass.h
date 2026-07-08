@@ -18,7 +18,7 @@ public:
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
-	void PushDrawMesh(const Mesh<GLBLoader::Vertex>& mesh);
+	void PushDrawMesh(const AMeshBase& mesh);
 
 	auto GetShader() const -> const Shader& { return opaqueShader; }
 protected:
@@ -34,5 +34,5 @@ private:
 	std::unique_ptr<VulkanBuffer> buffer;
 	std::unique_ptr<VulkanImage> outputImage;
 
-	std::vector<const Mesh<GLBLoader::Vertex>*> meshes;
+	std::vector<const AMeshBase*> meshes;
 };

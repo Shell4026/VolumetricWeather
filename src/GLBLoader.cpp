@@ -89,7 +89,7 @@ auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& p
 		if (gltfNode.mesh < 0)
 			continue;
 
-		std::vector<Vertex> verts;
+		std::vector<GLBVertex> verts;
 		std::vector<uint32_t> indices;
 		std::vector<SubMesh> subMeshes;
 
@@ -128,7 +128,7 @@ auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& p
 
 			for (std::size_t v = 0; v < vertexCount; v++)
 			{
-				Vertex& vert = verts.emplace_back();
+				GLBVertex& vert = verts.emplace_back();
 				vert.pos = glm::make_vec3(&positionBuffer[v * 3]);
 				vert.normal = glm::normalize(glm::vec3(normalsBuffer ? glm::make_vec3(&normalsBuffer[v * 3]) : glm::vec3(0.0f)));
 				vert.uv = texCoordsBuffer ? glm::make_vec2(&texCoordsBuffer[v * 2]) : glm::vec2(0.0f);
@@ -168,9 +168,10 @@ auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& p
 					return {};
 				}
 			}
-			node.meshPtr = std::make_unique<Mesh<Vertex>>();
-			node.meshPtr->Init(std::move(verts), std::move(indices));
-			node.meshPtr->CreateBuffer(ctx);
+			node.meshPtr = std::make_unique<Mesh<GLBVertex>>();
+			node.meshPtr->SetVertices(std::move(verts));
+			node.meshPtr->SetIndices(std::move(indices));
+			node.meshPtr->CreateBuffers(ctx);
 		}
 	}
 	return nodes;

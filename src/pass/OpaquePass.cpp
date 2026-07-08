@@ -62,7 +62,7 @@ void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 0, 1, &frame.cameraSet, 0, nullptr);
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 1, 1, &descSet1, 0, nullptr);
-	for (const Mesh<GLBLoader::Vertex>* mesh : meshes)
+	for (const AMeshBase* mesh : meshes)
 	{
 		VkBuffer buffer = mesh->GetVertexBuffer()->GetBuffer();
 		VkDeviceSize offset = 0;
@@ -83,7 +83,7 @@ void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	AddUsage(outputImage->GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 }
 
-void OpaquePass::PushDrawMesh(const Mesh<GLBLoader::Vertex>& mesh)
+void OpaquePass::PushDrawMesh(const AMeshBase& mesh)
 {
 	meshes.push_back(&mesh);
 }
@@ -159,34 +159,14 @@ void OpaquePass::BuildPipeline(const VulkanContext& ctx)
 	pc.size = sizeof(glm::mat4);
 	pc.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
 
-	std::vector<VkVertexInputAttributeDescription> vertexInputAttribs;
-	VkVertexInputAttributeDescription& vertexInputAttrib0 = vertexInputAttribs.emplace_back();
-	vertexInputAttrib0.binding = 0;
-	vertexInputAttrib0.location = 0;
-	vertexInputAttrib0.format = VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
-	vertexInputAttrib0.offset = offsetof(GLBLoader::Vertex, pos);
-	VkVertexInputAttributeDescription& vertexInputAttrib1 = vertexInputAttribs.emplace_back();
-	vertexInputAttrib1.binding = 0;
-	vertexInputAttrib1.location = 1;
-	vertexInputAttrib1.format = VkFormat::VK_FORMAT_R32G32_SFLOAT;
-	vertexInputAttrib1.offset = offsetof(GLBLoader::Vertex, uv);
-	VkVertexInputAttributeDescription& vertexInputAttrib2 = vertexInputAttribs.emplace_back();
-	vertexInputAttrib2.binding = 0;
-	vertexInputAttrib2.location = 2;
-	vertexInputAttrib2.format = VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
-	vertexInputAttrib2.offset = offsetof(GLBLoader::Vertex, normal);
-
-	VkVertexInputBindingDescription vertexInputBinding{};
-	vertexInputBinding.binding = 0;
-	vertexInputBinding.stride = sizeof(GLBLoader::Vertex);
-	vertexInputBinding.inputRate = VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX;
+	const VkVertexInputBindingDescription vIB = GLBVertex::GetVertexInputBindingDescription();
 
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 	vertexInputInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexAttributeDescriptionCount = vertexInputAttribs.size();
-	vertexInputInfo.pVertexAttributeDescriptions = vertexInputAttribs.data();
+	vertexInputInfo.vertexAttributeDescriptionCount = GLBVertex::GetVertexInputAttributeDescription().size();
+	vertexInputInfo.pVertexAttributeDescriptions = GLBVertex::GetVertexInputAttributeDescription().data();
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
-	vertexInputInfo.pVertexBindingDescriptions = &vertexInputBinding;
+	vertexInputInfo.pVertexBindingDescriptions = &vIB;
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 	inputAssembly.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

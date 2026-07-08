@@ -70,5 +70,5 @@ private:
 	VkDescriptorSet cameraDescSet{ VK_NULL_HANDLE };
 
 	//
-	std::unique_ptr<Mesh<GLBLoader::Vertex>> testMesh;
+	std::unique_ptr<Mesh<GLBVertex>> testMesh;
 };
