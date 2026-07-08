@@ -19,7 +19,7 @@ Scene::Scene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
 }
 void Scene::Init()
 {
-	camera.SetPos(glm::vec3{ 0.f, 0.f, 0.f });
+	camera.SetPos(glm::vec3{ 0.f, 100.f, 0.f });
 	camera.SetYaw(-90.f);
 	camera.SetPitch(0.f);
 	camera.UpdateMatrix();
@@ -168,9 +168,21 @@ void Scene::Update(double dt)
 		if (ImGui::SliderFloat("##SunDirection", &angle, 0.f, 360.f))
 		{
 			glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
-			glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, 1.f });
+			glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
 			atmosphere.sun = glm::vec4(sunDir, atmosphere.sun.w);
 			atmospherePass->SetAtmosphere(atmosphere);
+		}
+
+		ImGui::Text("Cam pos");
+		float pos[] = { camera.GetPos().x, camera.GetPos().y, camera.GetPos().z };
+		if (ImGui::InputFloat3("##camPos", pos, "%.3f", ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
+		{
+			camera.SetPos({ pos[0], pos[1], pos[2] });
+			camera.CalcTo();
+			camera.UpdateMatrix();
+			cameraUniformData.pos = camera.GetPos();
+			cameraUniformData.view = camera.GetMatrixView();
+			cameraUniformData.proj = camera.GetMatrixProj();
 		}
 
 		ImGui::End();
