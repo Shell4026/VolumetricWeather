@@ -8,6 +8,7 @@ void OpaquePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 	VkDevice device = ctx.GetDevice();
 
 	outputImage.reset();
+	outputImageDepth.reset();
 	buffer.reset();
 
 	if (pipeline != VK_NULL_HANDLE)
@@ -28,10 +29,19 @@ void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	colorAttachment.loadOp = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachment.storeOp = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE;
 
+	VkRenderingAttachmentInfo depthAttachment{};
+	depthAttachment.sType = VkStructureType::VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	depthAttachment.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthAttachment.imageView = outputImageDepth->GetView();
+	depthAttachment.clearValue.depthStencil = { 1.f, 0 };
+	depthAttachment.loadOp = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE;
+
 	VkRenderingInfo renderingInfo{};
 	renderingInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_RENDERING_INFO;
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachments = &colorAttachment;
+	renderingInfo.pDepthAttachment = &depthAttachment;
 	renderingInfo.renderArea = { { 0, 0 }, { outputImage->GetInfo().extent.width, outputImage->GetInfo().extent.height } };
 	renderingInfo.layerCount = 1;
 
@@ -82,6 +92,7 @@ void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	APass::SetUsages(ctx, frame);
 	AddUsage(outputImage->GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	AddUsage(outputImageDepth->GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
 
 void OpaquePass::PushDrawable(const Drawable& drawable)
@@ -108,6 +119,9 @@ void OpaquePass::PrepareResource(const VulkanContext& ctx)
 	imgCi.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
 	imgCi.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
 	outputImage = std::make_unique<VulkanImage>(VulkanImage::Create(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	imgCi.format = VkFormat::VK_FORMAT_D24_UNORM_S8_UINT;
+	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	outputImageDepth = std::make_unique<VulkanImage>(VulkanImage::Create(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 }
 
 void OpaquePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout)

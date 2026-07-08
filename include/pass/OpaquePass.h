@@ -22,6 +22,7 @@ public:
 
 	auto GetShader() const -> const Shader& { return opaqueShader; }
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
+	auto GetOutputImageDepth() const -> VulkanImage* { return outputImageDepth.get(); }
 protected:
 	void PrepareResource(const VulkanContext& ctx) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout) override;
