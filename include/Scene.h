@@ -6,6 +6,7 @@
 #include "FPSCamera.h"
 #include "FrameContext.h"
 #include "GLBLoader.h"
+#include "BarrierBuilder.h"
 #include "pass/OpaquePass.h"
 #include "pass/AtmospherePass.h"
 #include "pass/CompositePass.h"
@@ -52,6 +53,7 @@ private:
 	uint64_t nextSubmitValue = 1;
 	uint32_t currentImgIdx = 0;
 	uint32_t currentFrameIdx = 0;
+	BarrierBuilder barrierBuilder;
 
 	// 불칸 리소스들
 	VkDescriptorPool descPool = VK_NULL_HANDLE;

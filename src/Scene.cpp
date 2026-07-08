@@ -295,57 +295,20 @@ void Scene::CreateSyncObjects()
 
 void Scene::BuildCommandBuffer()
 {
+	std::vector<std::vector<BarrierInfo>> barriers = barrierBuilder.BuildBarrier({ opaquePass.get(), atmospherePass.get(), compositePass.get() });
+
 	FrameContext& frame = frames[currentFrameIdx];
 	{
-		std::vector<BarrierInfo> preBarriers;
-		for (const ImageUsage& usage : opaquePass->GetUsages())
-		{
-			BarrierInfo& barrier = preBarriers.emplace_back();
-			barrier.image = usage.image;
-			barrier.aspect = usage.aspect;
-			barrier.srcLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
-			barrier.dstLayout = usage.layout;
-			barrier.srcAccess = VkAccessFlagBits::VK_ACCESS_NONE;
-			barrier.dstAccess = usage.access;
-			barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			barrier.dstStage = usage.stage;
-		}
-		opaquePass->BeginRecord(&preBarriers);
+		opaquePass->BeginRecord(&barriers[0]);
 		opaquePass->Record(ctx, frame);
 		opaquePass->EndRecord();
 	}
 	{
-		std::vector<BarrierInfo> preBarriers;
-		for (const ImageUsage& usage : atmospherePass->GetUsages())
-		{
-			BarrierInfo& barrier = preBarriers.emplace_back();
-			barrier.image = usage.image;
-			barrier.aspect = usage.aspect;
-			barrier.srcLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
-			barrier.dstLayout = usage.layout;
-			barrier.srcAccess = VkAccessFlagBits::VK_ACCESS_NONE;
-			barrier.dstAccess = usage.access;
-			barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			barrier.dstStage = usage.stage;
-		}
-		atmospherePass->BeginRecord(&preBarriers);
+		atmospherePass->BeginRecord(&barriers[1]);
 		atmospherePass->Record(ctx, frame);
 		atmospherePass->EndRecord();
 	}
 	{
-		std::vector<BarrierInfo> preBarriers;
-		for (const ImageUsage& usage : compositePass->GetUsages())
-		{
-			BarrierInfo& barrier = preBarriers.emplace_back();
-			barrier.image = usage.image;
-			barrier.aspect = usage.aspect;
-			barrier.srcLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
-			barrier.dstLayout = usage.layout;
-			barrier.srcAccess = VkAccessFlagBits::VK_ACCESS_NONE;
-			barrier.dstAccess = usage.access;
-			barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			barrier.dstStage = usage.stage;
-		}
 		std::vector<BarrierInfo> postBarriers;
 		for (const ImageUsage& usage : compositePass->GetUsages())
 		{
@@ -360,7 +323,7 @@ void Scene::BuildCommandBuffer()
 			barrier.dstStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 		}
 
-		compositePass->BeginRecord(&preBarriers);
+		compositePass->BeginRecord(&barriers[2]);
 		compositePass->Record(ctx, frame);
 		compositePass->EndRecord(&postBarriers);
 	}
