@@ -24,7 +24,7 @@ protected:
 	virtual void PrepareResource(const VulkanContext& ctx) {};
 	virtual void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout) = 0;
 	virtual void BuildPipeline(const VulkanContext& ctx) = 0;
-	void AddUsage(VkImage image, VkImageLayout usage);
+	void AddUsage(VkImage image, VkImageAspectFlags apsect, VkImageLayout usage);
 
 	static auto LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule;
 private:

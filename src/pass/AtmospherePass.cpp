@@ -51,7 +51,7 @@ void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	APass::SetUsages(ctx, frame);
-	AddUsage(outputImage->GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 }
 
 void AtmospherePass::SetAtmosphere(const Atmosphere& atmosphere)
