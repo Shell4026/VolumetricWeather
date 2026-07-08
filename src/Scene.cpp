@@ -12,6 +12,7 @@
 #include <vector>
 #include <cstdint>
 #include <array>
+#include <queue>
 Scene::Scene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
 	ctx(ctx), imgui(imgui), window(window)
 {
@@ -26,9 +27,7 @@ void Scene::Init()
 	cameraUniformData.view = camera.GetMatrixView();
 	cameraUniformData.proj = camera.GetMatrixProj();
 
-	std::vector<GLBLoader::Node> nodes = GLBLoader::LoadGLB(ctx, "models/mountain_1.glb");
-	testMesh = std::move(nodes[5].meshPtr);
-
+	CreateDrawables();
 	CreateBuffers();
 	SetupDescriptorPool();
 	SetupDescriptor();
@@ -192,7 +191,9 @@ void Scene::Render(double dt)
 	vkWaitSemaphores(ctx.GetDevice(), &waitInfo, UINT64_MAX);
 
 	cameraUniformBuffers->SetData(&cameraUniformData);
-	opaquePass->PushDrawMesh(*testMesh);
+
+	for (const Drawable& drawable : drawables)
+		opaquePass->PushDrawable(drawable);
 
 	opaquePass->SetUsages(ctx, frames[currentFrameIdx]);
 	atmospherePass->SetUsages(ctx, frames[currentFrameIdx]);
@@ -422,4 +423,33 @@ void Scene::SubmitCommandBuffer()
 	vkQueuePresentKHR(ctx.GetPresentQueue(), &presentInfo);
 
 	currentFrameIdx = (currentFrameIdx + 1) % VulkanContext::MAX_CONCURRENT_FRAMES;
+}
+
+void Scene::CreateDrawables()
+{
+	mountainNodes = GLBLoader::LoadGLB(ctx, "models/cone.glb");
+	mountainNodes[0].modelMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, -5.f });
+	struct BFSInfo
+	{
+		GLBLoader::Node* node;
+		glm::mat4 parentModelMatrix;
+	};
+	std::queue<BFSInfo> bfs;
+	bfs.push({ &mountainNodes[0], glm::mat4{1.f} });
+	while (!bfs.empty())
+	{
+		auto [nodePtr, parentModelMatrix] = bfs.front();
+		bfs.pop();
+
+		Drawable& drawable = drawables.emplace_back();
+		drawable.modelMatrix = parentModelMatrix * nodePtr->modelMatrix;
+		drawable.mesh = nodePtr->meshPtr.get();
+
+		for (int idx : nodePtr->childrenIdxs)
+		{
+			GLBLoader::Node& child = mountainNodes[idx];
+			bfs.push({ &child, drawable.modelMatrix });
+		}
+	}
+	return;
 }

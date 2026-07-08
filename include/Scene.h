@@ -15,6 +15,7 @@
 #include <memory>
 #include <filesystem>
 #include <array>
+#include <vector>
 
 class VulkanBuffer;
 class ImGUI;
@@ -37,6 +38,8 @@ protected:
 
 	virtual void BuildCommandBuffer();
 	virtual void SubmitCommandBuffer();
+private:
+	void CreateDrawables();
 public:
 	VulkanContext& ctx;
 	const ImGUI& imgui;
@@ -70,5 +73,6 @@ private:
 	VkDescriptorSet cameraDescSet{ VK_NULL_HANDLE };
 
 	//
-	std::unique_ptr<Mesh<GLBVertex>> testMesh;
+	std::vector<GLBLoader::Node> mountainNodes;
+	std::vector<Drawable> drawables;
 };

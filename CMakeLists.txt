@@ -34,6 +34,7 @@ set(CPPS
 "src/VulkanImage.cpp"
 "src/GLBLoader.cpp"
 "src/Shader.cpp"
+"include/Drawable.hpp" 
 "src/BarrierBuilder.cpp")
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS})
 

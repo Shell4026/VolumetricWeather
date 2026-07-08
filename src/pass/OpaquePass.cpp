@@ -24,7 +24,7 @@ void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	colorAttachment.sType = VkStructureType::VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	colorAttachment.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	colorAttachment.imageView = outputImage->GetView();
-	colorAttachment.clearValue.color = { {0.f, 0.f, 0.f, 1.f} };
+	colorAttachment.clearValue.color = { {0.f, 0.f, 0.f, 0.f} };
 	colorAttachment.loadOp = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachment.storeOp = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE;
 
@@ -62,19 +62,20 @@ void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 0, 1, &frame.cameraSet, 0, nullptr);
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 1, 1, &descSet1, 0, nullptr);
-	for (const AMeshBase* mesh : meshes)
+	for (const Drawable* drawable : drawables)
 	{
-		VkBuffer buffer = mesh->GetVertexBuffer()->GetBuffer();
+		if (drawable->mesh == nullptr)
+			continue;
+		VkBuffer buffer = drawable->mesh->GetVertexBuffer()->GetBuffer();
 		VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &offset);
-		vkCmdBindIndexBuffer(cmd, mesh->GetIndexBuffer()->GetBuffer(), 0, VkIndexType::VK_INDEX_TYPE_UINT32);
-		glm::mat4 mat{ 1.f };
-		vkCmdPushConstants(cmd, opaqueShader.GetPipelineLayout(), VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &mat);
-		vkCmdDrawIndexed(cmd, mesh->GetIndices().size(), 1, 0, 0, 0);
+		vkCmdBindIndexBuffer(cmd, drawable->mesh->GetIndexBuffer()->GetBuffer(), 0, VkIndexType::VK_INDEX_TYPE_UINT32);
+		vkCmdPushConstants(cmd, opaqueShader.GetPipelineLayout(), VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &drawable->modelMatrix);
+		vkCmdDrawIndexed(cmd, drawable->mesh->GetIndices().size(), 1, 0, 0, 0);
 	}
 	vkCmdEndRendering(cmd);
 
-	meshes.clear();
+	drawables.clear();
 }
 
 void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
@@ -83,9 +84,9 @@ void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	AddUsage(outputImage->GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 }
 
-void OpaquePass::PushDrawMesh(const AMeshBase& mesh)
+void OpaquePass::PushDrawable(const Drawable& drawable)
 {
-	meshes.push_back(&mesh);
+	drawables.push_back(&drawable);
 }
 
 void OpaquePass::PrepareResource(const VulkanContext& ctx)

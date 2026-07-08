@@ -1,8 +1,8 @@
 ﻿#pragma once
 #include "APass.h"
-#include "Mesh.h"
 #include "GLBLoader.h"
 #include "Shader.h"
+#include "Drawable.hpp"
 
 #include "glm/glm.hpp"
 
@@ -18,9 +18,10 @@ public:
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
-	void PushDrawMesh(const AMeshBase& mesh);
+	void PushDrawable(const Drawable& mesh);
 
 	auto GetShader() const -> const Shader& { return opaqueShader; }
+	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
 protected:
 	void PrepareResource(const VulkanContext& ctx) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout) override;
@@ -33,6 +34,7 @@ private:
 	glm::vec4 color{ 1.f, 1.f, 1.f, 1.f };
 	std::unique_ptr<VulkanBuffer> buffer;
 	std::unique_ptr<VulkanImage> outputImage;
+	std::unique_ptr<VulkanImage> outputImageDepth;
 
-	std::vector<const AMeshBase*> meshes;
+	std::vector<const Drawable*> drawables;
 };
