@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "Mesh.h"
 #include "VulkanContext.h"
+#include "VulkanImage.h"
 
 #include "glm/glm.hpp"
 
@@ -57,7 +58,13 @@ public:
 		glm::mat4 modelMatrix{ 1.f };
 		std::unique_ptr<Mesh<GLBVertex>> meshPtr = nullptr;
 		std::vector<int> childrenIdxs;
+		int textureIdx = -1;
+	};
+	struct Model
+	{
+		std::vector<VulkanImage> textures;
+		std::vector<Node> nodes;
 	};
 public:
-	static auto LoadGLB(const VulkanContext& ctx, const std::filesystem::path& path) -> std::vector<Node>;
+	static auto LoadGLB(const VulkanContext& ctx, const std::filesystem::path& path) -> Model;
 };

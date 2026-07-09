@@ -50,7 +50,7 @@ void VulkanBuffer::SetData(void* data)
 		std::memcpy(mapped, data, size);
 	}
 }
-auto VulkanBuffer::Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, void* data) -> VulkanBuffer
+auto VulkanBuffer::Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, const void* data) -> VulkanBuffer
 {
 	VulkanBuffer buffer{};
 	buffer.device = ctx.GetDevice();

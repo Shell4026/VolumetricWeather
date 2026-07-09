@@ -31,17 +31,20 @@ class VulkanImage
 public:
 	VulkanImage(const VulkanImage& other) = delete;
 	VulkanImage(VulkanImage&& other) noexcept :
-		device(other.device),
+		ctx(other.ctx),
 		img(other.img),
 		view(other.view),
 		mem(other.mem),
-		info(other.info)
+		info(other.info),
+		bufferSize(other.bufferSize)
 	{
 		other.img = VK_NULL_HANDLE;
 		other.view = VK_NULL_HANDLE;
 		other.mem = VK_NULL_HANDLE;
 	}
 	~VulkanImage();
+
+	void SetData(const uint8_t* dataPtr);
 
 	auto GetImage() const -> VkImage { return img; }
 	auto GetView() const -> VkImageView { return view; }
@@ -52,9 +55,11 @@ public:
 protected:
 	VulkanImage() = default;
 private:
-	VkDevice device = VK_NULL_HANDLE;
+	const VulkanContext* ctx = nullptr;
 	VkImage img = VK_NULL_HANDLE;
 	VkImageView view = VK_NULL_HANDLE;
 	VkDeviceMemory mem = VK_NULL_HANDLE;
 	VkImageCreateInfo info{};
+
+	std::size_t bufferSize = 0;
 };

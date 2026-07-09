@@ -26,7 +26,7 @@ public:
 	void Bind(VkDeviceSize offset = 0);
 	void SetData(void* data);
 
-	static auto Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, void* data = nullptr) -> VulkanBuffer;
+	static auto Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, const void* data = nullptr) -> VulkanBuffer;
 
 	auto GetBuffer() const -> VkBuffer { return buffer; }
 	auto GetDescriptorBufferInfo() const -> const VkDescriptorBufferInfo& { return descriptorInfo; }

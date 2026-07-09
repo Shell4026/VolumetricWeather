@@ -10,7 +10,41 @@
 #include <string>
 #include <map>
 #include <queue>
-auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& path) -> std::vector<Node>
+#include <cstdint>
+auto LoadTextures(const VulkanContext& ctx, const tinygltf::Model& model) -> std::vector<VulkanImage>
+{
+	std::vector<VulkanImage> imgs;
+	for (const tinygltf::Image& img : model.images)
+	{
+		const uint32_t width = static_cast<uint32_t>(img.width);
+		const uint32_t height = static_cast<uint32_t>(img.height);
+		VkImageCreateInfo ci{};
+		ci.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		ci.extent = { width, height, 1 };
+		ci.initialLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
+		ci.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
+		ci.imageType = VkImageType::VK_IMAGE_TYPE_2D;
+		ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		ci.mipLevels = 1;
+		ci.arrayLayers = 1;
+		ci.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
+		ci.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
+		if (img.component >= 3 && img.bits == 8) // RGB24
+		{
+			ci.format = VkFormat::VK_FORMAT_R8G8B8A8_SRGB;
+		}
+		else
+		{
+			SH_ERROR_FORMAT("Unsupported format!: ({}, {})", img.component, img.bits);
+			continue;
+		}
+		VulkanImage& vkImage = imgs.emplace_back(VulkanImage::Create(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+		vkImage.SetData(img.image.data());
+	}
+	return imgs;
+}
+
+auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& path) -> Model
 {
 	static tinygltf::TinyGLTF gltfContext;
 	tinygltf::Model gltfModel;
@@ -37,8 +71,11 @@ auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& p
 		SH_ERROR_FORMAT("Scene is empty: {}", path.string());
 		return {};
 	}
+	Model resultModel{};
+	resultModel.textures = LoadTextures(ctx, gltfModel);
+	std::vector<Node>& nodes = resultModel.nodes;
+
 	const tinygltf::Scene& scene = gltfModel.scenes[0];
-	std::vector<Node> nodes;
 	nodes.reserve(gltfModel.nodes.size());
 	Node& rootNode = nodes.emplace_back();
 	rootNode.name = "root";
@@ -95,7 +132,7 @@ auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& p
 
 		const tinygltf::Mesh& gltfMesh = gltfModel.meshes[gltfNode.mesh];
 
-		for (auto& primitive : gltfMesh.primitives)
+		for (const tinygltf::Primitive& primitive : gltfMesh.primitives)
 		{
 			SubMesh& subMesh = subMeshes.emplace_back();
 			uint32_t firstIndex = static_cast<uint32_t>(indices.size());
@@ -168,11 +205,13 @@ auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& p
 					return {};
 				}
 			}
+			if (primitive.material != -1)
+				node.textureIdx = gltfModel.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
 			node.meshPtr = std::make_unique<Mesh<GLBVertex>>();
 			node.meshPtr->SetVertices(std::move(verts));
 			node.meshPtr->SetIndices(std::move(indices));
 			node.meshPtr->CreateBuffers(ctx);
 		}
 	}
-	return nodes;
+	return resultModel;
 }

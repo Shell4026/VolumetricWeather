@@ -156,7 +156,7 @@ void Scene::Update(double dt)
 	{
 		AtmospherePass::Atmosphere atmosphere = atmospherePass->GetAtmosphere();
 		ImGui::Text("Steps");
-		if (ImGui::SliderInt("##steps", &atmosphere.steps, 1, 256))
+		if (ImGui::SliderInt("##steps", &atmosphere.steps, 1, 512))
 			atmospherePass->SetAtmosphere(atmosphere);
 
 		ImGui::Text("Sun illuminance");
@@ -405,7 +405,7 @@ void Scene::SubmitCommandBuffer()
 
 void Scene::CreateDrawables()
 {
-	mountainNodes = GLBLoader::LoadGLB(ctx, "models/mountain_1.glb");
+	mountainModel = GLBLoader::LoadGLB(ctx, "models/mountain_1.glb");
 	//mountainNodes[0].modelMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, -5.f });
 	struct BFSInfo
 	{
@@ -413,7 +413,7 @@ void Scene::CreateDrawables()
 		glm::mat4 parentModelMatrix;
 	};
 	std::queue<BFSInfo> bfs;
-	bfs.push({ &mountainNodes[0], glm::mat4{1.f} });
+	bfs.push({ &mountainModel.nodes[0], glm::mat4{1.f} });
 	while (!bfs.empty())
 	{
 		auto [nodePtr, parentModelMatrix] = bfs.front();
@@ -425,7 +425,7 @@ void Scene::CreateDrawables()
 
 		for (int idx : nodePtr->childrenIdxs)
 		{
-			GLBLoader::Node& child = mountainNodes[idx];
+			GLBLoader::Node& child = mountainModel.nodes[idx];
 			bfs.push({ &child, drawable.modelMatrix });
 		}
 	}

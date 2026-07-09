@@ -75,6 +75,6 @@ private:
 	VkDescriptorSet cameraDescSet{ VK_NULL_HANDLE };
 
 	//
-	std::vector<GLBLoader::Node> mountainNodes;
+	GLBLoader::Model mountainModel;
 	std::vector<Drawable> drawables;
 };
