@@ -50,7 +50,6 @@ vec3 AbsorptionCoefficient(float y)
 {
 	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6;
 	const vec3 ozone = vec3(0.65, 1.881, 0.085) * 1e-6;
-	// TODO 오존
 	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
 }
 
@@ -97,55 +96,62 @@ void main()
 	const float atmosphereRadius = 6460 * 1000.0;
 	const vec3 planetCenter = vec3(0.0, -groundRadius, 0.0);
 	
-	float nearAtmo;
-	float farAtmo;
+	float nearAtmo = 0.0;
+	float farAtmo = 1.0;
 	if (!RaySphereIntersect(camera.pos, rayDir, planetCenter, atmosphereRadius, nearAtmo, farAtmo))
 	{
 		imageStore(outImage, pixel, vec4(0, 0, 0, 1));
 		return;
 	}
-	float tStart = max(nearAtmo, 0.0);
-	float tEnd = farAtmo;
+	float rayStart = max(nearAtmo, 0.0);
+	float rayEnd = farAtmo;
+	
+	float nearGround = 0.0;
+	float farGround = 1.0;
+	if (RaySphereIntersect(camera.pos, rayDir, planetCenter, groundRadius, nearGround, farGround))
+		rayEnd = min(rayEnd, nearGround);
 	
 	const float mu = dot(rayDir, -sunDir);
-
-	const float stepSize = (tEnd - tStart) / atmosphere.steps;
+	const float stepSize = (rayEnd - rayStart) / atmosphere.steps;
 	
 	vec3 scat = vec3(0.0, 0.0, 0.0);
 	vec3 sigmaSum = vec3(0.0, 0.0, 0.0);
 	for (int i = 0; i < atmosphere.steps; ++i)
 	{
-		const float t = tStart + (float(i) + 0.5) * stepSize;
-		const vec3 pos = camera.pos + rayDir * t;
-		const float height = max(0, length(pos - planetCenter) - groundRadius);
+		const float t = rayStart + (float(i) + 0.5) * stepSize;
+		const vec3 samplePos = camera.pos + rayDir * t;
+		const float sampleHeight = max(0.0, length(samplePos - planetCenter) - groundRadius);
 		
-		const vec3 sigmaT = (ScatteringCoefficient(height) + AbsorptionCoefficient(height));
+		const vec3 sigmaT = (ScatteringCoefficient(sampleHeight) + AbsorptionCoefficient(sampleHeight));
 		sigmaSum += sigmaT * stepSize;
 		const vec3 viewT = exp(-sigmaSum);
 
-		vec3 lightSigmaSum = vec3(0.0, 0.0, 0.0);
-		int visibility = 1;
-		if (RaySphereIntersect(pos, -sunDir, planetCenter, atmosphereRadius, nearAtmo, farAtmo))
+		vec3 sampleSigmaSum = vec3(0.0, 0.0, 0.0);
+		float visibility = 1;
+		if (RaySphereIntersect(samplePos, -sunDir, planetCenter, atmosphereRadius, nearAtmo, farAtmo))
 		{
 			const float sampleToLightStepSize = farAtmo / atmosphere.steps;
 			for (int j = 0; j < atmosphere.steps; ++j)
 			{
 				const float t = (float(j) + 0.5) * sampleToLightStepSize;
-				const vec3 lpos = pos + -sunDir * t;
+				const vec3 lpos = samplePos + -sunDir * t;
 				const float lheight = length(lpos - planetCenter) - groundRadius;
 				if (lheight < 0.0)
 				{
-					visibility = 0;
+					visibility = 0.0;
 					break;
 				}	
 				const vec3 sigmaT = (ScatteringCoefficient(lheight) + AbsorptionCoefficient(lheight));
-				lightSigmaSum += sigmaT * sampleToLightStepSize;
+				sampleSigmaSum += sigmaT * sampleToLightStepSize;
 			}
 		}
-		const vec3 lightT = visibility * exp(-lightSigmaSum); // 논문의 S항
-
-		const vec3 inscatter = (rayleighScattering(height) * RayleighPhase(mu) + mieScattering(height) * MiePhase(mu, 0.8)) * stepSize;
-		scat += viewT * lightT * inscatter * atmosphere.sun.w;
+		const vec3 sampleT = visibility * exp(-sampleSigmaSum); // 논문의 S항
+		const vec3 inscatter = 
+		(
+			rayleighScattering(sampleHeight) * RayleighPhase(mu) + 
+			mieScattering(sampleHeight) * MiePhase(mu, 0.8)
+		) * stepSize;
+		scat += viewT * sampleT * inscatter * atmosphere.sun.w;
 	}
 	
 	imageStore(outImage, pixel, vec4(scat, 1.0));
