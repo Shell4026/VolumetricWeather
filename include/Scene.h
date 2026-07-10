@@ -1,12 +1,14 @@
 ﻿#pragma once
-#include "VulkanContext.h"
-#include "VulkanBuffer.h"
-#include "VulkanImage.h"
-#include "Mesh.h"
 #include "FPSCamera.h"
-#include "FrameContext.h"
 #include "GLBLoader.h"
-#include "BarrierBuilder.h"
+
+#include "render/VulkanContext.h"
+#include "render/VulkanBuffer.h"
+#include "render/VulkanImage.h"
+#include "render/Mesh.h"
+#include "render/FrameContext.h"
+#include "render/BarrierBuilder.h"
+
 #include "pass/OpaquePass.h"
 #include "pass/AtmospherePass.h"
 #include "pass/CompositePass.h"

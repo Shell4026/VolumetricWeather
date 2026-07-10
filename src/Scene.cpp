@@ -2,8 +2,8 @@
 #include "core/Logger.h"
 #include "core/Window.h"
 #include "core/Input.h"
-#include "VulkanBuffer.h"
-#include "Material.h"
+#include "render/VulkanBuffer.h"
+#include "render/Material.h"
 
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "glm/gtc/matrix_transform.hpp"
@@ -14,6 +14,10 @@
 #include <cstdint>
 #include <array>
 #include <queue>
+
+#ifdef max
+#undef max
+#endif
 Scene::Scene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
 	ctx(ctx), imgui(imgui), window(window)
 {

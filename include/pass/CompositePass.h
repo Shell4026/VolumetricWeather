@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include "APass.h"
-#include "Shader.h"
+#include "render/Shader.h"
 
 #include "glm/glm.hpp"
 

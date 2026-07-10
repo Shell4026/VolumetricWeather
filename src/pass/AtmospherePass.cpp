@@ -1,7 +1,7 @@
 ﻿#include "pass/AtmospherePass.h"
 #include "core/Logger.h"
-#include "VulkanBuffer.h"
-#include "VulkanImage.h"
+#include "render/VulkanBuffer.h"
+#include "render/VulkanImage.h"
 
 void AtmospherePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 {

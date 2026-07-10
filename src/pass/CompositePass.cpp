@@ -1,7 +1,7 @@
 ﻿#include "Pass/CompositePass.h"
 #include "core/Logger.h"
-#include "VulkanBuffer.h"
-#include "VulkanImage.h"
+#include "render/VulkanBuffer.h"
+#include "render/VulkanImage.h"
 
 #include "imgui/backends/imgui_impl_vulkan.h"
 

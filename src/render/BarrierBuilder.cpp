@@ -1,5 +1,5 @@
-﻿#include "BarrierBuilder.h"
-#include "Pass/APass.h"
+﻿#include "render/BarrierBuilder.h"
+#include "pass/APass.h"
 
 auto BarrierBuilder::BuildBarrier(std::initializer_list<const APass*> passes) -> std::vector<std::vector<BarrierInfo>>
 {

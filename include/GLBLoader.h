@@ -1,7 +1,7 @@
 ﻿#pragma once
-#include "Mesh.h"
-#include "VulkanContext.h"
-#include "VulkanImage.h"
+#include "render/Mesh.h"
+#include "render/VulkanContext.h"
+#include "render/VulkanImage.h"
 
 #include "glm/glm.hpp"
 

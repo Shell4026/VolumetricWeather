@@ -1,8 +1,8 @@
 ﻿#include "pass/OpaquePass.h"
 #include "core/Logger.h"
-#include "VulkanBuffer.h"
-#include "VulkanImage.h"
-#include "Material.h"
+#include "render/VulkanBuffer.h"
+#include "render/VulkanImage.h"
+#include "render/Material.h"
 
 void OpaquePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 {

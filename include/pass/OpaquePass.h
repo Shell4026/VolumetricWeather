@@ -1,8 +1,9 @@
 ﻿#pragma once
 #include "APass.h"
 #include "GLBLoader.h"
-#include "Shader.h"
-#include "Drawable.hpp"
+
+#include "render/Shader.h"
+#include "render/Drawable.hpp"
 
 #include "glm/glm.hpp"
 

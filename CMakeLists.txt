@@ -10,33 +10,42 @@ set(CORE_HEADERS "include/core/Event.h" "include/core/ImGUI.h" "include/core/Inp
 set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "src/core/Logger.cpp" "src/core/Window.cpp")
 set(PASS_HEADERS "include/pass/APass.h" "include/pass/AtmospherePass.h" "include/pass/CompositePass.h" "include/pass/OpaquePass.h")
 set(PASS_CPPS "src/pass/APass.cpp" "src/pass/AtmospherePass.cpp" "src/pass/CompositePass.cpp" "src/pass/OpaquePass.cpp")
+set(RENDER_HEADERS 
+"include/render/BarrierBuilder.h"
+"include/render/BarrierInfo.h"
+"include/render/Drawable.hpp"
+"include/render/FrameContext.h"
+"include/render/GPUTimer.h"
+"include/render/Material.h"
+"include/render/Mesh.h"
+"include/render/Shader.h" 
+"include/render/VulkanBuffer.h"
+"include/render/VulkanContext.h"
+"include/render/VulkanImage.h"
+)
+set(RENDER_CPPS 
+"src/render/BarrierBuilder.cpp"
+"src/render/GPUTimer.cpp"
+"src/render/Material.cpp"
+"src/render/Mesh.cpp"
+"src/render/Shader.cpp"
+"src/render/VulkanBuffer.cpp"
+"src/render/VulkanContext.cpp"
+"src/render/VulkanImage.cpp"
+)
 set(HEADERS 
 "include/Camera.h"
 "include/FPSCamera.h"
-"include/FrameContext.h"
-"include/GPUTimer.h"
-"include/Mesh.h"
 "include/Scene.h"
-"include/VulkanBuffer.h"
-"include/VulkanContext.h"
-"include/VulkanImage.h"
 "include/GLBLoader.h"
-"include/Shader.h" 
-"include/BarrierBuilder.h" "include/Material.h"  )
+)
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
-"src/GPUTimer.cpp"
-"src/Mesh.cpp"
-"src/Scene.cpp"
-"src/VulkanBuffer.cpp"
-"src/VulkanContext.cpp"
-"src/VulkanImage.cpp"
 "src/GLBLoader.cpp"
-"src/Shader.cpp"
-"include/Drawable.hpp" 
-"src/BarrierBuilder.cpp" "src/Material.cpp" )
-add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS})
+"src/Scene.cpp"
+)
+add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS})
 
 find_package(Vulkan)
 
