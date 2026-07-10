@@ -235,6 +235,7 @@ void AScene::SubmitCommandBuffer()
 	std::vector<APass*>& activePassList = GetActivePassList();
 	const APass* firstSwapchainPass = nullptr;
 	int idx = 0;
+	const VkPipelineStageFlags waitStages[] = { VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	for (APass* pass : activePassList)
 	{
 		const VkCommandBuffer cmd = pass->GetCommandBuffer();
@@ -245,7 +246,6 @@ void AScene::SubmitCommandBuffer()
 		// 첫 패스
 		if (firstSwapchainPass == nullptr && pass->IsUsingSwapchainImage())
 		{
-			VkPipelineStageFlags waitStages[] = { VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 			info.waitSemaphoreCount = 1;
 			info.pWaitSemaphores = &frame.imageAvailableSemaphore;
 			info.pWaitDstStageMask = waitStages;
@@ -264,8 +264,9 @@ void AScene::SubmitCommandBuffer()
 			info.signalSemaphoreCount = signals.size();
 			info.pSignalSemaphores = signals.data();
 			info.pNext = &tsInfo;
+			VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
+			break;
 		}
-
 		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
 		++idx;
 	}
