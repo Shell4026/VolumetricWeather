@@ -26,11 +26,15 @@ VulkanContext::VulkanContext(const Window& window) :
 {
     reqLayers =
     {
-        "VK_LAYER_KHRONOS_validation"
+#ifdef SH_DEBUG
+        "VK_LAYER_KHRONOS_validation",
+#endif
     };
     reqExtensions =
     {
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+#ifdef SH_DEBUG
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+#endif
     };
 
     reqDeviceExtensions =
@@ -63,11 +67,12 @@ VulkanContext::~VulkanContext()
     vkDestroySurfaceKHR(instancePtr, surface, nullptr);
     surface = VK_NULL_HANDLE;
 
+#ifdef SH_DEBUG
     auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instancePtr, "vkDestroyDebugUtilsMessengerEXT");
     assert(func != nullptr);
     func(instancePtr, debugMessenger, nullptr);
     debugMessenger = VK_NULL_HANDLE;
-
+#endif
     vkDestroyInstance(instancePtr, nullptr);
     instancePtr = VK_NULL_HANDLE;
 }
@@ -78,7 +83,9 @@ void VulkanContext::Init()
     CreateDebugInfo();
     PrepareSurfaceExtension();
     CreateInstance();
+#ifdef SH_DEBUG
     InitDebugMessenger();
+#endif
     CreateSurface();
     QueryPhysicalDevice();
     if (gpu == VK_NULL_HANDLE)
