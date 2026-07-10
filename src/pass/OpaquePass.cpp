@@ -2,14 +2,15 @@
 #include "core/Logger.h"
 #include "VulkanBuffer.h"
 #include "VulkanImage.h"
+#include "Material.h"
 
 void OpaquePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 {
-	VkDevice device = ctx.GetDevice();
+	const VkDevice device = ctx.GetDevice();
 
+	drawables.clear();
 	outputImage.reset();
 	outputImageDepth.reset();
-	buffer.reset();
 
 	if (pipeline != VK_NULL_HANDLE)
 	{
@@ -71,11 +72,14 @@ void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 0, 1, &frame.cameraSet, 0, nullptr);
-	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 1, 1, &descSet1, 0, nullptr);
 	for (const Drawable* drawable : drawables)
 	{
 		if (drawable->mesh == nullptr)
 			continue;
+		const Material& mat = *drawable->mat;
+		const VkDescriptorSet descSet = mat.GetVkDescriptorSet();
+		vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 1, 1, &descSet, 0, nullptr);
+
 		VkBuffer buffer = drawable->mesh->GetVertexBuffer()->GetBuffer();
 		VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &offset);
@@ -96,19 +100,31 @@ void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 		outputImageDepth->GetImage(), 
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT | VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT, 
 		VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	for (const Drawable* drawable : drawables)
+	{
+		if (drawable == nullptr || drawable->mat == nullptr)
+			continue;
+		for (auto& [view, tex] : drawable->mat->GetUsingTextures())
+		{
+			if (tex != nullptr)
+				AddUsage(
+					tex->GetImage(),
+					VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+					VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		}
+	}
 }
 
 void OpaquePass::PushDrawable(const Drawable& drawable)
 {
+	if (drawable.mat == nullptr || &drawable.mat->shader != &opaqueShader)
+		return;
+
 	drawables.push_back(&drawable);
 }
 
 void OpaquePass::PrepareResource(const VulkanContext& ctx)
 {
-	const VkBufferUsageFlags usage = VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-	const VkMemoryPropertyFlags memProps = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-	buffer = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, usage, memProps, sizeof(glm::vec4), &color));
-
 	VkImageCreateInfo imgCi{};
 	imgCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imgCi.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
@@ -137,6 +153,11 @@ void OpaquePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool des
 	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
 	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	binding0.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding1 = set1Bindings.emplace_back();
+	binding1.binding = 1;
+	binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding1.descriptorCount = 1;
 
 	VkPushConstantRange pc{};
 	pc.size = sizeof(glm::mat4);
@@ -147,26 +168,6 @@ void OpaquePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool des
 	setInfos[1].bindings = set1Bindings;
 	opaqueShader.Init(device, setInfos, &pc);
 	opaqueShader.LoadShaderModule("shaders/mesh.vert.spv", "shaders/mesh.frag.spv");
-
-	VkDescriptorSetAllocateInfo descSetAllocInfo{};
-	descSetAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	descSetAllocInfo.descriptorPool = descPool;
-	descSetAllocInfo.pSetLayouts = &opaqueShader.GetDescriptorSetLayouts()[1];
-	descSetAllocInfo.descriptorSetCount = 1;
-	VK_RESULT_CHECK(vkAllocateDescriptorSets(device, &descSetAllocInfo, &descSet1));
-
-	VkDescriptorBufferInfo descBufferInfo{};
-	descBufferInfo.buffer = buffer->GetBuffer();
-	descBufferInfo.range = sizeof(glm::vec4);
-
-	VkWriteDescriptorSet write0{};
-	write0.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	write0.descriptorCount = 1;
-	write0.dstSet = descSet1;
-	write0.dstBinding = 0;
-	write0.pBufferInfo = &descBufferInfo;
-	vkUpdateDescriptorSets(device, 1, &write0, 0, nullptr);
 }
 
 void OpaquePass::BuildPipeline(const VulkanContext& ctx)

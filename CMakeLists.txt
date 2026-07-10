@@ -22,7 +22,7 @@ set(HEADERS
 "include/VulkanImage.h"
 "include/GLBLoader.h"
 "include/Shader.h" 
-"include/BarrierBuilder.h")
+"include/BarrierBuilder.h" "include/Material.h"  )
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
@@ -35,7 +35,7 @@ set(CPPS
 "src/GLBLoader.cpp"
 "src/Shader.cpp"
 "include/Drawable.hpp" 
-"src/BarrierBuilder.cpp")
+"src/BarrierBuilder.cpp" "src/Material.cpp" )
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS})
 
 find_package(Vulkan)

@@ -66,7 +66,7 @@ void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& fra
 void AtmospherePass::SetAtmosphere(const Atmosphere& atmosphere)
 {
 	this->atmosphere = atmosphere;
-	atmosphereBuffer->SetData(&this->atmosphere);
+	atmosphereBuffer->SetData(&this->atmosphere, sizeof(this->atmosphere));
 }
 
 void AtmospherePass::PrepareResource(const VulkanContext& ctx)

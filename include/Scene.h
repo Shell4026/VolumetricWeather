@@ -21,18 +21,21 @@
 class VulkanBuffer;
 class ImGUI;
 class Window;
+class Material;
 class Scene
 {
 public:
 	Scene(VulkanContext& ctx, const ImGUI& imgui, Window& window);
+	~Scene();
 
-	virtual void Init();
+	void Init();
 	virtual void Clear();
 	virtual void Update(double dt);
 	virtual void Render(double dt);
 protected:
-	virtual void CreateBuffers();
 	virtual void SetupDescriptorPool();
+	virtual void SetupPass();
+	virtual void PrepareResource();
 	virtual void SetupDescriptor();
 	virtual void InitFrameContext();
 	virtual void CreateSyncObjects();
@@ -57,6 +60,7 @@ private:
 
 	// 불칸 리소스들
 	VkDescriptorPool descPool = VK_NULL_HANDLE;
+	VkSampler sampler = VK_NULL_HANDLE;
 
 	std::unique_ptr<OpaquePass> opaquePass;
 	std::unique_ptr<AtmospherePass> atmospherePass;
@@ -76,5 +80,11 @@ private:
 
 	//
 	GLBLoader::Model mountainModel;
+	
+	struct MountainMaterialData
+	{
+		glm::vec4 color{ 1.f, 1.f, 1.f, 1.f };
+	} mountainMaterialData;
+	std::unique_ptr<Material> mountainMaterial;
 	std::vector<Drawable> drawables;
 };

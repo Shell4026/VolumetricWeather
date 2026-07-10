@@ -8,8 +8,9 @@ layout(set = 1, binding = 0) uniform UBO
 {
 	vec4 color;
 } ubo;
+layout(set = 1, binding = 1) uniform sampler2D tex;
 
 void main() 
 {
-    outColor = ubo.color * vec4(uvs.x, 0.f, uvs.y, 1.0);
+    outColor = ubo.color * texture(tex, uvs);
 }

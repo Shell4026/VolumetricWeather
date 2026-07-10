@@ -24,7 +24,7 @@ public:
 	void UnMap();
 	void Flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 	void Bind(VkDeviceSize offset = 0);
-	void SetData(void* data);
+	void SetData(const void* data, std::size_t size, std::size_t offset = 0);
 
 	static auto Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, const void* data = nullptr) -> VulkanBuffer;
 

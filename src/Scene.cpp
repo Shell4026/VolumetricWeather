@@ -3,6 +3,7 @@
 #include "core/Window.h"
 #include "core/Input.h"
 #include "VulkanBuffer.h"
+#include "Material.h"
 
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "glm/gtc/matrix_transform.hpp"
@@ -17,59 +18,49 @@ Scene::Scene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
 	ctx(ctx), imgui(imgui), window(window)
 {
 }
+Scene::~Scene()
+{
+}
 void Scene::Init()
 {
-	camera.SetPos(glm::vec3{ 0.f, 100.f, 0.f });
-	camera.SetYaw(-90.f);
-	camera.SetPitch(0.f);
-	camera.UpdateMatrix();
-	cameraUniformData.pos = camera.GetPos();
-	cameraUniformData.view = camera.GetMatrixView();
-	cameraUniformData.proj = camera.GetMatrixProj();
-
-	CreateDrawables();
-	CreateBuffers();
+	PrepareResource();
 	SetupDescriptorPool();
 	SetupDescriptor();
+	SetupPass();
+	CreateDrawables();
 	InitFrameContext();
 	CreateSyncObjects();
-
-	opaquePass = std::make_unique<OpaquePass>();
-	opaquePass->Init(ctx, descPool, cameraDescSetLayout);
-
-	atmospherePass = std::make_unique<AtmospherePass>();
-	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
-	atmospherePass->Init(ctx, descPool, cameraDescSetLayout);
-
-	compositePass = std::make_unique<CompositePass>(*opaquePass->GetOutputImage(), *atmospherePass->GetOutputImage());
-	compositePass->Init(ctx, descPool, cameraDescSetLayout);
 }
 
 void Scene::Clear()
 {
-	vkDeviceWaitIdle(ctx.GetDevice());
+	const VkDevice device = ctx.GetDevice();
+	vkDeviceWaitIdle(device);
+
+	mountainMaterial.reset();
 
 	compositePass->Clear(ctx, descPool);
 	atmospherePass->Clear(ctx, descPool);
 	opaquePass->Clear(ctx, descPool);
 
-	vkDestroyDescriptorSetLayout(ctx.GetDevice(), cameraDescSetLayout, nullptr);
+	vkDestroySampler(device, sampler, nullptr);
+	vkDestroyDescriptorSetLayout(device, cameraDescSetLayout, nullptr);
 	cameraDescSetLayout = VK_NULL_HANDLE;
-	vkDestroyDescriptorPool(ctx.GetDevice(), descPool, nullptr);
+	vkDestroyDescriptorPool(device, descPool, nullptr);
 	descPool = VK_NULL_HANDLE;
 	cameraDescSet = VK_NULL_HANDLE;
 
 	for (FrameContext& frame : frames)
 	{
-		vkDestroySemaphore(ctx.GetDevice(), frame.imageAvailableSemaphore, nullptr);
+		vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
 		frame.imageAvailableSemaphore = VK_NULL_HANDLE;
 		frame.cameraSetLayout = VK_NULL_HANDLE;
 		frame.cameraSet = VK_NULL_HANDLE;
 	}
 	for (VkSemaphore semaphore : renderFinishedSemaphores)
-		vkDestroySemaphore(ctx.GetDevice(), semaphore, nullptr);
+		vkDestroySemaphore(device, semaphore, nullptr);
 	renderFinishedSemaphores.clear();
-	vkDestroySemaphore(ctx.GetDevice(), timelineSemaphore, nullptr);
+	vkDestroySemaphore(device, timelineSemaphore, nullptr);
 	timelineSemaphore = VK_NULL_HANDLE;
 }
 
@@ -205,7 +196,7 @@ void Scene::Render(double dt)
 	waitInfo.pValues = &recentlyValue;
 	vkWaitSemaphores(ctx.GetDevice(), &waitInfo, UINT64_MAX);
 
-	cameraUniformBuffers->SetData(&cameraUniformData);
+	cameraUniformBuffers->SetData(&cameraUniformData, sizeof(cameraUniformData));
 
 	for (const Drawable& drawable : drawables)
 		opaquePass->PushDrawable(drawable);
@@ -215,13 +206,6 @@ void Scene::Render(double dt)
 	compositePass->SetUsages(ctx, frames[currentFrameIdx]);
 	BuildCommandBuffer();
 	SubmitCommandBuffer();
-}
-
-void Scene::CreateBuffers()
-{
-	const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-	cameraUniformBuffers = 
-		std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData), &cameraUniformData));
 }
 
 void Scene::SetupDescriptorPool()
@@ -242,7 +226,52 @@ void Scene::SetupDescriptorPool()
 	poolCi.maxSets = 10;
 	poolCi.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolCi.pPoolSizes = poolSizes.data();
+	poolCi.flags = VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	VK_RESULT_CHECK(vkCreateDescriptorPool(ctx.GetDevice(), &poolCi, nullptr, &descPool));
+}
+
+void Scene::SetupPass()
+{
+	opaquePass = std::make_unique<OpaquePass>();
+	opaquePass->Init(ctx, descPool, cameraDescSetLayout);
+
+	atmospherePass = std::make_unique<AtmospherePass>();
+	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
+	atmospherePass->Init(ctx, descPool, cameraDescSetLayout);
+
+	compositePass = std::make_unique<CompositePass>(*opaquePass->GetOutputImage(), *atmospherePass->GetOutputImage());
+	compositePass->Init(ctx, descPool, cameraDescSetLayout);
+}
+
+void Scene::PrepareResource()
+{
+	camera.SetPos(glm::vec3{ 0.f, 100.f, 0.f });
+	camera.SetYaw(-90.f);
+	camera.SetPitch(0.f);
+	camera.UpdateMatrix();
+	cameraUniformData.pos = camera.GetPos();
+	cameraUniformData.view = camera.GetMatrixView();
+	cameraUniformData.proj = camera.GetMatrixProj();
+
+	const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+	cameraUniformBuffers =
+		std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData), &cameraUniformData));
+
+	VkSamplerCreateInfo samplerCi{};
+	samplerCi.sType = VkStructureType::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerCi.magFilter = VkFilter::VK_FILTER_LINEAR;
+	samplerCi.minFilter = VkFilter::VK_FILTER_LINEAR;
+	samplerCi.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerCi.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerCi.addressModeV = samplerCi.addressModeU;
+	samplerCi.addressModeW = samplerCi.addressModeU;
+	samplerCi.mipLodBias = 0.0f;
+	samplerCi.maxAnisotropy = 1.0f;
+	samplerCi.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
+	samplerCi.minLod = 0.0f;
+	samplerCi.maxLod = 1.0f;
+	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+	VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &sampler));
 }
 
 void Scene::SetupDescriptor()
@@ -406,6 +435,14 @@ void Scene::SubmitCommandBuffer()
 void Scene::CreateDrawables()
 {
 	mountainModel = GLBLoader::LoadGLB(ctx, "models/mountain_1.glb");
+
+	mountainMaterial = std::make_unique<Material>(ctx, opaquePass->GetShader());
+	mountainMaterial->AddBinding<MountainMaterialData>(0);
+	mountainMaterial->AddBinding(1, mountainModel.textures[0], sampler);
+	mountainMaterial->Build(descPool);
+
+	mountainMaterial->UpdateBindingData(0, mountainMaterialData);
+
 	//mountainNodes[0].modelMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, -5.f });
 	struct BFSInfo
 	{
@@ -419,14 +456,19 @@ void Scene::CreateDrawables()
 		auto [nodePtr, parentModelMatrix] = bfs.front();
 		bfs.pop();
 
-		Drawable& drawable = drawables.emplace_back();
-		drawable.modelMatrix = parentModelMatrix * nodePtr->modelMatrix;
-		drawable.mesh = nodePtr->meshPtr.get();
+		const glm::mat4 modelMatrix = parentModelMatrix * nodePtr->modelMatrix;
+		if (nodePtr->meshPtr != nullptr)
+		{
+			Drawable& drawable = drawables.emplace_back();
+			drawable.modelMatrix = modelMatrix;
+			drawable.mesh = nodePtr->meshPtr.get();
+			drawable.mat = mountainMaterial.get();
+		}
 
 		for (int idx : nodePtr->childrenIdxs)
 		{
 			GLBLoader::Node& child = mountainModel.nodes[idx];
-			bfs.push({ &child, drawable.modelMatrix });
+			bfs.push({ &child, modelMatrix });
 		}
 	}
 	return;

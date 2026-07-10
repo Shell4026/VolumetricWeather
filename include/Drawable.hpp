@@ -1,10 +1,12 @@
 ﻿#pragma once
-#include "Mesh.h"
+#include "glm/mat4x4.hpp"
 
-#include "glm/glm.hpp"
+class AMeshBase;
+class Material;
 
 struct Drawable
 {
 	glm::mat4 modelMatrix{ 1.f };
-	AMeshBase* mesh = nullptr;
+	const Material* mat = nullptr;
+	const AMeshBase* mesh = nullptr;
 };

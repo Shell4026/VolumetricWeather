@@ -40,14 +40,20 @@ void VulkanBuffer::Bind(VkDeviceSize offset)
 {
 	VK_RESULT_CHECK(vkBindBufferMemory(device, buffer, mem, offset));
 }
-void VulkanBuffer::SetData(void* data)
+void VulkanBuffer::SetData(const void* data, std::size_t size, std::size_t offset)
 {
+	if (this->size < size)
+	{
+		SH_ERROR_FORMAT("Data size({}) is bigger than buffer size({})", size, this->size);
+		return;
+	}
+
 	if (mapped != nullptr)
-		std::memcpy(mapped, data, size);
+		std::memcpy(reinterpret_cast<uint8_t*>(mapped) + offset, data, size);
 	else
 	{
 		Map();
-		std::memcpy(mapped, data, size);
+		std::memcpy(reinterpret_cast<uint8_t*>(mapped) + offset, data, size);
 	}
 }
 auto VulkanBuffer::Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, const void* data) -> VulkanBuffer

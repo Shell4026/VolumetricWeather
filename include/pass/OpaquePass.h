@@ -18,6 +18,7 @@ public:
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	/// @brief 같은 셰이더만 허용
 	void PushDrawable(const Drawable& mesh);
 
 	auto GetShader() const -> const Shader& { return opaqueShader; }
@@ -30,10 +31,7 @@ protected:
 private:
 	Shader opaqueShader;
 	VkPipeline pipeline = VK_NULL_HANDLE;
-	VkDescriptorSet descSet1 = VK_NULL_HANDLE;
 
-	glm::vec4 color{ 1.f, 1.f, 1.f, 1.f };
-	std::unique_ptr<VulkanBuffer> buffer;
 	std::unique_ptr<VulkanImage> outputImage;
 	std::unique_ptr<VulkanImage> outputImageDepth;
 
