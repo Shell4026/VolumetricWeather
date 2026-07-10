@@ -4,9 +4,13 @@
 #include "render/VulkanImage.h"
 #include "render/Material.h"
 
-void OpaquePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
+OpaquePass::~OpaquePass() = default;
+
+void OpaquePass::Clear()
 {
-	const VkDevice device = ctx.GetDevice();
+	if (ctx == nullptr)
+		return;
+	const VkDevice device = ctx->GetDevice();
 
 	drawables.clear();
 	outputImage.reset();
@@ -17,6 +21,7 @@ void OpaquePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 		vkDestroyPipeline(device, pipeline, nullptr);
 		pipeline = VK_NULL_HANDLE;
 	}
+	APass::Clear();
 }
 
 void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
@@ -71,20 +76,20 @@ void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdSetScissor(cmd, 0, 1, &rect);
 
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 0, 1, &frame.cameraSet, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader->GetPipelineLayout(), 0, 1, &frame.cameraSet, 0, nullptr);
 	for (const Drawable* drawable : drawables)
 	{
 		if (drawable->mesh == nullptr)
 			continue;
 		const Material& mat = *drawable->mat;
 		const VkDescriptorSet descSet = mat.GetVkDescriptorSet();
-		vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader.GetPipelineLayout(), 1, 1, &descSet, 0, nullptr);
+		vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, opaqueShader->GetPipelineLayout(), 1, 1, &descSet, 0, nullptr);
 
 		VkBuffer buffer = drawable->mesh->GetVertexBuffer()->GetBuffer();
 		VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(cmd, 0, 1, &buffer, &offset);
 		vkCmdBindIndexBuffer(cmd, drawable->mesh->GetIndexBuffer()->GetBuffer(), 0, VkIndexType::VK_INDEX_TYPE_UINT32);
-		vkCmdPushConstants(cmd, opaqueShader.GetPipelineLayout(), VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &drawable->modelMatrix);
+		vkCmdPushConstants(cmd, opaqueShader->GetPipelineLayout(), VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &drawable->modelMatrix);
 		vkCmdDrawIndexed(cmd, drawable->mesh->GetIndices().size(), 1, 0, 0, 0);
 	}
 	vkCmdEndRendering(cmd);
@@ -117,13 +122,13 @@ void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 
 void OpaquePass::PushDrawable(const Drawable& drawable)
 {
-	if (drawable.mat == nullptr || &drawable.mat->shader != &opaqueShader)
+	if (drawable.mat == nullptr || &drawable.mat->shader != opaqueShader)
 		return;
 
 	drawables.push_back(&drawable);
 }
 
-void OpaquePass::PrepareResource(const VulkanContext& ctx)
+void OpaquePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
 	VkImageCreateInfo imgCi{};
 	imgCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -141,33 +146,6 @@ void OpaquePass::PrepareResource(const VulkanContext& ctx)
 	imgCi.format = VkFormat::VK_FORMAT_D24_UNORM_S8_UINT;
 	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	outputImageDepth = std::make_unique<VulkanImage>(VulkanImage::Create(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
-}
-
-void OpaquePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout)
-{
-	const VkDevice device = ctx.GetDevice();
-
-	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-	VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
-	binding0.binding = 0;
-	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
-	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	binding0.descriptorCount = 1;
-	VkDescriptorSetLayoutBinding& binding1 = set1Bindings.emplace_back();
-	binding1.binding = 1;
-	binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
-	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	binding1.descriptorCount = 1;
-
-	VkPushConstantRange pc{};
-	pc.size = sizeof(glm::mat4);
-	pc.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
-
-	std::vector<Shader::SetInfo> setInfos(2);
-	setInfos[0].otherLayout = cameraSetLayout;
-	setInfos[1].bindings = set1Bindings;
-	opaqueShader.Init(device, setInfos, &pc);
-	opaqueShader.LoadShaderModule("shaders/mesh.vert.spv", "shaders/mesh.frag.spv");
 }
 
 void OpaquePass::BuildPipeline(const VulkanContext& ctx)
@@ -289,8 +267,8 @@ void OpaquePass::BuildPipeline(const VulkanContext& ctx)
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.stageCount = opaqueShader.GetPipelineShaderStageCreateInfos().size();
-	pipelineInfo.pStages = opaqueShader.GetPipelineShaderStageCreateInfos().data();
+	pipelineInfo.stageCount = opaqueShader->GetPipelineShaderStageCreateInfos().size();
+	pipelineInfo.pStages = opaqueShader->GetPipelineShaderStageCreateInfos().data();
 	pipelineInfo.pVertexInputState = &vertexInputInfo;
 	pipelineInfo.pInputAssemblyState = &inputAssembly;
 	pipelineInfo.pViewportState = &viewportState;
@@ -299,7 +277,7 @@ void OpaquePass::BuildPipeline(const VulkanContext& ctx)
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = opaqueShader.GetPipelineLayout();
+	pipelineInfo.layout = opaqueShader->GetPipelineLayout();
 	pipelineInfo.renderPass = VK_NULL_HANDLE;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = nullptr;

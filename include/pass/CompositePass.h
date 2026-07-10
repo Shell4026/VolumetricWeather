@@ -13,7 +13,7 @@ class CompositePass : public APass
 public:
 	CompositePass(const VulkanImage& opaqueTex, const VulkanImage & atmosphereTex);
 
-	void Clear(const VulkanContext& ctx, VkDescriptorPool descPool) override;
+	void Clear() override;
 
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 
@@ -21,8 +21,8 @@ public:
 
 	auto GetShader() const -> const Shader& { return compositeShader; }
 protected:
-	void PrepareResource(const VulkanContext& ctx) override;
-	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout) override;
+	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
+	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 	void BuildPipeline(const VulkanContext& ctx) override;
 private:
 	Shader compositeShader;

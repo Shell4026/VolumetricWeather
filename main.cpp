@@ -4,7 +4,7 @@
 
 #include "render/VulkanContext.h"
 
-#include "Scene.h"
+#include "BasisScene.h"
 
 #include <iostream>
 #include <chrono>
@@ -24,7 +24,7 @@ int main()
 			imgui.ProcessEvent(msg, wParam, lParam);
 		}
 	);
-	Scene scene{ ctx, imgui, win };
+	BasisScene scene{ ctx, imgui, win };
 	scene.Init();
 
 	double dt = 0.0;

@@ -10,10 +10,11 @@ CompositePass::CompositePass(const VulkanImage& opaqueTex, const VulkanImage& at
 	opaqueTex(opaqueTex), atmosphereTex(atmosphereTex)
 {
 }
-void CompositePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
+void CompositePass::Clear()
 {
-	APass::Clear(ctx, descPool);
-	const VkDevice device = ctx.GetDevice();
+	if (ctx == nullptr)
+		return;
+	const VkDevice device = ctx->GetDevice();
 	
 	if (atmosphereSampler != VK_NULL_HANDLE)
 	{
@@ -28,6 +29,7 @@ void CompositePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 		vkDestroyPipeline(device, pipeline, nullptr);
 		pipeline = VK_NULL_HANDLE;
 	}
+	APass::Clear();
 }
 void CompositePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
@@ -88,8 +90,10 @@ void CompositePass::SetUsages(const VulkanContext& ctx, const FrameContext& fram
 	AddUsage(opaqueTex.GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(atmosphereTex.GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
-void CompositePass::PrepareResource(const VulkanContext& ctx)
+void CompositePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
+	const VkDevice device = ctx.GetDevice();
+
 	const VkBufferUsageFlags usage = VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 	buffer = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, usage, memProp, sizeof(glm::vec4), &color));
@@ -108,11 +112,7 @@ void CompositePass::PrepareResource(const VulkanContext& ctx)
 	samplerCi.minLod = 0.0f;
 	samplerCi.maxLod = 1.0f;
 	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-	VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &atmosphereSampler));
-}
-void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout)
-{
-	const VkDevice device = ctx.GetDevice();
+	VK_RESULT_CHECK(vkCreateSampler(device, &samplerCi, nullptr, &atmosphereSampler));
 
 	std::vector<VkDescriptorSetLayoutBinding> set1LayoutBindings;
 	VkDescriptorSetLayoutBinding& binding0 = set1LayoutBindings.emplace_back();
@@ -126,10 +126,13 @@ void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool 
 	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding1.descriptorCount = 1;
 
-	std::vector<Shader::SetInfo> shaderInfos(2);
-	shaderInfos[1].bindings = std::move(set1LayoutBindings);
-	compositeShader.Init(ctx.GetDevice(), shaderInfos);
-	compositeShader.LoadShaderModule("shaders/composite.vert.spv", "shaders/composite.frag.spv");
+	compositeShader.AddSet(0, cameraSetLayout);
+	compositeShader.AddSet(1, set1LayoutBindings);
+	compositeShader.Build(device, "shaders/composite.vert.spv", "shaders/composite.frag.spv");
+}
+void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
+{
+	const VkDevice device = ctx.GetDevice();
 
 	VkDescriptorSetAllocateInfo descSetAllocInfo{};
 	descSetAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;

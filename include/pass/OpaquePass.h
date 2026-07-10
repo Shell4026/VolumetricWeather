@@ -14,23 +14,26 @@ class VulkanImage;
 class OpaquePass : public APass
 {
 public:
-	void Clear(const VulkanContext& ctx, VkDescriptorPool descPool) override;
+	OpaquePass() { bUseSwapchainImage = false; }
+	~OpaquePass();
+
+	void Clear() override;
 
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	void SetShader(const Shader& opaqueShader) { this->opaqueShader = &opaqueShader; }
 	/// @brief 같은 셰이더만 허용
 	void PushDrawable(const Drawable& mesh);
 
-	auto GetShader() const -> const Shader& { return opaqueShader; }
+	auto GetShader() const -> const Shader* { return opaqueShader; }
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
 	auto GetOutputImageDepth() const -> VulkanImage* { return outputImageDepth.get(); }
 protected:
-	void PrepareResource(const VulkanContext& ctx) override;
-	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout) override;
+	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void BuildPipeline(const VulkanContext& ctx) override;
 private:
-	Shader opaqueShader;
+	const Shader* opaqueShader = nullptr;
 	VkPipeline pipeline = VK_NULL_HANDLE;
 
 	std::unique_ptr<VulkanImage> outputImage;

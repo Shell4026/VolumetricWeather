@@ -3,47 +3,26 @@
 
 #include <fstream>
 
-void Shader::Init(VkDevice device, const std::vector<SetInfo>& setInfos, VkPushConstantRange* pushConstant)
+Shader::Shader(Shader&& other) noexcept :
+	device(other.device),
+	setInfos(std::move(other.setInfos)),
+	descSetLayouts(std::move(other.descSetLayouts)),
+	descSetLayoutsOwnerships(std::move(other.descSetLayoutsOwnerships)),
+	pipelineLayout(other.pipelineLayout),
+	vertShader(other.vertShader),
+	fragShader(other.fragShader),
+	pipelineShaderStageCreateInfos(std::move(other.pipelineShaderStageCreateInfos))
 {
-	this->device = device;
-	descSetLayouts.resize(setInfos.size());
-	descSetLayoutsOwnerships.resize(setInfos.size(), false);
-	for (std::size_t i = 0; i < setInfos.size(); ++i)
-	{
-		if (setInfos[i].otherLayout != VK_NULL_HANDLE)
-			descSetLayouts[i] = setInfos[i].otherLayout;
-		else
-		{
-			if (setInfos[i].bindings.empty())
-			{
-				VkDescriptorSetLayoutCreateInfo layoutCi{};
-				layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-				VK_RESULT_CHECK(vkCreateDescriptorSetLayout(device, &layoutCi, nullptr, &descSetLayouts[i]));
-				descSetLayoutsOwnerships[i] = true;
-			}
-			else
-			{
-				VkDescriptorSetLayoutCreateInfo layoutCi{};
-				layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-				layoutCi.bindingCount = static_cast<uint32_t>(setInfos[i].bindings.size());
-				layoutCi.pBindings = setInfos[i].bindings.empty() ? nullptr : setInfos[i].bindings.data();
-				VK_RESULT_CHECK(vkCreateDescriptorSetLayout(device, &layoutCi, nullptr, &descSetLayouts[i]));
-				descSetLayoutsOwnerships[i] = true;
-			}
-		}
-	}
-
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-	pipelineLayoutInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = descSetLayouts.size();
-	pipelineLayoutInfo.pSetLayouts = descSetLayouts.data();
-	pipelineLayoutInfo.pushConstantRangeCount = pushConstant == nullptr ? 0 : 1;
-	pipelineLayoutInfo.pPushConstantRanges = pushConstant;
-	VK_RESULT_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+	other.device = VK_NULL_HANDLE;
+	other.pipelineLayout = VK_NULL_HANDLE;
+	other.vertShader = VK_NULL_HANDLE;
+	other.fragShader = VK_NULL_HANDLE;
 }
 
 void Shader::Clear()
 {
+	setInfos.clear();
+
 	if (device == VK_NULL_HANDLE)
 		return;
 
@@ -73,26 +52,84 @@ void Shader::Clear()
 	pipelineShaderStageCreateInfos.clear();
 }
 
+void Shader::AddSet(uint32_t set, VkDescriptorSetLayout setLayout)
+{
+	if (setInfos.size() <= set)
+		setInfos.resize(set + 1);
+
+	setInfos[set] = setLayout;
+}
+
+void Shader::AddSet(uint32_t set, std::vector<VkDescriptorSetLayoutBinding> bindingInfo)
+{
+	if (setInfos.size() <= set)
+		setInfos.resize(set + 1);
+	
+	setInfos[set] = std::move(bindingInfo);
+}
+
+void Shader::Build(VkDevice device, const std::filesystem::path& vertShaderPath, const std::filesystem::path& fragShaderPath, VkPushConstantRange* pushConstant)
+{
+	this->device = device;
+	descSetLayouts.resize(setInfos.size());
+	descSetLayoutsOwnerships.resize(setInfos.size(), false);
+	for (std::size_t i = 0; i < setInfos.size(); ++i)
+	{
+		if (std::holds_alternative<VkDescriptorSetLayout>(setInfos[i]))
+			descSetLayouts[i] = std::get<VkDescriptorSetLayout>(setInfos[i]);
+		else
+		{
+			std::vector<VkDescriptorSetLayoutBinding>& bindings = std::get<std::vector<VkDescriptorSetLayoutBinding>>(setInfos[i]);
+			if (bindings.empty())
+			{
+				VkDescriptorSetLayoutCreateInfo layoutCi{};
+				layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+				VK_RESULT_CHECK(vkCreateDescriptorSetLayout(device, &layoutCi, nullptr, &descSetLayouts[i]));
+				descSetLayoutsOwnerships[i] = true;
+			}
+			else
+			{
+				VkDescriptorSetLayoutCreateInfo layoutCi{};
+				layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+				layoutCi.bindingCount = static_cast<uint32_t>(bindings.size());
+				layoutCi.pBindings = bindings.empty() ? nullptr : bindings.data();
+				VK_RESULT_CHECK(vkCreateDescriptorSetLayout(device, &layoutCi, nullptr, &descSetLayouts[i]));
+				descSetLayoutsOwnerships[i] = true;
+			}
+		}
+	}
+
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+	pipelineLayoutInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = descSetLayouts.size();
+	pipelineLayoutInfo.pSetLayouts = descSetLayouts.data();
+	pipelineLayoutInfo.pushConstantRangeCount = pushConstant == nullptr ? 0 : 1;
+	pipelineLayoutInfo.pPushConstantRanges = pushConstant;
+	VK_RESULT_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+
+	LoadShaderModule(vertShaderPath, fragShaderPath);
+}
+
 void Shader::LoadShaderModule(const std::filesystem::path& vertShaderPath, const std::filesystem::path& fragShaderPath)
 {
 	if (device == VK_NULL_HANDLE)
 		return;
 
 	auto LoadBinary = [](const std::filesystem::path& path) -> std::vector<char>
-	{
-		std::ifstream file(path, std::ios::ate | std::ios::binary);
-		if (!file.is_open())
 		{
-			SH_ERROR_FORMAT("Failed to read shader: {}", path.string());
-			return {};
-		}
-		const std::size_t fileSize = (size_t)file.tellg();
-		std::vector<char> buffer(fileSize);
-		file.seekg(0);
-		file.read(buffer.data(), fileSize);
-		file.close();
-		return buffer;
-	};
+			std::ifstream file(path, std::ios::ate | std::ios::binary);
+			if (!file.is_open())
+			{
+				SH_ERROR_FORMAT("Failed to read shader: {}", path.string());
+				return {};
+			}
+			const std::size_t fileSize = (size_t)file.tellg();
+			std::vector<char> buffer(fileSize);
+			file.seekg(0);
+			file.read(buffer.data(), fileSize);
+			file.close();
+			return buffer;
+		};
 	if (!vertShaderPath.empty())
 	{
 		std::vector<char> buffer = LoadBinary(vertShaderPath);

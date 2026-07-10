@@ -3,10 +3,13 @@
 #include "render/VulkanBuffer.h"
 #include "render/VulkanImage.h"
 
-void AtmospherePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
+AtmospherePass::~AtmospherePass() = default;
+
+void AtmospherePass::Clear()
 {
-	APass::Clear(ctx, descPool);
-	const VkDevice device = ctx.GetDevice();
+	if (ctx == nullptr)
+		return;
+	const VkDevice device = ctx->GetDevice();
 
 	if (pipeline != VK_NULL_HANDLE)
 	{
@@ -35,10 +38,7 @@ void AtmospherePass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
 	}
 	outputImage.reset();
 	atmosphereBuffer.reset();
-}
-
-void AtmospherePass::Update(double dt)
-{
+	APass::Clear();
 }
 
 void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
@@ -69,8 +69,11 @@ void AtmospherePass::SetAtmosphere(const Atmosphere& atmosphere)
 	atmosphereBuffer->SetData(&this->atmosphere, sizeof(this->atmosphere));
 }
 
-void AtmospherePass::PrepareResource(const VulkanContext& ctx)
+void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
+	this->cameraSetLayout = cameraSetLayout;
+	const VkDevice device = ctx.GetDevice();
+
 	glm::vec3 sunDir = glm::normalize(glm::vec3{ -1.f, 0.f, 0.f });
 	atmosphere.sun = glm::vec4{ sunDir, 20.f };
 	const VkBufferUsageFlags usage = VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
@@ -105,10 +108,10 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx)
 	samplerCi.minLod = 0.0f;
 	samplerCi.maxLod = 1.0f;
 	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &opaqueDepthSampler));
+	VK_RESULT_CHECK(vkCreateSampler(device, &samplerCi, nullptr, &opaqueDepthSampler));
 }
 
-void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout)
+void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
 {
 	const VkDevice device = ctx.GetDevice();
 

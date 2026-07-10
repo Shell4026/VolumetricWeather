@@ -8,8 +8,10 @@
 class APass
 {
 public:
+	virtual ~APass();
+
 	void Init(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout);
-	virtual void Clear(const VulkanContext& ctx, VkDescriptorPool descPool);
+	virtual void Clear();
 	virtual void Update(double dt) {}
 
 	void BeginRecord(const std::vector<BarrierInfo>* barrierInfos = nullptr);
@@ -20,18 +22,23 @@ public:
 
 	auto GetCommandBuffer() const -> VkCommandBuffer { return cmd; }
 	auto GetUsages() const -> const std::vector<ImageUsage>& { return imageUsages; }
+	auto IsUsingSwapchainImage() const -> bool { return bUseSwapchainImage; }
 protected:
-	virtual void PrepareResource(const VulkanContext& ctx) {};
-	virtual void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout) = 0;
+	virtual void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) {};
+	virtual void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) {}
 	virtual void BuildPipeline(const VulkanContext& ctx) = 0;
+
 	void AddUsage(VkImage image, VkImageAspectFlags apsect, VkImageLayout usage);
 
 	static auto LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule;
 private:
 	void AllocateCommandBuffer(VkDevice device);
+protected:
+	const VulkanContext* ctx = nullptr;
+	VkDescriptorPool descPool = VK_NULL_HANDLE;
+	bool bUseSwapchainImage = true;
 private:
 	VkCommandPool cmdPool = VK_NULL_HANDLE;
-	VkDescriptorPool descPool = VK_NULL_HANDLE;
 	VkCommandBuffer cmd = VK_NULL_HANDLE;
 
 	std::vector<ImageUsage> imageUsages;

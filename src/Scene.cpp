@@ -1,7 +1,9 @@
 ﻿#include "Scene.h"
+#include "Camera.h"
+
 #include "core/Logger.h"
 #include "core/Window.h"
-#include "core/Input.h"
+
 #include "render/VulkanBuffer.h"
 #include "render/Material.h"
 
@@ -18,36 +20,30 @@
 #ifdef max
 #undef max
 #endif
-Scene::Scene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
+AScene::AScene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
 	ctx(ctx), imgui(imgui), window(window)
 {
 }
-Scene::~Scene()
+AScene::~AScene()
 {
+	Clear();
 }
-void Scene::Init()
+
+void AScene::Init()
 {
+	descPool = CreateDescriptorPool();
+	camera = std::move(CreateSceneCamera());
 	PrepareResource();
-	SetupDescriptorPool();
-	SetupDescriptor();
 	SetupPass();
-	CreateDrawables();
 	InitFrameContext();
 	CreateSyncObjects();
 }
 
-void Scene::Clear()
+void AScene::Clear()
 {
 	const VkDevice device = ctx.GetDevice();
 	vkDeviceWaitIdle(device);
 
-	mountainMaterial.reset();
-
-	compositePass->Clear(ctx, descPool);
-	atmospherePass->Clear(ctx, descPool);
-	opaquePass->Clear(ctx, descPool);
-
-	vkDestroySampler(device, sampler, nullptr);
 	vkDestroyDescriptorSetLayout(device, cameraDescSetLayout, nullptr);
 	cameraDescSetLayout = VK_NULL_HANDLE;
 	vkDestroyDescriptorPool(device, descPool, nullptr);
@@ -68,123 +64,7 @@ void Scene::Clear()
 	timelineSemaphore = VK_NULL_HANDLE;
 }
 
-void Scene::Update(double dt)
-{
-	atmospherePass->Update(dt);
-	compositePass->Update(dt);
-
-	if (Input::IsKeyDown(Event::KeyType::W))
-	{
-		camera.AddPitch(30.0 * dt);
-		camera.UpdateMatrix();
-		cameraUniformData.pos = camera.GetPos();
-		cameraUniformData.view = camera.GetMatrixView();
-		cameraUniformData.proj = camera.GetMatrixProj();
-	}
-	if (Input::IsKeyDown(Event::KeyType::S))
-	{
-		camera.AddPitch(-30.0 * dt);
-		camera.UpdateMatrix();
-		cameraUniformData.pos = camera.GetPos();
-		cameraUniformData.view = camera.GetMatrixView();
-		cameraUniformData.proj = camera.GetMatrixProj();
-	}
-	if (Input::IsKeyDown(Event::KeyType::A))
-	{
-		camera.AddYaw(-30.0 * dt);
-		camera.UpdateMatrix();
-		cameraUniformData.pos = camera.GetPos();
-		cameraUniformData.view = camera.GetMatrixView();
-		cameraUniformData.proj = camera.GetMatrixProj();
-	}
-	if (Input::IsKeyDown(Event::KeyType::D))
-	{
-		camera.AddYaw(30.0 * dt);
-		camera.UpdateMatrix();
-		cameraUniformData.pos = camera.GetPos();
-		cameraUniformData.view = camera.GetMatrixView();
-		cameraUniformData.proj = camera.GetMatrixProj();
-	}
-	if (Input::IsKeyDown(Event::KeyType::Space))
-	{
-		glm::vec3 pos = camera.GetPos();
-		pos.y += 1000.0 * dt;
-		camera.SetPos(pos);
-		camera.CalcTo();
-		camera.UpdateMatrix();
-		cameraUniformData.pos = camera.GetPos();
-		cameraUniformData.view = camera.GetMatrixView();
-		cameraUniformData.proj = camera.GetMatrixProj();
-	}
-	if (Input::IsKeyDown(Event::KeyType::LCtrl))
-	{
-		glm::vec3 pos = camera.GetPos();
-		pos.y -= 1000.0 * dt;
-		camera.SetPos(pos);
-		camera.CalcTo();
-		camera.UpdateMatrix();
-		cameraUniformData.pos = camera.GetPos();
-		cameraUniformData.view = camera.GetMatrixView();
-		cameraUniformData.proj = camera.GetMatrixProj();
-	}
-
-	ImGuiWindowFlags windowFlags =
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoDecoration |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoSavedSettings |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoFocusOnAppearing |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoNav |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoInputs;
-	ImGui::SetNextWindowPos({ 0, 0 });
-	ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
-	if (ImGui::Begin("Overlay", nullptr, windowFlags))
-	{
-		const glm::vec3& pos = camera.GetPos();
-		const glm::vec3& to = camera.GetTo();
-		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
-		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
-	}
-	ImGui::End();
-
-	ImGui::SetNextWindowSize(ImVec2{ 300.f, 300.f }, ImGuiCond_::ImGuiCond_Appearing);
-	if (ImGui::Begin("Debug"))
-	{
-		AtmospherePass::Atmosphere atmosphere = atmospherePass->GetAtmosphere();
-		ImGui::Text("Steps");
-		if (ImGui::SliderInt("##steps", &atmosphere.steps, 1, 512))
-			atmospherePass->SetAtmosphere(atmosphere);
-
-		ImGui::Text("Sun illuminance");
-		if (ImGui::SliderFloat("##SunIlluminance", &atmosphere.sun.w, 0.f, 1000.f))
-			atmospherePass->SetAtmosphere(atmosphere);
-
-		ImGui::Text("Sun direction");
-		static float angle = 0.0f;
-		if (ImGui::SliderFloat("##SunDirection", &angle, 0.f, 360.f))
-		{
-			glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
-			glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
-			atmosphere.sun = glm::vec4(sunDir, atmosphere.sun.w);
-			atmospherePass->SetAtmosphere(atmosphere);
-		}
-
-		ImGui::Text("Cam pos");
-		float pos[] = { camera.GetPos().x, camera.GetPos().y, camera.GetPos().z };
-		if (ImGui::InputFloat3("##camPos", pos, "%.3f", ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
-		{
-			camera.SetPos({ pos[0], pos[1], pos[2] });
-			camera.CalcTo();
-			camera.UpdateMatrix();
-			cameraUniformData.pos = camera.GetPos();
-			cameraUniformData.view = camera.GetMatrixView();
-			cameraUniformData.proj = camera.GetMatrixProj();
-		}
-
-		ImGui::End();
-	}
-}
-
-void Scene::Render(double dt)
+void AScene::Render(double dt)
 {
 	if (!ctx.AcquireNextImage(frames[currentFrameIdx].imageAvailableSemaphore, nullptr, &currentImgIdx))
 		return;
@@ -202,18 +82,19 @@ void Scene::Render(double dt)
 
 	cameraUniformBuffers->SetData(&cameraUniformData, sizeof(cameraUniformData));
 
-	for (const Drawable& drawable : drawables)
-		opaquePass->PushDrawable(drawable);
+	BeginBuildCommandBuffer();
 
-	opaquePass->SetUsages(ctx, frames[currentFrameIdx]);
-	atmospherePass->SetUsages(ctx, frames[currentFrameIdx]);
-	compositePass->SetUsages(ctx, frames[currentFrameIdx]);
+	for (APass* pass : GetActivePassList())
+		pass->SetUsages(ctx, frames[currentFrameIdx]);
+
 	BuildCommandBuffer();
 	SubmitCommandBuffer();
 }
 
-void Scene::SetupDescriptorPool()
+auto AScene::CreateDescriptorPool()->VkDescriptorPool
 {
+	VkDescriptorPool descPool = VK_NULL_HANDLE;
+
 	std::vector<VkDescriptorPoolSize> poolSizes;
 	VkDescriptorPoolSize& uniformBufferPoolSize = poolSizes.emplace_back();
 	uniformBufferPoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -232,54 +113,28 @@ void Scene::SetupDescriptorPool()
 	poolCi.pPoolSizes = poolSizes.data();
 	poolCi.flags = VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	VK_RESULT_CHECK(vkCreateDescriptorPool(ctx.GetDevice(), &poolCi, nullptr, &descPool));
+	return descPool;
 }
 
-void Scene::SetupPass()
+auto AScene::CreateSceneCamera() -> std::unique_ptr<Camera>
 {
-	opaquePass = std::make_unique<OpaquePass>();
-	opaquePass->Init(ctx, descPool, cameraDescSetLayout);
+	std::unique_ptr<Camera> cameraPtr = std::make_unique<Camera>();
+	cameraPtr->SetPos(glm::vec3{ 0.f, 100.f, 0.f });
+	cameraPtr->SetTo(glm::vec3{ 0.f, 100.f, -1.f });
+	cameraPtr->UpdateMatrix();
+	cameraUniformData.pos = cameraPtr->GetPos();
+	cameraUniformData.view = cameraPtr->GetMatrixView();
+	cameraUniformData.proj = cameraPtr->GetMatrixProj();
 
-	atmospherePass = std::make_unique<AtmospherePass>();
-	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
-	atmospherePass->Init(ctx, descPool, cameraDescSetLayout);
-
-	compositePass = std::make_unique<CompositePass>(*opaquePass->GetOutputImage(), *atmospherePass->GetOutputImage());
-	compositePass->Init(ctx, descPool, cameraDescSetLayout);
+	return cameraPtr;
 }
 
-void Scene::PrepareResource()
+void AScene::PrepareResource()
 {
-	camera.SetPos(glm::vec3{ 0.f, 100.f, 0.f });
-	camera.SetYaw(-90.f);
-	camera.SetPitch(0.f);
-	camera.UpdateMatrix();
-	cameraUniformData.pos = camera.GetPos();
-	cameraUniformData.view = camera.GetMatrixView();
-	cameraUniformData.proj = camera.GetMatrixProj();
-
 	const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 	cameraUniformBuffers =
 		std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, memProp, sizeof(cameraUniformData), &cameraUniformData));
 
-	VkSamplerCreateInfo samplerCi{};
-	samplerCi.sType = VkStructureType::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerCi.magFilter = VkFilter::VK_FILTER_LINEAR;
-	samplerCi.minFilter = VkFilter::VK_FILTER_LINEAR;
-	samplerCi.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerCi.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerCi.addressModeV = samplerCi.addressModeU;
-	samplerCi.addressModeW = samplerCi.addressModeU;
-	samplerCi.mipLodBias = 0.0f;
-	samplerCi.maxAnisotropy = 1.0f;
-	samplerCi.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
-	samplerCi.minLod = 0.0f;
-	samplerCi.maxLod = 1.0f;
-	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-	VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &sampler));
-}
-
-void Scene::SetupDescriptor()
-{
 	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 	VkDescriptorSetLayoutBinding& binding0 = setLayoutBindings.emplace_back();
 	binding0.binding = 0;
@@ -310,7 +165,7 @@ void Scene::SetupDescriptor()
 	vkUpdateDescriptorSets(ctx.GetDevice(), 1, &writeSet, 0, nullptr);
 }
 
-void Scene::InitFrameContext()
+void AScene::InitFrameContext()
 {
 	VkSemaphoreCreateInfo ci{};
 	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -322,7 +177,7 @@ void Scene::InitFrameContext()
 	}
 }
 
-void Scene::CreateSyncObjects()
+void AScene::CreateSyncObjects()
 {
 	VkSemaphoreCreateInfo ci{};
 	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -341,86 +196,78 @@ void Scene::CreateSyncObjects()
 	ci.pNext = nullptr;
 }
 
-void Scene::BuildCommandBuffer()
+void AScene::BuildCommandBuffer()
 {
-	std::vector<std::vector<BarrierInfo>> barriers = barrierBuilder.BuildBarrier({ opaquePass.get(), atmospherePass.get(), compositePass.get() });
+	std::vector<APass*>& activePassList = GetActivePassList();
+	const std::vector<std::vector<BarrierInfo>> barriers = barrierBuilder.BuildBarrier(activePassList);
 
 	FrameContext& frame = frames[currentFrameIdx];
-	{
-		opaquePass->BeginRecord(&barriers[0]);
-		opaquePass->Record(ctx, frame);
-		opaquePass->EndRecord();
-	}
-	{
-		atmospherePass->BeginRecord(&barriers[1]);
-		atmospherePass->Record(ctx, frame);
-		atmospherePass->EndRecord();
-	}
-	{
-		std::vector<BarrierInfo> postBarriers;
-		for (const ImageUsage& usage : compositePass->GetUsages())
-		{
-			BarrierInfo& barrier = postBarriers.emplace_back();
-			barrier.image = usage.image;
-			barrier.aspect = usage.aspect;
-			barrier.srcLayout = usage.layout;
-			barrier.dstLayout = VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			barrier.srcAccess = usage.access;
-			barrier.dstAccess = VkAccessFlagBits::VK_ACCESS_NONE;
-			barrier.srcStage = usage.stage;
-			barrier.dstStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-		}
 
-		compositePass->BeginRecord(&barriers[2]);
-		compositePass->Record(ctx, frame);
-		compositePass->EndRecord(&postBarriers);
+	std::vector<BarrierInfo> endBarrier;
+	BarrierInfo& barrier = endBarrier.emplace_back();
+	barrier.image = ctx.GetSwapChainImages()[frame.imgIdx];
+	barrier.aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.srcLayout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	barrier.dstLayout = VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.srcAccess = VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.dstAccess = VkAccessFlagBits::VK_ACCESS_NONE;
+	barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	barrier.dstStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+
+	int idx = 0;
+	for (APass* pass : activePassList)
+	{
+		pass->BeginRecord(&barriers[idx]);
+		pass->Record(ctx, frame);
+		if (idx == activePassList.size() - 1)
+			pass->EndRecord(&endBarrier);
+		else
+			pass->EndRecord();
+		++idx;
 	}
 }
 
-void Scene::SubmitCommandBuffer()
+void AScene::SubmitCommandBuffer()
 {
 	FrameContext& frame = frames[currentFrameIdx];
 	frame.submittedValue = nextSubmitValue++;
 
+	std::vector<APass*>& activePassList = GetActivePassList();
+	const APass* firstSwapchainPass = nullptr;
+	int idx = 0;
+	for (APass* pass : activePassList)
 	{
-		const VkCommandBuffer cmd = opaquePass->GetCommandBuffer();
+		const VkCommandBuffer cmd = pass->GetCommandBuffer();
 		VkSubmitInfo info{};
 		info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		info.commandBufferCount = 1;
 		info.pCommandBuffers = &cmd;
-		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
-	}
-	{
-		const VkCommandBuffer cmd = atmospherePass->GetCommandBuffer();
-		VkSubmitInfo info{};
-		info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		info.commandBufferCount = 1;
-		info.pCommandBuffers = &cmd;
-		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
-	}
-	{
-		const VkCommandBuffer cmd = compositePass->GetCommandBuffer();
+		// 첫 패스
+		if (firstSwapchainPass == nullptr && pass->IsUsingSwapchainImage())
+		{
+			VkPipelineStageFlags waitStages[] = { VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+			info.waitSemaphoreCount = 1;
+			info.pWaitSemaphores = &frame.imageAvailableSemaphore;
+			info.pWaitDstStageMask = waitStages;
+		}
+		// 마지막 패스
+		if (idx == activePassList.size() - 1)
+		{
+			std::array<VkSemaphore, 2> signals = { timelineSemaphore, renderFinishedSemaphores[currentImgIdx] };
+			std::array<uint64_t, 2> values = { frame.submittedValue, 0 };
 
-		VkPipelineStageFlags waitStages[] = { VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		std::array<VkSemaphore, 2> signals = { timelineSemaphore, renderFinishedSemaphores[currentImgIdx] };
-		std::array<uint64_t, 2> values = { frame.submittedValue, 0 };
+			VkTimelineSemaphoreSubmitInfo tsInfo{};
+			tsInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+			tsInfo.signalSemaphoreValueCount = signals.size();
+			tsInfo.pSignalSemaphoreValues = values.data();
 
-		VkTimelineSemaphoreSubmitInfo tsInfo{};
-		tsInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-		tsInfo.signalSemaphoreValueCount = signals.size();
-		tsInfo.pSignalSemaphoreValues = values.data();
+			info.signalSemaphoreCount = signals.size();
+			info.pSignalSemaphores = signals.data();
+			info.pNext = &tsInfo;
+		}
 
-		VkSubmitInfo info{};
-		info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		info.commandBufferCount = 1;
-		info.pCommandBuffers = &cmd;
-		info.waitSemaphoreCount = 1;
-		info.pWaitSemaphores = &frame.imageAvailableSemaphore;
-		info.signalSemaphoreCount = signals.size();
-		info.pSignalSemaphores = signals.data();
-		info.pWaitDstStageMask = waitStages;
-		info.pNext = &tsInfo;
 		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
+		++idx;
 	}
 
 	VkSwapchainKHR swapChains[] = { ctx.GetSwapChain() };
@@ -436,44 +283,11 @@ void Scene::SubmitCommandBuffer()
 	currentFrameIdx = (currentFrameIdx + 1) % VulkanContext::MAX_CONCURRENT_FRAMES;
 }
 
-void Scene::CreateDrawables()
+void AScene::UpdateCameraData()
 {
-	mountainModel = GLBLoader::LoadGLB(ctx, "models/mountain_1.glb");
-
-	mountainMaterial = std::make_unique<Material>(ctx, opaquePass->GetShader());
-	mountainMaterial->AddBinding<MountainMaterialData>(0);
-	mountainMaterial->AddBinding(1, mountainModel.textures[0], sampler);
-	mountainMaterial->Build(descPool);
-
-	mountainMaterial->UpdateBindingData(0, mountainMaterialData);
-
-	//mountainNodes[0].modelMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, -5.f });
-	struct BFSInfo
-	{
-		GLBLoader::Node* node;
-		glm::mat4 parentModelMatrix;
-	};
-	std::queue<BFSInfo> bfs;
-	bfs.push({ &mountainModel.nodes[0], glm::mat4{1.f} });
-	while (!bfs.empty())
-	{
-		auto [nodePtr, parentModelMatrix] = bfs.front();
-		bfs.pop();
-
-		const glm::mat4 modelMatrix = parentModelMatrix * nodePtr->modelMatrix;
-		if (nodePtr->meshPtr != nullptr)
-		{
-			Drawable& drawable = drawables.emplace_back();
-			drawable.modelMatrix = modelMatrix;
-			drawable.mesh = nodePtr->meshPtr.get();
-			drawable.mat = mountainMaterial.get();
-		}
-
-		for (int idx : nodePtr->childrenIdxs)
-		{
-			GLBLoader::Node& child = mountainModel.nodes[idx];
-			bfs.push({ &child, modelMatrix });
-		}
-	}
-	return;
+	if (camera == nullptr)
+		return;
+	cameraUniformData.pos = camera->GetPos();
+	cameraUniformData.view = camera->GetMatrixView();
+	cameraUniformData.proj = camera->GetMatrixProj();
 }

@@ -18,8 +18,10 @@ public:
 		alignas(16) int steps = 64;
 	};
 public:
-	void Clear(const VulkanContext& ctx, VkDescriptorPool descPool) override;
-	void Update(double dt) override;
+	AtmospherePass() { bUseSwapchainImage = false; }
+	~AtmospherePass();
+
+	void Clear() override;
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetAtmosphere(const Atmosphere& atmosphere);
@@ -28,10 +30,11 @@ public:
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
 	auto GetAtmosphere() const -> const Atmosphere& { return atmosphere; }
 protected:
-	void PrepareResource(const VulkanContext& ctx) override;
-	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout) override;
+	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
+	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 	void BuildPipeline(const VulkanContext& ctx) override;
 private:
+	VkDescriptorSetLayout cameraSetLayout = VK_NULL_HANDLE;
 	std::vector<VkDescriptorSetLayout> descSetLayouts;
 	VkDescriptorSet descSet1 = VK_NULL_HANDLE;
 

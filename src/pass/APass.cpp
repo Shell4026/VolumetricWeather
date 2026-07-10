@@ -3,24 +3,33 @@
 
 #include <fstream>
 
+APass::~APass()
+{
+	Clear();
+}
+
 void APass::Init(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout)
 {
+	this->ctx = &ctx;
 	this->cmdPool = ctx.GetCommandPool();
 	this->descPool = descPool;
 
 	AllocateCommandBuffer(ctx.GetDevice());
-	PrepareResource(ctx);
-	SetupDescriptors(ctx, descPool, cameraSetLayout);
+	PrepareResource(ctx, cameraSetLayout);
+	SetupDescriptors(ctx, descPool);
 	BuildPipeline(ctx);
 }
 
-void APass::Clear(const VulkanContext& ctx, VkDescriptorPool descPool)
+void APass::Clear()
 {
+	if (ctx == nullptr)
+		return;
 	if (cmd != VK_NULL_HANDLE)
 	{
-		vkFreeCommandBuffers(ctx.GetDevice(), cmdPool, 1, &cmd);
+		vkFreeCommandBuffers(ctx->GetDevice(), cmdPool, 1, &cmd);
 		cmd = VK_NULL_HANDLE;
 	}
+	ctx = nullptr;
 }
 
 void APass::BeginRecord(const std::vector<BarrierInfo>* barrierInfos)
