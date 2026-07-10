@@ -7,6 +7,8 @@
 #include "render/VulkanBuffer.h"
 #include "render/Material.h"
 
+#include "pass/APass.h"
+
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/quaternion.hpp"

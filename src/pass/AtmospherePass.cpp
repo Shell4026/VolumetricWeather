@@ -31,10 +31,10 @@ void AtmospherePass::Clear()
 		vkDestroyDescriptorSetLayout(device, descSetLayouts[1], nullptr);
 	descSetLayouts.clear();
 
-	if (opaqueDepthSampler != VK_NULL_HANDLE)
+	if (opaqueSampler != VK_NULL_HANDLE)
 	{
-		vkDestroySampler(device, opaqueDepthSampler, nullptr);
-		opaqueDepthSampler = VK_NULL_HANDLE;
+		vkDestroySampler(device, opaqueSampler, nullptr);
+		opaqueSampler = VK_NULL_HANDLE;
 	}
 	outputImage.reset();
 	atmosphereBuffer.reset();
@@ -60,6 +60,10 @@ void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& fra
 	AddUsage(
 		opaqueDepthTex->GetImage(), 
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT | VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT, 
+		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(
+		opaqueTex->GetImage(),
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
@@ -108,7 +112,7 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLa
 	samplerCi.minLod = 0.0f;
 	samplerCi.maxLod = 1.0f;
 	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	VK_RESULT_CHECK(vkCreateSampler(device, &samplerCi, nullptr, &opaqueDepthSampler));
+	VK_RESULT_CHECK(vkCreateSampler(device, &samplerCi, nullptr, &opaqueSampler));
 }
 
 void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
@@ -131,6 +135,11 @@ void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool
 	binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 	binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding2.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding3 = set1Bindings.emplace_back();
+	binding3.binding = 3;
+	binding3.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+	binding3.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding3.descriptorCount = 1;
 
 	descSetLayouts.resize(2);
 	descSetLayouts[0] = cameraSetLayout;
@@ -156,7 +165,11 @@ void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool
 	VkDescriptorImageInfo depthDescImageInfo{};
 	depthDescImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	depthDescImageInfo.imageView = opaqueDepthTex->GetView();
-	depthDescImageInfo.sampler = opaqueDepthSampler;
+	depthDescImageInfo.sampler = opaqueSampler;
+	VkDescriptorImageInfo opaqueDescImageInfo{};
+	opaqueDescImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	opaqueDescImageInfo.imageView = opaqueTex->GetView();
+	opaqueDescImageInfo.sampler = opaqueSampler;
 
 	VkWriteDescriptorSet write0{};
 	write0.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -179,7 +192,14 @@ void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool
 	write2.dstSet = descSet1;
 	write2.dstBinding = 2;
 	write2.pImageInfo = &depthDescImageInfo;
-	std::array<VkWriteDescriptorSet, 3> writes = { write0 , write1, write2 };
+	VkWriteDescriptorSet write3{};
+	write3.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write3.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	write3.descriptorCount = 1;
+	write3.dstSet = descSet1;
+	write3.dstBinding = 3;
+	write3.pImageInfo = &opaqueDescImageInfo;
+	std::array<VkWriteDescriptorSet, 4> writes = { write0 , write1, write2, write3 };
 	vkUpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
 }
 

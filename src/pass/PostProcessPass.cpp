@@ -1,28 +1,30 @@
-﻿#include "Pass/CompositePass.h"
+﻿#include "Pass/PostProcessPass.h"
 #include "core/Logger.h"
 #include "render/VulkanBuffer.h"
 #include "render/VulkanImage.h"
+#include "render/Material.h"
 
 #include "imgui/backends/imgui_impl_vulkan.h"
 
 #include <vector>
-CompositePass::CompositePass(const VulkanImage& opaqueTex, const VulkanImage& atmosphereTex) :
-	opaqueTex(opaqueTex), atmosphereTex(atmosphereTex)
+PostProcessPass::PostProcessPass(const VulkanImage& outputImage) :
+	outputImage(outputImage)
 {
 }
-void CompositePass::Clear()
+void PostProcessPass::Clear()
 {
 	if (ctx == nullptr)
 		return;
 	const VkDevice device = ctx->GetDevice();
 	
-	if (atmosphereSampler != VK_NULL_HANDLE)
-	{
-		vkDestroySampler(device, atmosphereSampler, nullptr);
-		atmosphereSampler = VK_NULL_HANDLE;
-	}
+	material.reset();
+	shader.Clear();
 
-	buffer.reset();
+	if (sampler != VK_NULL_HANDLE)
+	{
+		vkDestroySampler(device, sampler, nullptr);
+		sampler = VK_NULL_HANDLE;
+	}
 
 	if (pipeline != VK_NULL_HANDLE)
 	{
@@ -31,7 +33,7 @@ void CompositePass::Clear()
 	}
 	APass::Clear();
 }
-void CompositePass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void PostProcessPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	VkRenderingAttachmentInfo colorAttachment{};
@@ -74,7 +76,8 @@ void CompositePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdSetScissor(cmd, 0, 1, &rect);
 
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, compositeShader.GetPipelineLayout(), 1, 1, &descSet, 0, nullptr);
+	const VkDescriptorSet descSet = material->GetVkDescriptorSet();
+	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, shader.GetPipelineLayout(), 1, 1, &descSet, 0, nullptr);
 	vkCmdDraw(cmd, 4, 1, 0, 0);
 
 	ImDrawData* drawData = ImGui::GetDrawData();
@@ -83,20 +86,20 @@ void CompositePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 
 	vkCmdEndRendering(cmd);
 }
-void CompositePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void PostProcessPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	APass::SetUsages(ctx, frame);
 	AddUsage(ctx.GetSwapChainImages()[frame.imgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	AddUsage(opaqueTex.GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	AddUsage(atmosphereTex.GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(outputImage.GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
-void CompositePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
+void PostProcessPass::SetExposure(float exposure)
+{
+	data.exposure = exposure;
+	material->UpdateBindingData(DATA_BINDING, exposure);
+}
+void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
 	const VkDevice device = ctx.GetDevice();
-
-	const VkBufferUsageFlags usage = VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-	const VkMemoryPropertyFlags memProp = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-	buffer = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, usage, memProp, sizeof(glm::vec4), &color));
 
 	VkSamplerCreateInfo samplerCi{};
 	samplerCi.sType = VkStructureType::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -112,7 +115,7 @@ void CompositePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLay
 	samplerCi.minLod = 0.0f;
 	samplerCi.maxLod = 1.0f;
 	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-	VK_RESULT_CHECK(vkCreateSampler(device, &samplerCi, nullptr, &atmosphereSampler));
+	VK_RESULT_CHECK(vkCreateSampler(device, &samplerCi, nullptr, &sampler));
 
 	std::vector<VkDescriptorSetLayoutBinding> set1LayoutBindings;
 	VkDescriptorSetLayoutBinding& binding0 = set1LayoutBindings.emplace_back();
@@ -120,45 +123,25 @@ void CompositePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLay
 	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
 	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding0.descriptorCount = 1;
-	VkDescriptorSetLayoutBinding& binding1 = set1LayoutBindings.emplace_back();
-	binding1.binding = 1;
-	binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
-	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	binding1.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding2 = set1LayoutBindings.emplace_back();
+	binding2.binding = 1;
+	binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	binding2.descriptorCount = 1;
 
-	compositeShader.AddSet(0, cameraSetLayout);
-	compositeShader.AddSet(1, set1LayoutBindings);
-	compositeShader.Build(device, "shaders/composite.vert.spv", "shaders/composite.frag.spv");
-}
-void CompositePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
-{
-	const VkDevice device = ctx.GetDevice();
+	shader.AddSet(0, cameraSetLayout);
+	shader.AddSet(1, set1LayoutBindings);
+	shader.Build(device, "shaders/postprocess.vert.spv", "shaders/postprocess.frag.spv");
 
-	VkDescriptorSetAllocateInfo descSetAllocInfo{};
-	descSetAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	descSetAllocInfo.descriptorPool = descPool;
-	descSetAllocInfo.pSetLayouts = &compositeShader.GetDescriptorSetLayouts()[1];
-	descSetAllocInfo.descriptorSetCount = 1;
-	VK_RESULT_CHECK(vkAllocateDescriptorSets(device, &descSetAllocInfo, &descSet));
+	material = std::make_unique<Material>(ctx, shader);
+	material->AddBinding(0, outputImage, sampler);
+	material->AddBinding<Data>(DATA_BINDING);
+	material->Build(descPool);
 
-	VkDescriptorImageInfo descImageInfo{};
-	descImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	descImageInfo.imageView = atmosphereTex.GetView();
-	descImageInfo.sampler = atmosphereSampler;
-	VkWriteDescriptorSet write{};
-	write.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	write.descriptorCount = 1;
-	write.dstSet = descSet;
-	write.dstBinding = 0;
-	write.pImageInfo = &descImageInfo;
-	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
-	descImageInfo.imageView = opaqueTex.GetView();
-	write.dstBinding = 1;
-	vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+	material->UpdateBindingData(DATA_BINDING, data);
 }
 
-void CompositePass::BuildPipeline(const VulkanContext& ctx)
+void PostProcessPass::BuildPipeline(const VulkanContext& ctx)
 {
 	const VkDevice device = ctx.GetDevice();
 
@@ -267,8 +250,8 @@ void CompositePass::BuildPipeline(const VulkanContext& ctx)
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.stageCount = compositeShader.GetPipelineShaderStageCreateInfos().size();
-	pipelineInfo.pStages = compositeShader.GetPipelineShaderStageCreateInfos().data();
+	pipelineInfo.stageCount = shader.GetPipelineShaderStageCreateInfos().size();
+	pipelineInfo.pStages = shader.GetPipelineShaderStageCreateInfos().data();
 	pipelineInfo.pVertexInputState = &vertexInputInfo;
 	pipelineInfo.pInputAssemblyState = &inputAssembly;
 	pipelineInfo.pViewportState = &viewportState;
@@ -277,7 +260,7 @@ void CompositePass::BuildPipeline(const VulkanContext& ctx)
 	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.pColorBlendState = &colorBlending;
 	pipelineInfo.pDynamicState = &dynamicState;
-	pipelineInfo.layout = compositeShader.GetPipelineLayout();
+	pipelineInfo.layout = shader.GetPipelineLayout();
 	pipelineInfo.renderPass = VK_NULL_HANDLE;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = nullptr;

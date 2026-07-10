@@ -8,31 +8,35 @@
 
 class VulkanBuffer;
 class VulkanImage;
-class CompositePass : public APass
+class Material;
+class PostProcessPass : public APass
 {
 public:
-	CompositePass(const VulkanImage& opaqueTex, const VulkanImage & atmosphereTex);
+	PostProcessPass(const VulkanImage& outputImage);
 
 	void Clear() override;
 
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	void SetExposure(float exposure);
 
-	auto GetShader() const -> const Shader& { return compositeShader; }
+	auto GetShader() const -> const Shader& { return shader; }
+	auto GetExposure() const -> float { return data.exposure; }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
-	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 	void BuildPipeline(const VulkanContext& ctx) override;
 private:
-	Shader compositeShader;
+	static constexpr uint32_t DATA_BINDING = 1;
+	Shader shader;
+	std::unique_ptr<Material> material;
 	VkPipeline pipeline = VK_NULL_HANDLE;
-	VkDescriptorSet descSet = VK_NULL_HANDLE;
 
-	glm::vec4 color{ 0.f, 1.f, 0.f, 1.f };
-	std::unique_ptr<VulkanBuffer> buffer;
+	const VulkanImage& outputImage;
+	VkSampler sampler = VK_NULL_HANDLE;
 
-	const VulkanImage& opaqueTex;
-	const VulkanImage& atmosphereTex;
-	VkSampler atmosphereSampler = VK_NULL_HANDLE;
+	struct Data
+	{
+		float exposure = 1.f;
+	} data;
 };

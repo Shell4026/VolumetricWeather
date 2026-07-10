@@ -8,10 +8,6 @@
 #include "render/FrameContext.h"
 #include "render/BarrierBuilder.h"
 
-#include "pass/OpaquePass.h"
-#include "pass/AtmospherePass.h"
-#include "pass/CompositePass.h"
-
 #include <glm/glm.hpp>
 
 #include <memory>

@@ -196,7 +196,7 @@ void OpaquePass::BuildPipeline(const VulkanContext& ctx)
 	rasterizer.depthBiasConstantFactor = 0.0f;
 	rasterizer.depthBiasClamp = 0.0f;
 	rasterizer.depthBiasSlopeFactor = 0.0f;
-	rasterizer.cullMode = VkCullModeFlagBits::VK_CULL_MODE_NONE;
+	rasterizer.cullMode = VkCullModeFlagBits::VK_CULL_MODE_BACK_BIT;
 
 	VkPipelineMultisampleStateCreateInfo multisampling{};
 	multisampling.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;

@@ -5,8 +5,9 @@
 
 #include "render/Material.h"
 
+#include "pass/OpaquePass.h"
 #include "pass/AtmospherePass.h"
-#include "pass/CompositePass.h"
+#include "pass/PostProcessPass.h"
 
 #include "imgui/imgui.h"
 #include "glm/gtc/quaternion.hpp"
@@ -15,6 +16,9 @@
 BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
 	AScene(ctx, imgui, window)
 {
+	const glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(0.f)) };
+	const glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
+	sun = glm::vec4{ sunDir, sun.w };
 }
 
 BasisScene::~BasisScene()
@@ -111,6 +115,7 @@ void BasisScene::PrepareResource()
 	mountain.material->AddBinding(1, mountain.model.textures[0], sampler);
 	mountain.material->Build(GetDescriptorPool());
 
+	mountain.data.sun = sun;
 	mountain.material->UpdateBindingData(0, mountain.data);
 
 	CreateDrawables();
@@ -123,13 +128,14 @@ void BasisScene::SetupPass()
 	opaquePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	atmospherePass = std::make_unique<AtmospherePass>();
+	atmospherePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
 	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	atmospherePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	compositePass = std::make_unique<CompositePass>(*opaquePass->GetOutputImage(), *atmospherePass->GetOutputImage());
-	compositePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	postProcessPass = std::make_unique<PostProcessPass>(*atmospherePass->GetOutputImage());
+	postProcessPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	activePasses = { opaquePass.get(), atmospherePass.get(), compositePass.get() };
+	activePasses = { opaquePass.get(), atmospherePass.get(), postProcessPass.get() };
 }
 
 void BasisScene::BeginBuildCommandBuffer()
@@ -169,8 +175,14 @@ void BasisScene::DrawDebugGUI()
 			atmospherePass->SetAtmosphere(atmosphere);
 
 		ImGui::Text("Sun illuminance");
-		if (ImGui::SliderFloat("##SunIlluminance", &atmosphere.sun.w, 0.f, 1000.f))
+		if (ImGui::SliderFloat("##SunIlluminance", &sun.w, 0.f, 1000.f))
+		{
+			mountain.data.sun = sun;
+			mountain.material->UpdateBindingData(0, mountain.data);
+
+			atmosphere.sun = sun;
 			atmospherePass->SetAtmosphere(atmosphere);
+		}
 
 		ImGui::Text("Sun direction");
 		static float angle = 0.0f;
@@ -178,7 +190,12 @@ void BasisScene::DrawDebugGUI()
 		{
 			glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
 			glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
-			atmosphere.sun = glm::vec4(sunDir, atmosphere.sun.w);
+			sun = glm::vec4(sunDir, sun.w);
+			
+			mountain.data.sun = sun;
+			mountain.material->UpdateBindingData(0, mountain.data);
+
+			atmosphere.sun = sun;
 			atmospherePass->SetAtmosphere(atmosphere);
 		}
 
@@ -191,6 +208,11 @@ void BasisScene::DrawDebugGUI()
 			camera.UpdateMatrix();
 			UpdateCameraData();
 		}
+
+		ImGui::Text("Exposure");
+		float exposure = postProcessPass->GetExposure();
+		if (ImGui::SliderFloat("##exposure", &exposure, 0.f, 1.f))
+			postProcessPass->SetExposure(exposure);
 
 		ImGui::End();
 	}

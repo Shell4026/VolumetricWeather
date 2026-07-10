@@ -8,8 +8,9 @@
 
 #include <memory>
 
+class OpaquePass;
 class AtmospherePass;
-class CompositePass;
+class PostProcessPass;
 class Material;
 class BasisScene : public AScene
 {
@@ -36,7 +37,7 @@ private:
 
 	std::unique_ptr<OpaquePass> opaquePass;
 	std::unique_ptr<AtmospherePass> atmospherePass;
-	std::unique_ptr<CompositePass> compositePass;
+	std::unique_ptr<PostProcessPass> postProcessPass;
 
 	Shader opaqueShader;
 
@@ -45,11 +46,13 @@ private:
 		GLBLoader::Model model;
 		struct MaterialData
 		{
-			glm::vec4 color{ 1.f, 1.f, 1.f, 1.f };
+			glm::vec4 sun;
 		} data;
 		std::unique_ptr<Material> material;
 	} mountain;
 
 	std::vector<APass*> activePasses;
 	std::vector<Drawable> drawables;
+
+	glm::vec4 sun{ -1.f, 0.f, -1.f, 15.f };
 };

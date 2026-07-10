@@ -1,6 +1,8 @@
 ﻿#pragma once
 #include "APass.h"
 
+#include "render/GPUTimer.h"
+
 #include "glm/glm.hpp"
 
 #include <vector>
@@ -26,6 +28,7 @@ public:
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetAtmosphere(const Atmosphere& atmosphere);
 	void SetOpaqueDepthTexture(const VulkanImage& opaqueDepthTex) { this->opaqueDepthTex = &opaqueDepthTex; }
+	void SetOpaqueTexture(const VulkanImage& opaqueDepthTex) { this->opaqueTex = &opaqueDepthTex; }
 
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
 	auto GetAtmosphere() const -> const Atmosphere& { return atmosphere; }
@@ -47,5 +50,8 @@ private:
 	std::unique_ptr<VulkanImage> outputImage;
 
 	const VulkanImage* opaqueDepthTex = nullptr;
-	VkSampler opaqueDepthSampler = VK_NULL_HANDLE;
+	const VulkanImage* opaqueTex = nullptr;
+	VkSampler opaqueSampler = VK_NULL_HANDLE;
+
+	GPUTimer timer;
 };
