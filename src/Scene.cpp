@@ -248,12 +248,13 @@ void AScene::SubmitCommandBuffer()
 		info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		info.commandBufferCount = 1;
 		info.pCommandBuffers = &cmd;
-		// 첫 패스
+		// 처음 스왑체인에 쓰는 패스
 		if (firstSwapchainPass == nullptr && pass->IsUsingSwapchainImage())
 		{
 			info.waitSemaphoreCount = 1;
 			info.pWaitSemaphores = &frame.imageAvailableSemaphore;
 			info.pWaitDstStageMask = waitStages;
+			firstSwapchainPass = pass;
 		}
 		// 마지막 패스
 		if (idx == activePassList.size() - 1)
