@@ -10,6 +10,8 @@
 #include <chrono>
 int main()
 {
+	bool bPauseRendering = false;
+
 	Window win{};
 	win.Open();
 
@@ -22,6 +24,16 @@ int main()
 		[&](HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 			imgui.ProcessEvent(msg, wParam, lParam);
+			if (msg == WM_SIZE)
+			{
+				if (wParam == SIZE_MINIMIZED)
+				{
+					bPauseRendering = true;
+					SH_INFO("Pause");
+				}
+				else
+					bPauseRendering = false;
+			}
 		}
 	);
 	BasisScene scene{ ctx, imgui, win };
@@ -37,8 +49,12 @@ int main()
 		ImGui::ShowDemoWindow();
 		scene.Update(dt);
 		imgui.End();
-		scene.BeginRender(dt);
-		scene.Render(dt);
+
+		if (!bPauseRendering)
+		{
+			scene.BeginRender(dt);
+			scene.Render(dt);
+		}
 
 		auto end = std::chrono::steady_clock::now();
 		dt = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
