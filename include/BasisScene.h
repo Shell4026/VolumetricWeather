@@ -2,12 +2,13 @@
 #include "Scene.h"
 #include "GLBLoader.h"
 
+#include "core/CircularQueue.hpp"
+
 #include "render/VulkanContext.h"
 #include "render/Drawable.hpp"
 #include "render/Shader.h"
 
 #include <memory>
-
 class OpaquePass;
 class AtmospherePass;
 class PostProcessPass;
@@ -57,8 +58,9 @@ private:
 
 	glm::vec4 sun{ -1.f, 0.f, -1.f, 15.f };
 
-	int64_t counter = -1;
-	double opaquePassElapsedSum = 0.0;
-	double atmospherePassElapsedSum = 0.0;
-	double postProcessPassElapsedSum = 0.0;
+	CircularQueue<double, 10> opaquePassElapsed;
+	CircularQueue<double, 10> atmospherePassElapsed;
+	CircularQueue<double, 10> postProcessPassElapsed;
+
+	uint64_t counter = 0;
 };

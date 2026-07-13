@@ -55,14 +55,14 @@ void BasisScene::Update(double dt)
 
 void BasisScene::Render(double dt)
 {
-	if (counter >= 0)
+	if (counter > 0)
 	{
-		opaquePassElapsedSum += opaquePass->GetElapsedTimeMs();
-		atmospherePassElapsedSum += atmospherePass->GetElapsedTimeMs();
-		postProcessPassElapsedSum += postProcessPass->GetElapsedTimeMs();
+		opaquePassElapsed.Push(opaquePass->GetElapsedTimeMs());
+		atmospherePassElapsed.Push(atmospherePass->GetElapsedTimeMs());
+		postProcessPassElapsed.Push(postProcessPass->GetElapsedTimeMs());
 	}
-	++counter;
 	AScene::Render(dt);
+	++counter;
 }
 
 auto BasisScene::CreateSceneCamera() -> std::unique_ptr<Camera>
@@ -176,12 +176,18 @@ void BasisScene::DrawDebugGUI()
 		const glm::vec3& to = camera.GetTo();
 		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
 		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
-		if (counter > 0)
-		{
-			ImGui::Text(std::format("OpaquePass: {:.2}ms", opaquePassElapsedSum / counter).c_str());
-			ImGui::Text(std::format("AtmospherePass: {:.2}ms", atmospherePassElapsedSum / counter).c_str());
-			ImGui::Text(std::format("PostProcessPass: {:.2}ms", postProcessPassElapsedSum / counter).c_str());
-		}
+		double sum = 0;
+		for (int i = 0; i < opaquePassElapsed.Size(); ++i)
+			sum += opaquePassElapsed[i];
+		ImGui::Text(std::format("OpaquePass: {:.2}ms", sum / opaquePassElapsed.MaxSize()).c_str());
+		sum = 0;
+		for (int i = 0; i < atmospherePassElapsed.Size(); ++i)
+			sum += atmospherePassElapsed[i];
+		ImGui::Text(std::format("AtmospherePass: {:.2}ms", sum / atmospherePassElapsed.MaxSize()).c_str());
+		sum = 0;
+		for (int i = 0; i < postProcessPassElapsed.Size(); ++i)
+			sum += postProcessPassElapsed[i];
+		ImGui::Text(std::format("PostProcessPass: {:.2}ms", sum / postProcessPassElapsed.MaxSize()).c_str());
 	}
 	ImGui::End();
 
