@@ -68,6 +68,7 @@ void BasisScene::Render(double dt)
 auto BasisScene::CreateSceneCamera() -> std::unique_ptr<Camera>
 {
 	std::unique_ptr<FPSCamera> camPtr = std::make_unique<FPSCamera>();
+	camPtr->SetFar(100000.0f);
 	camPtr->SetPos(glm::vec3{ 0.f, 100.f, 0.f });
 	camPtr->SetYaw(-90.f);
 	camPtr->SetPitch(0.f);
@@ -248,13 +249,16 @@ void BasisScene::DrawDebugGUI()
 
 void BasisScene::CreateDrawables()
 {
+	glm::mat4 rootMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, -700.f, 0.f });
+	rootMatrix = glm::scale(rootMatrix, glm::vec3{ 10.f, 10.f, 10.f });
+
 	struct BFSInfo
 	{
 		GLBLoader::Node* node;
 		glm::mat4 parentModelMatrix;
 	};
 	std::queue<BFSInfo> bfs;
-	bfs.push({ &mountain.model.nodes[0], glm::mat4{1.f} });
+	bfs.push({ &mountain.model.nodes[0], rootMatrix });
 	while (!bfs.empty())
 	{
 		auto [nodePtr, parentModelMatrix] = bfs.front();
