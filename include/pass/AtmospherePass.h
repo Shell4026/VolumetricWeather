@@ -15,7 +15,7 @@ public:
 	struct Atmosphere
 	{
 		alignas(16) glm::vec4 sun; // dir, illuminance
-		alignas(16) int steps = 64;
+		alignas(16) glm::ivec2 steps = { 64, 20 };
 	};
 public:
 	AtmospherePass() { bUseSwapchainImage = false; }

@@ -10,7 +10,7 @@ layout(set = 0, binding = 0) uniform Camera
 layout(set = 1, binding = 0) uniform Atmosphere
 {
 	vec4 sun; // dir, illuminance
-	int steps;
+	ivec2 steps; // view step, sky-view step
 } atmosphere;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
 layout(set = 1, binding = 2) uniform sampler2D depth;
@@ -100,14 +100,14 @@ vec3 Transmittance(vec3 a, vec3 b, float distance, uint steps)
 	return exp(-sigmaSum);
 }
 
-vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float illuminance, uint steps, out vec3 sigmaSum)
+vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float illuminance, uvec2 steps, out vec3 sigmaSum)
 {
-	const float stepSize = distance / steps;
+	const float stepSize = distance / steps.x;
 	const vec3 dir = (b - a) / distance;
 	
 	vec3 inScattering = vec3(0.0, 0.0, 0.0);
 	sigmaSum = vec3(0.0, 0.0, 0.0);
-	for (uint i = 0; i < steps; ++i)
+	for (uint i = 0; i < steps.x; ++i)
 	{
 		const vec3 samplePos = a + dir * stepSize * (i + 0.5);
 		const float sampleHeight = length(samplePos - PLANET_CENTER) - GROUND_RADIUS;
@@ -127,7 +127,7 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 			break;
 		const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, ATMOSPHERE_RADIUS, near, far);
 		if (atmosphereHit)
-			shadowing = Transmittance(samplePos, samplePos - sunDir * far, far, steps);
+			shadowing = Transmittance(samplePos, samplePos - sunDir * far, far, steps.y);
 		
 		const vec3 phase = 
 		(
@@ -186,7 +186,7 @@ void main()
     }
 	
 	const vec3 sunDir = atmosphere.sun.xyz;
-	const float mu = dot(rayDir, -sunDir); // cos
+	const float mu = dot(-rayDir, sunDir); // cos, 태양빛이 카메라로 산란될 확률 계산에 쓰임
 	
     const vec3 start = camera.pos + rayDir * rayStart;
     const vec3 end   = camera.pos + rayDir * rayEnd;

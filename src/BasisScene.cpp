@@ -189,8 +189,11 @@ void BasisScene::DrawDebugGUI()
 	if (ImGui::Begin("Debug"))
 	{
 		AtmospherePass::Atmosphere atmosphere = atmospherePass->GetAtmosphere();
-		ImGui::Text("Steps");
-		if (ImGui::SliderInt("##steps", &atmosphere.steps, 1, 512))
+		ImGui::Text("View Steps");
+		if (ImGui::SliderInt("##viewSteps", &atmosphere.steps.x, 1, 256))
+			atmospherePass->SetAtmosphere(atmosphere);
+		ImGui::Text("Sky-View Steps");
+		if (ImGui::SliderInt("##skyViewSteps", &atmosphere.steps.y, 1, 256))
 			atmospherePass->SetAtmosphere(atmosphere);
 
 		ImGui::Text("Sun illuminance");
