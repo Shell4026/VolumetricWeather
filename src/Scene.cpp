@@ -66,7 +66,7 @@ void AScene::Clear()
 	timelineSemaphore = VK_NULL_HANDLE;
 }
 
-void AScene::Render(double dt)
+void AScene::BeginRender(double dt)
 {
 	if (!ctx.AcquireNextImage(frames[currentFrameIdx].imageAvailableSemaphore, nullptr, &currentImgIdx))
 		return;
@@ -81,7 +81,10 @@ void AScene::Render(double dt)
 	waitInfo.pSemaphores = &timelineSemaphore;
 	waitInfo.pValues = &recentlyValue;
 	vkWaitSemaphores(ctx.GetDevice(), &waitInfo, UINT64_MAX);
+}
 
+void AScene::Render(double dt)
+{
 	cameraUniformBuffers->SetData(&cameraUniformData, sizeof(cameraUniformData));
 
 	BeginBuildCommandBuffer();

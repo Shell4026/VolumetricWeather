@@ -37,6 +37,7 @@ int main()
 		ImGui::ShowDemoWindow();
 		scene.Update(dt);
 		imgui.End();
+		scene.BeginRender(dt);
 		scene.Render(dt);
 
 		auto end = std::chrono::steady_clock::now();

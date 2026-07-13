@@ -18,6 +18,8 @@ void APass::Init(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescript
 	PrepareResource(ctx, cameraSetLayout);
 	SetupDescriptors(ctx, descPool);
 	BuildPipeline(ctx);
+
+	timer.Create(ctx);
 }
 
 void APass::Clear()
@@ -67,6 +69,8 @@ void APass::BeginRecord(const std::vector<BarrierInfo>* barrierInfos)
 				1, &barrier);
 		}
 	}
+	if (bUseTimer)
+		timer.Begin(cmd);
 }
 
 void APass::EndRecord(const std::vector<BarrierInfo>* barrierInfos)
@@ -96,12 +100,21 @@ void APass::EndRecord(const std::vector<BarrierInfo>* barrierInfos)
 				1, &barrier);
 		}
 	}
+	if (bUseTimer)
+		timer.End(cmd);
 	vkEndCommandBuffer(cmd);
 }
 
 void APass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	imageUsages.clear();
+}
+
+auto APass::GetElapsedTimeMs() const -> double
+{
+	if (!bUseTimer)
+		return 0.0;
+	return timer.GetElapsedMs();
 }
 
 void APass::AddUsage(VkImage image, VkImageAspectFlags apsect, VkImageLayout usage)

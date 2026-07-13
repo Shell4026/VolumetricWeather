@@ -1,8 +1,6 @@
 ﻿#pragma once
 #include "APass.h"
 
-#include "render/GPUTimer.h"
-
 #include "glm/glm.hpp"
 
 #include <vector>
@@ -52,6 +50,4 @@ private:
 	const VulkanImage* opaqueDepthTex = nullptr;
 	const VulkanImage* opaqueTex = nullptr;
 	VkSampler opaqueSampler = VK_NULL_HANDLE;
-
-	GPUTimer timer;
 };

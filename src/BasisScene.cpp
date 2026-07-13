@@ -53,6 +53,18 @@ void BasisScene::Update(double dt)
 	DrawDebugGUI();
 }
 
+void BasisScene::Render(double dt)
+{
+	if (counter >= 0)
+	{
+		opaquePassElapsedSum += opaquePass->GetElapsedTimeMs();
+		atmospherePassElapsedSum += atmospherePass->GetElapsedTimeMs();
+		postProcessPassElapsedSum += postProcessPass->GetElapsedTimeMs();
+	}
+	++counter;
+	AScene::Render(dt);
+}
+
 auto BasisScene::CreateSceneCamera() -> std::unique_ptr<Camera>
 {
 	std::unique_ptr<FPSCamera> camPtr = std::make_unique<FPSCamera>();
@@ -157,12 +169,19 @@ void BasisScene::DrawDebugGUI()
 		ImGuiWindowFlags_::ImGuiWindowFlags_NoInputs;
 	ImGui::SetNextWindowPos({ 0, 0 });
 	ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
+	ImGui::SetNextWindowSize(ImVec2{ 300.f, 0.f }, ImGuiCond_::ImGuiCond_Always);
 	if (ImGui::Begin("Overlay", nullptr, windowFlags))
 	{
 		const glm::vec3& pos = camera.GetPos();
 		const glm::vec3& to = camera.GetTo();
 		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
 		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
+		if (counter > 0)
+		{
+			ImGui::Text(std::format("OpaquePass: {:.2}ms", opaquePassElapsedSum / counter).c_str());
+			ImGui::Text(std::format("AtmospherePass: {:.2}ms", atmospherePassElapsedSum / counter).c_str());
+			ImGui::Text(std::format("PostProcessPass: {:.2}ms", postProcessPassElapsedSum / counter).c_str());
+		}
 	}
 	ImGui::End();
 

@@ -29,6 +29,7 @@ public:
 	void Init();
 	virtual void Clear();
 	virtual void Update(double dt) {};
+	virtual void BeginRender(double dt);
 	virtual void Render(double dt);
 
 	auto GetCamera() const -> Camera* { return camera.get(); }

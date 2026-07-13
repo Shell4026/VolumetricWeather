@@ -21,6 +21,7 @@ public:
 	void Clear() override;
 
 	void Update(double dt) override;
+	void Render(double dt) override;
 protected:
 	auto CreateSceneCamera() -> std::unique_ptr<Camera> override;
 	void PrepareResource() override;
@@ -55,4 +56,9 @@ private:
 	std::vector<Drawable> drawables;
 
 	glm::vec4 sun{ -1.f, 0.f, -1.f, 15.f };
+
+	int64_t counter = -1;
+	double opaquePassElapsedSum = 0.0;
+	double atmospherePassElapsedSum = 0.0;
+	double postProcessPassElapsedSum = 0.0;
 };

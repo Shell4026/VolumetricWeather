@@ -58,6 +58,8 @@ auto GPUTimer::GetElapsedMs() const -> double
     if (result != VK_SUCCESS)
         return 0.0;
 
+    if (timestamps[0] > timestamps[1])
+        return 0.0;
     double elapsedNs = static_cast<double>(timestamps[1] - timestamps[0]) * timestampPeriod;
     return elapsedNs / 1'000'000.0;
 }
