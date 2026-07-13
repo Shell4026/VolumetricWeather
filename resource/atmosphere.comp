@@ -116,6 +116,7 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		
 		const vec3 sigmaT = ScatteringCoefficient(sampleHeight) + AbsorptionCoefficient(sampleHeight);
 		sigmaSum += sigmaT * stepSize;
+
 		const vec3 transmittance = exp(-sigmaSum); // L_scat의 T(c, x)
 		
 		vec3 shadowing = vec3(1.0, 1.0, 1.0); // L_scat의 S(x, l_i)
