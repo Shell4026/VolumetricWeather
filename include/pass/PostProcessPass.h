@@ -8,6 +8,7 @@
 
 class VulkanBuffer;
 class VulkanImage;
+class VulkanSampler;
 class Material;
 class PostProcessPass : public APass
 {
@@ -33,7 +34,7 @@ private:
 	VkPipeline pipeline = VK_NULL_HANDLE;
 
 	const VulkanImage& outputImage;
-	VkSampler sampler = VK_NULL_HANDLE;
+	std::unique_ptr<VulkanSampler> sampler;
 
 	struct Data
 	{

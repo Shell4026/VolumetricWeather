@@ -4,6 +4,8 @@
 class VulkanSampler
 {
 public:
+	VulkanSampler() = default;
+	VulkanSampler(const VulkanContext& ctx, const VkSamplerCreateInfo& ci) { Create(ctx, ci); }
 	VulkanSampler(const VulkanSampler& other) = delete;
 	VulkanSampler(VulkanSampler&& other) noexcept :
 		device(other.device),
@@ -14,12 +16,13 @@ public:
 	}
 	~VulkanSampler();
 
+	void Create(const VulkanContext& ctx, const VkSamplerCreateInfo& ci);
+	void Clear();
+
 	auto GetSampler() const -> VkSampler { return sampler; }
 	auto GetInfo() const -> const VkSamplerCreateInfo& { return info; }
 
-	static auto Create(const VulkanContext& ctx, const VkSamplerCreateInfo& ci) -> VulkanSampler;
-protected:
-	VulkanSampler() = default;
+	static auto GetCreateInfo() -> VkSamplerCreateInfo;
 private:
 	VkDevice device = VK_NULL_HANDLE;
 	VkSampler sampler = VK_NULL_HANDLE;
@@ -29,6 +32,8 @@ private:
 class VulkanImage
 {
 public:
+	VulkanImage() = default;
+	VulkanImage(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp);
 	VulkanImage(const VulkanImage& other) = delete;
 	VulkanImage(VulkanImage&& other) noexcept :
 		ctx(other.ctx),
@@ -44,6 +49,7 @@ public:
 	}
 	~VulkanImage();
 
+	void Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp);
 	void SetData(const uint8_t* dataPtr);
 
 	auto GetImage() const -> VkImage { return img; }
@@ -51,9 +57,7 @@ public:
 	auto GetMemory() const -> VkDeviceMemory { return mem; }
 	auto GetInfo() const -> const VkImageCreateInfo& { return info; }
 
-	static auto Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp) -> VulkanImage;
-protected:
-	VulkanImage() = default;
+	static auto GetCreateInfo() -> VkImageCreateInfo;
 private:
 	const VulkanContext* ctx = nullptr;
 	VkImage img = VK_NULL_HANDLE;

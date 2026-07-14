@@ -2,50 +2,49 @@
 #include "render/VulkanBuffer.h"
 #include "core/Logger.h"
 
-auto VulkanSampler::Create(const VulkanContext& ctx, const VkSamplerCreateInfo& ci) -> VulkanSampler
-{
-	VulkanSampler sampler{};
-	sampler.device = ctx.GetDevice();
-	sampler.info = ci;
-	VK_RESULT_CHECK(vkCreateSampler(sampler.device, &ci, nullptr, &sampler.sampler));
-	return sampler;
-}
-
 VulkanSampler::~VulkanSampler()
 {
-	if (sampler == VK_NULL_HANDLE)
-		return;
-	vkDestroySampler(device, sampler, nullptr);
+	Clear();
 }
 
-auto VulkanImage::Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp) -> VulkanImage
+void VulkanSampler::Create(const VulkanContext& ctx, const VkSamplerCreateInfo& ci)
 {
-	VulkanImage img{};
-	img.ctx = &ctx;
-	img.info = ci;
-	const VkDevice device = ctx.GetDevice();
-	VK_RESULT_CHECK(vkCreateImage(device, &ci, nullptr, &img.img));
+	device = ctx.GetDevice();
+	info = ci;
+	VK_RESULT_CHECK(vkCreateSampler(device, &ci, nullptr, &sampler));
+}
 
-	VkMemoryRequirements memReqs;
-	vkGetImageMemoryRequirements(device, img.img, &memReqs);
-	img.bufferSize = memReqs.size;
 
-	VkMemoryAllocateInfo memAllocInfo{};
-	memAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memAllocInfo.allocationSize = memReqs.size;
-	memAllocInfo.memoryTypeIndex = ctx.FindMemoryType(memReqs.memoryTypeBits, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VK_RESULT_CHECK(vkAllocateMemory(device, &memAllocInfo, nullptr, &img.mem));
-	VK_RESULT_CHECK(vkBindImageMemory(device, img.img, img.mem, 0));
+void VulkanSampler::Clear()
+{
+	if (device == VK_NULL_HANDLE || sampler == VK_NULL_HANDLE)
+		return;
+	vkDestroySampler(device, sampler, nullptr);
+	sampler = VK_NULL_HANDLE;
+}
 
-	VkImageViewCreateInfo viewCi{};
-	viewCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewCi.viewType = VkImageViewType::VK_IMAGE_VIEW_TYPE_2D;
-	viewCi.format = img.info.format;
-	viewCi.subresourceRange = { aspect, 0, 1, 0, 1 };
-	viewCi.image = img.img;
-	VK_RESULT_CHECK(vkCreateImageView(device, &viewCi, nullptr, &img.view));
+auto VulkanSampler::GetCreateInfo() -> VkSamplerCreateInfo
+{
+	VkSamplerCreateInfo ci{};
+	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	ci.magFilter = VkFilter::VK_FILTER_LINEAR;
+	ci.minFilter = VkFilter::VK_FILTER_LINEAR;
+	ci.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	ci.addressModeV = ci.addressModeU;
+	ci.addressModeW = ci.addressModeU;
+	ci.mipLodBias = 0.0f;
+	ci.maxAnisotropy = 1.0f;
+	ci.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
+	ci.minLod = 0.0f;
+	ci.maxLod = 1.0f;
+	ci.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+	return ci;
+}
 
-	return img;
+VulkanImage::VulkanImage(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp)
+{
+	Create(ctx, ci, aspect, memProp);
 }
 
 VulkanImage::~VulkanImage()
@@ -56,6 +55,33 @@ VulkanImage::~VulkanImage()
 	vkDestroyImageView(device, view, nullptr);
 	vkFreeMemory(device, mem, nullptr);
 	vkDestroyImage(device, img, nullptr);
+}
+
+void VulkanImage::Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp)
+{
+	this->ctx = &ctx;
+	info = ci;
+	const VkDevice device = ctx.GetDevice();
+	VK_RESULT_CHECK(vkCreateImage(device, &ci, nullptr, &img));
+
+	VkMemoryRequirements memReqs;
+	vkGetImageMemoryRequirements(device, img, &memReqs);
+	bufferSize = memReqs.size;
+
+	VkMemoryAllocateInfo memAllocInfo{};
+	memAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memAllocInfo.allocationSize = memReqs.size;
+	memAllocInfo.memoryTypeIndex = ctx.FindMemoryType(memReqs.memoryTypeBits, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	VK_RESULT_CHECK(vkAllocateMemory(device, &memAllocInfo, nullptr, &mem));
+	VK_RESULT_CHECK(vkBindImageMemory(device, img, mem, 0));
+
+	VkImageViewCreateInfo viewCi{};
+	viewCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewCi.viewType = VkImageViewType::VK_IMAGE_VIEW_TYPE_2D;
+	viewCi.format = info.format;
+	viewCi.subresourceRange = { aspect, 0, 1, 0, 1 };
+	viewCi.image = img;
+	VK_RESULT_CHECK(vkCreateImageView(device, &viewCi, nullptr, &view));
 }
 
 void VulkanImage::SetData(const uint8_t* dataPtr)
@@ -131,4 +157,21 @@ void VulkanImage::SetData(const uint8_t* dataPtr)
 	VK_RESULT_CHECK(vkWaitForFences(ctx->GetDevice(), 1, &fence, VK_TRUE, UINT64_MAX));
 	vkFreeCommandBuffers(ctx->GetDevice(), ctx->GetCommandPool(), 1, &cmd);
 	vkDestroyFence(ctx->GetDevice(), fence, nullptr);
+}
+
+auto VulkanImage::GetCreateInfo() -> VkImageCreateInfo
+{
+	VkImageCreateInfo ci{};
+	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	ci.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
+	ci.initialLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
+	ci.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
+	ci.imageType = VkImageType::VK_IMAGE_TYPE_2D;
+	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	ci.extent = { 128, 128, 1 };
+	ci.mipLevels = 1;
+	ci.arrayLayers = 1;
+	ci.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
+	ci.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
+	return ci;
 }

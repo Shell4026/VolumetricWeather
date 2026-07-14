@@ -18,17 +18,9 @@ auto LoadTextures(const VulkanContext& ctx, const tinygltf::Model& model) -> std
 	{
 		const uint32_t width = static_cast<uint32_t>(img.width);
 		const uint32_t height = static_cast<uint32_t>(img.height);
-		VkImageCreateInfo ci{};
-		ci.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		VkImageCreateInfo ci = VulkanImage::GetCreateInfo();
 		ci.extent = { width, height, 1 };
-		ci.initialLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
-		ci.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
-		ci.imageType = VkImageType::VK_IMAGE_TYPE_2D;
 		ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		ci.mipLevels = 1;
-		ci.arrayLayers = 1;
-		ci.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
-		ci.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
 		if (img.component >= 3 && img.bits == 8) // RGB24
 		{
 			ci.format = VkFormat::VK_FORMAT_R8G8B8A8_SRGB;
@@ -38,7 +30,7 @@ auto LoadTextures(const VulkanContext& ctx, const tinygltf::Model& model) -> std
 			SH_ERROR_FORMAT("Unsupported format!: ({}, {})", img.component, img.bits);
 			continue;
 		}
-		VulkanImage& vkImage = imgs.emplace_back(VulkanImage::Create(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+		VulkanImage& vkImage = imgs.emplace_back(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		vkImage.SetData(img.image.data());
 	}
 	return imgs;

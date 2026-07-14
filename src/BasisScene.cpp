@@ -83,20 +83,7 @@ void BasisScene::PrepareResource()
 	AScene::PrepareResource();
 
 	// 산 모델용 샘플러 생성
-	VkSamplerCreateInfo samplerCi{};
-	samplerCi.sType = VkStructureType::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerCi.magFilter = VkFilter::VK_FILTER_LINEAR;
-	samplerCi.minFilter = VkFilter::VK_FILTER_LINEAR;
-	samplerCi.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerCi.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerCi.addressModeV = samplerCi.addressModeU;
-	samplerCi.addressModeW = samplerCi.addressModeU;
-	samplerCi.mipLodBias = 0.0f;
-	samplerCi.maxAnisotropy = 1.0f;
-	samplerCi.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
-	samplerCi.minLod = 0.0f;
-	samplerCi.maxLod = 1.0f;
-	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+	VkSamplerCreateInfo samplerCi = VulkanSampler::GetCreateInfo();
 	VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &sampler));
 
 	// opaqueShader 초기화

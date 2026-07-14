@@ -20,11 +20,7 @@ void PostProcessPass::Clear()
 	material.reset();
 	shader.Clear();
 
-	if (sampler != VK_NULL_HANDLE)
-	{
-		vkDestroySampler(device, sampler, nullptr);
-		sampler = VK_NULL_HANDLE;
-	}
+	sampler.reset();
 
 	if (pipeline != VK_NULL_HANDLE)
 	{
@@ -101,21 +97,8 @@ void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetL
 {
 	const VkDevice device = ctx.GetDevice();
 
-	VkSamplerCreateInfo samplerCi{};
-	samplerCi.sType = VkStructureType::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerCi.magFilter = VkFilter::VK_FILTER_LINEAR;
-	samplerCi.minFilter = VkFilter::VK_FILTER_LINEAR;
-	samplerCi.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerCi.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	samplerCi.addressModeV = samplerCi.addressModeU;
-	samplerCi.addressModeW = samplerCi.addressModeU;
-	samplerCi.mipLodBias = 0.0f;
-	samplerCi.maxAnisotropy = 1.0f;
-	samplerCi.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
-	samplerCi.minLod = 0.0f;
-	samplerCi.maxLod = 1.0f;
-	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-	VK_RESULT_CHECK(vkCreateSampler(device, &samplerCi, nullptr, &sampler));
+	VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
+	sampler = std::make_unique<VulkanSampler>(ctx, samplerCI);
 
 	std::vector<VkDescriptorSetLayoutBinding> set1LayoutBindings;
 	VkDescriptorSetLayoutBinding& binding0 = set1LayoutBindings.emplace_back();
@@ -134,7 +117,7 @@ void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetL
 	shader.Build(device, "shaders/postprocess.vert.spv", "shaders/postprocess.frag.spv");
 
 	material = std::make_unique<Material>(ctx, shader);
-	material->AddBinding(0, outputImage, sampler);
+	material->AddBinding(0, outputImage, sampler->GetSampler());
 	material->AddBinding<Data>(DATA_BINDING);
 	material->Build(descPool);
 

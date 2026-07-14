@@ -130,22 +130,12 @@ void OpaquePass::PushDrawable(const Drawable& drawable)
 
 void OpaquePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
-	VkImageCreateInfo imgCi{};
-	imgCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imgCi.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
-	imgCi.initialLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
-	imgCi.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
-	imgCi.imageType = VkImageType::VK_IMAGE_TYPE_2D;
-	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
 	imgCi.extent = { 1024, 768, 1 };
-	imgCi.mipLevels = 1;
-	imgCi.arrayLayers = 1;
-	imgCi.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
-	imgCi.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
-	outputImage = std::make_unique<VulkanImage>(VulkanImage::Create(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	imgCi.format = VkFormat::VK_FORMAT_D24_UNORM_S8_UINT;
 	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	outputImageDepth = std::make_unique<VulkanImage>(VulkanImage::Create(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	outputImageDepth = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 }
 
 void OpaquePass::BuildPipeline(const VulkanContext& ctx)

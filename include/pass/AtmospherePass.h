@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "APass.h"
+#include "render/VulkanImage.h"
 
 #include "glm/glm.hpp"
 
@@ -8,6 +9,7 @@
 
 class VulkanBuffer;
 class VulkanImage;
+class VulkanSampler;
 
 class AtmospherePass : public APass
 {
@@ -49,5 +51,5 @@ private:
 
 	const VulkanImage* opaqueDepthTex = nullptr;
 	const VulkanImage* opaqueTex = nullptr;
-	VkSampler opaqueSampler = VK_NULL_HANDLE;
+	VulkanSampler opaqueSampler;
 };

@@ -31,11 +31,7 @@ void AtmospherePass::Clear()
 		vkDestroyDescriptorSetLayout(device, descSetLayouts[1], nullptr);
 	descSetLayouts.clear();
 
-	if (opaqueSampler != VK_NULL_HANDLE)
-	{
-		vkDestroySampler(device, opaqueSampler, nullptr);
-		opaqueSampler = VK_NULL_HANDLE;
-	}
+	opaqueSampler.Clear();
 	outputImage.reset();
 	atmosphereBuffer.reset();
 	APass::Clear();
@@ -84,35 +80,18 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLa
 	const VkMemoryPropertyFlags memProps = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 	atmosphereBuffer = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, usage, memProps, sizeof(atmosphere), &atmosphere));
 
-	VkImageCreateInfo imgCi{};
-	imgCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
 	imgCi.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
-	imgCi.initialLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
-	imgCi.samples = VkSampleCountFlagBits::VK_SAMPLE_COUNT_1_BIT;
-	imgCi.imageType = VkImageType::VK_IMAGE_TYPE_2D;
 	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT;
 	imgCi.extent = { 1024, 768, 1 };
-	imgCi.mipLevels = 1;
-	imgCi.arrayLayers = 1;
-	imgCi.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
-	imgCi.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
-	outputImage = std::make_unique<VulkanImage>(VulkanImage::Create(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	VkSamplerCreateInfo samplerCi{};
-	samplerCi.sType = VkStructureType::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerCi.magFilter = VkFilter::VK_FILTER_LINEAR;
-	samplerCi.minFilter = VkFilter::VK_FILTER_LINEAR;
-	samplerCi.mipmapMode = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerCi.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	samplerCi.addressModeV = samplerCi.addressModeU;
-	samplerCi.addressModeW = samplerCi.addressModeU;
-	samplerCi.mipLodBias = 0.0f;
-	samplerCi.maxAnisotropy = 1.0f;
-	samplerCi.compareOp = VkCompareOp::VK_COMPARE_OP_NEVER;
-	samplerCi.minLod = 0.0f;
-	samplerCi.maxLod = 1.0f;
-	samplerCi.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	VK_RESULT_CHECK(vkCreateSampler(device, &samplerCi, nullptr, &opaqueSampler));
+	VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
+	samplerCI.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerCI.addressModeV = samplerCI.addressModeU;
+	samplerCI.addressModeW = samplerCI.addressModeU;
+	samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	opaqueSampler.Create(ctx, samplerCI);
 }
 
 void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
@@ -165,11 +144,11 @@ void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool
 	VkDescriptorImageInfo depthDescImageInfo{};
 	depthDescImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	depthDescImageInfo.imageView = opaqueDepthTex->GetView();
-	depthDescImageInfo.sampler = opaqueSampler;
+	depthDescImageInfo.sampler = opaqueSampler.GetSampler();
 	VkDescriptorImageInfo opaqueDescImageInfo{};
 	opaqueDescImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	opaqueDescImageInfo.imageView = opaqueTex->GetView();
-	opaqueDescImageInfo.sampler = opaqueSampler;
+	opaqueDescImageInfo.sampler = opaqueSampler.GetSampler();
 
 	VkWriteDescriptorSet write0{};
 	write0.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
