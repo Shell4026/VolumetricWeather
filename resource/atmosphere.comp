@@ -10,11 +10,14 @@ layout(set = 0, binding = 0) uniform Camera
 layout(set = 1, binding = 0) uniform Atmosphere
 {
 	vec4 sun; // dir, illuminance
+	mat4 sunViewProj;
 	ivec2 steps; // view step, sky-view step
+	float radius;
 } atmosphere;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
 layout(set = 1, binding = 2) uniform sampler2D depth;
 layout(set = 1, binding = 3) uniform sampler2D opaque;
+layout(set = 1, binding = 4) uniform sampler2DShadow shadowMap;
 
 const float GROUND_RADIUS = 6360 * 1000.0;
 const float ATMOSPHERE_RADIUS = 6460 * 1000.0;
@@ -23,10 +26,25 @@ const vec3 PLANET_CENTER = vec3(0.0, -GROUND_RADIUS, 0.0);
 vec3 PixelToViewPos(vec2 uv, float z)
 {
 	vec3 ndc = vec3(uv * 2.0 - 1.0, z);
-	ndc.y = 1.0 - ndc.y;
+	ndc.y = -ndc.y;
 	vec4 viewPos = inverse(camera.proj) * vec4(ndc, 1.0);
 	viewPos /= viewPos.w;
 	return viewPos.xyz;
+}
+
+float Shadowing(vec3 worldPos)
+{
+	vec4 sunProjCoord = atmosphere.sunViewProj * vec4(worldPos, 1.0);
+	vec2 uv = (sunProjCoord.xy / sunProjCoord.w + 1.0) * 0.5;
+	uv.y = 1.0 - uv.y;
+	const float z = sunProjCoord.z / sunProjCoord.w;
+    if (uv.x < 0.0 || uv.x > 1.0 ||
+        uv.y < 0.0 || uv.y > 1.0 ||
+        z < 0.0 || z > 1.0)
+        return 1.0;
+	
+	const float shadowing = texture(shadowMap, vec3(uv, z - 0.0005));
+	return shadowing;
 }
 
 vec3 rayleighScattering(float y)
@@ -119,16 +137,18 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 
 		const vec3 transmittance = exp(-sigmaSum); // L_scat의 T(c, x)
 		
-		vec3 shadowing = vec3(1.0, 1.0, 1.0); // L_scat의 S(x, l_i)
 		float near = 0.0;
 		float far = 0.0;
 		
 		const bool groundHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, GROUND_RADIUS, near, far);
 		if (groundHit)
-			break;
-		const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, ATMOSPHERE_RADIUS, near, far);
+			continue;
+		const float shadowing = Shadowing(samplePos);
+
+		vec3 lightViewTransmittance = vec3(1.0, 1.0, 1.0); // L_scat의 S(x, l_i)
+		const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, atmosphere.radius, near, far);
 		if (atmosphereHit)
-			shadowing = Transmittance(samplePos, samplePos - sunDir * far, far, steps.y);
+			lightViewTransmittance = Transmittance(samplePos, samplePos - sunDir * far, far, steps.y);
 		
 		const vec3 phase = 
 		(
@@ -136,7 +156,7 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 			mieScattering(sampleHeight) * MiePhase(mu, 0.8)
 		) * stepSize;
 		
-		inScattering += transmittance * shadowing * phase * illuminance;
+		inScattering += transmittance * shadowing * lightViewTransmittance * phase * illuminance;
 	}
 	return inScattering;
 }
@@ -154,7 +174,7 @@ void main()
 	
 	float nearAtmo = 0.0;
 	float farAtmo = 1.0;
-	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, ATMOSPHERE_RADIUS, nearAtmo, farAtmo))
+	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, atmosphere.radius, nearAtmo, farAtmo))
 	{
 		imageStore(outImage, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
 		return;

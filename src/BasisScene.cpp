@@ -58,6 +58,7 @@ void BasisScene::Render(double dt)
 {
 	if (counter > 0)
 	{
+		shadowPassElapsed.Push(shadowPass->GetElapsedTimeMs());
 		opaquePassElapsed.Push(opaquePass->GetElapsedTimeMs());
 		atmospherePassElapsed.Push(atmospherePass->GetElapsedTimeMs());
 		postProcessPassElapsed.Push(postProcessPass->GetElapsedTimeMs());
@@ -141,6 +142,8 @@ void BasisScene::SetupPass()
 	atmospherePass = std::make_unique<AtmospherePass>();
 	atmospherePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
 	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
+	atmospherePass->SetShadowMap(*shadowPass->GetShadowMap());
+	atmospherePass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	atmospherePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	postProcessPass = std::make_unique<PostProcessPass>(*atmospherePass->GetOutputImage());
@@ -181,6 +184,10 @@ void BasisScene::DrawDebugGUI()
 		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
 		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
 		double sum = 0;
+		for (int i = 0; i < shadowPassElapsed.Size(); ++i)
+			sum += shadowPassElapsed[i];
+		ImGui::Text(std::format("ShadowPass: {:.2}ms", sum / shadowPassElapsed.MaxSize()).c_str());
+		sum = 0;
 		for (int i = 0; i < opaquePassElapsed.Size(); ++i)
 			sum += opaquePassElapsed[i];
 		ImGui::Text(std::format("OpaquePass: {:.2}ms", sum / opaquePassElapsed.MaxSize()).c_str());
@@ -205,6 +212,14 @@ void BasisScene::DrawDebugGUI()
 		ImGui::Text("Sky-View Steps");
 		if (ImGui::SliderInt("##skyViewSteps", &atmosphere.steps.y, 1, 256))
 			atmospherePass->SetAtmosphere(atmosphere);
+
+		ImGui::Text("Atmosphere radius(km)");
+		int atmoRadiusKM = static_cast<int>(atmosphere.radius / 1000.f);
+		if (ImGui::SliderInt("##atmosphereRadius", &atmoRadiusKM, 6360, 10000))
+		{
+			atmosphere.radius = atmoRadiusKM * 1000.f;
+			atmospherePass->SetAtmosphere(atmosphere);
+		}
 
 		ImGui::Text("Sun illuminance");
 		if (ImGui::SliderFloat("##SunIlluminance", &sun.w, 0.f, 1000.f))
@@ -325,6 +340,8 @@ void BasisScene::UpdateSun()
 	sunCamera.SetNear(1000.f);
 	sunCamera.SetFar(100'000.f);
 	sunCamera.SetOrtho();
+	sunCamera.SetWidth(length * 2.f);
+	sunCamera.SetHeight(length * 2.f);
 	sunCamera.UpdateMatrix();
 
 	AtmospherePass::Atmosphere atmosphere = atmospherePass->GetAtmosphere();
@@ -333,6 +350,7 @@ void BasisScene::UpdateSun()
 	mountain.material->UpdateBindingData(0, mountain.data);
 
 	atmosphere.sun = sun;
+	atmosphere.sunViewProj = mountain.data.viewProj;
 	atmospherePass->SetAtmosphere(atmosphere);
 
 	shadowPass->SetCamera(sunCamera);

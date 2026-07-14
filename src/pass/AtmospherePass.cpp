@@ -2,8 +2,11 @@
 #include "core/Logger.h"
 #include "render/VulkanBuffer.h"
 #include "render/VulkanImage.h"
-
-AtmospherePass::~AtmospherePass() = default;
+#include "render/Material.h"
+AtmospherePass::~AtmospherePass()
+{
+	Clear();
+}
 
 void AtmospherePass::Clear()
 {
@@ -16,16 +19,8 @@ void AtmospherePass::Clear()
 		vkDestroyPipeline(device, pipeline, nullptr);
 		pipeline = VK_NULL_HANDLE;
 	}
-	if (pipelineLayout != VK_NULL_HANDLE)
-	{
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		pipelineLayout = VK_NULL_HANDLE;
-	}
-	if (computeShader != VK_NULL_HANDLE)
-	{
-		vkDestroyShaderModule(device, computeShader, nullptr);
-		computeShader = VK_NULL_HANDLE;
-	}
+	computeShader.Clear();
+	material.reset();
 
 	if (descSetLayouts.size() >= 2)
 		vkDestroyDescriptorSetLayout(device, descSetLayouts[1], nullptr);
@@ -33,7 +28,6 @@ void AtmospherePass::Clear()
 
 	opaqueSampler.Clear();
 	outputImage.reset();
-	atmosphereBuffer.reset();
 	APass::Clear();
 }
 
@@ -44,8 +38,8 @@ void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	const uint32_t height = outputImage->GetInfo().extent.height;
 
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-	std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, descSet1 };
-	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout, 0, descSets.size(), descSets.data(), 0, nullptr);
+	std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, material->GetVkDescriptorSet() };
+	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, computeShader.GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
 	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
 }
 
@@ -61,12 +55,16 @@ void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& fra
 		opaqueTex->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(
+		shadowMap->GetImage(),
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void AtmospherePass::SetAtmosphere(const Atmosphere& atmosphere)
 {
 	this->atmosphere = atmosphere;
-	atmosphereBuffer->SetData(&this->atmosphere, sizeof(this->atmosphere));
+	material->UpdateBindingData(0, this->atmosphere);
 }
 
 void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
@@ -76,9 +74,6 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLa
 
 	glm::vec3 sunDir = glm::normalize(glm::vec3{ -1.f, 0.f, 0.f });
 	atmosphere.sun = glm::vec4{ sunDir, 20.f };
-	const VkBufferUsageFlags usage = VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-	const VkMemoryPropertyFlags memProps = VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-	atmosphereBuffer = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(ctx, usage, memProps, sizeof(atmosphere), &atmosphere));
 
 	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
 	imgCi.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -92,13 +87,9 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLa
 	samplerCI.addressModeW = samplerCI.addressModeU;
 	samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 	opaqueSampler.Create(ctx, samplerCI);
-}
-
-void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
-{
-	const VkDevice device = ctx.GetDevice();
 
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
+	set1Bindings.reserve(5);
 	VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
 	binding0.binding = 0;
 	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
@@ -119,87 +110,37 @@ void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool
 	binding3.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 	binding3.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding3.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding4 = set1Bindings.emplace_back();
+	binding4.binding = 4;
+	binding4.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+	binding4.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding4.descriptorCount = 1;
 
-	descSetLayouts.resize(2);
-	descSetLayouts[0] = cameraSetLayout;
-	VkDescriptorSetLayoutCreateInfo layoutCi{};
-	layoutCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutCi.bindingCount = static_cast<uint32_t>(set1Bindings.size());
-	layoutCi.pBindings = set1Bindings.data();
-	VK_RESULT_CHECK(vkCreateDescriptorSetLayout(device, &layoutCi, nullptr, &descSetLayouts[1]));
+	computeShader.AddSet(0, cameraSetLayout);
+	computeShader.AddSet(1, std::move(set1Bindings));
+	computeShader.Build(device, "shaders/atmosphere.comp.spv");
+}
 
-	VkDescriptorSetAllocateInfo descSetAllocInfo{};
-	descSetAllocInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	descSetAllocInfo.descriptorPool = descPool;
-	descSetAllocInfo.pSetLayouts = &descSetLayouts[1];
-	descSetAllocInfo.descriptorSetCount = 1;
-	VK_RESULT_CHECK(vkAllocateDescriptorSets(device, &descSetAllocInfo, &descSet1));
+void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
+{
+	const VkDevice device = ctx.GetDevice();
 
-	VkDescriptorBufferInfo descBufferInfo{};
-	descBufferInfo.buffer = atmosphereBuffer->GetBuffer();
-	descBufferInfo.range = sizeof(atmosphere);
-	VkDescriptorImageInfo descImageInfo{};
-	descImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL;
-	descImageInfo.imageView = outputImage->GetView();
-	VkDescriptorImageInfo depthDescImageInfo{};
-	depthDescImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	depthDescImageInfo.imageView = opaqueDepthTex->GetView();
-	depthDescImageInfo.sampler = opaqueSampler.GetSampler();
-	VkDescriptorImageInfo opaqueDescImageInfo{};
-	opaqueDescImageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	opaqueDescImageInfo.imageView = opaqueTex->GetView();
-	opaqueDescImageInfo.sampler = opaqueSampler.GetSampler();
+	material = std::make_unique<Material>(ctx, computeShader);
+	material->AddBinding<Atmosphere>(0);
+	material->AddBinding(1, *outputImage);
+	material->AddBinding(2, *opaqueDepthTex, opaqueSampler.GetSampler());
+	material->AddBinding(3, *opaqueTex, opaqueSampler.GetSampler());
+	material->AddBinding(4, *shadowMap, shadowSampler->GetSampler());
+	material->Build(descPool);
 
-	VkWriteDescriptorSet write0{};
-	write0.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	write0.descriptorCount = 1;
-	write0.dstSet = descSet1;
-	write0.dstBinding = 0;
-	write0.pBufferInfo = &descBufferInfo;
-	VkWriteDescriptorSet write1{};
-	write1.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	write1.descriptorCount = 1;
-	write1.dstSet = descSet1;
-	write1.dstBinding = 1;
-	write1.pImageInfo = &descImageInfo;
-	VkWriteDescriptorSet write2{};
-	write2.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	write2.descriptorCount = 1;
-	write2.dstSet = descSet1;
-	write2.dstBinding = 2;
-	write2.pImageInfo = &depthDescImageInfo;
-	VkWriteDescriptorSet write3{};
-	write3.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write3.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	write3.descriptorCount = 1;
-	write3.dstSet = descSet1;
-	write3.dstBinding = 3;
-	write3.pImageInfo = &opaqueDescImageInfo;
-	std::array<VkWriteDescriptorSet, 4> writes = { write0 , write1, write2, write3 };
-	vkUpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
+	material->UpdateBindingData(0, atmosphere);
 }
 
 void AtmospherePass::BuildPipeline(const VulkanContext& ctx)
 {
-	computeShader = LoadShader(ctx.GetDevice(), "shaders/atmosphere.comp.spv");
-	VkPipelineShaderStageCreateInfo shaderStageCI{};
-	shaderStageCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	shaderStageCI.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-	shaderStageCI.module = computeShader;
-	shaderStageCI.pName = "main";
-
-	VkPipelineLayoutCreateInfo pipelineLayoutCI{};
-	pipelineLayoutCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCI.setLayoutCount = descSetLayouts.size();
-	pipelineLayoutCI.pSetLayouts = descSetLayouts.data();
-	VK_RESULT_CHECK(vkCreatePipelineLayout(ctx.GetDevice(), &pipelineLayoutCI, nullptr, &pipelineLayout));
-
 	VkComputePipelineCreateInfo ci{};
 	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-	ci.layout = pipelineLayout;
-	ci.stage = shaderStageCI;
+	ci.layout = computeShader.GetPipelineLayout();
+	ci.stage = computeShader.GetPipelineShaderStageCreateInfos().front();
 	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &pipeline));
 }
