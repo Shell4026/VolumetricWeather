@@ -102,6 +102,7 @@ void Material::UpdateBindingData(uint32_t binding, const VulkanImage& image, VkS
 	write.descriptorCount = 1;
 	write.dstSet = descSet;
 	write.dstBinding = bindingInfo.binding;
+	write.pImageInfo = &imageInfo;
 	vkUpdateDescriptorSets(ctx.GetDevice(), 1, &write, 0, nullptr);
 }
 
