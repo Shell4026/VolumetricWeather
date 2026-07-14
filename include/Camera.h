@@ -5,18 +5,19 @@ class Camera
 {
 public:
 	Camera() = default;
+	virtual ~Camera() = default;
 
-	void SetPos(const glm::vec3& pos) { this->pos = pos; }
-	void SetTo(const glm::vec3& to) { this->to = to; }
-	void SetUp(const glm::vec3& up) { this->up = up; }
+	virtual void SetPos(const glm::vec3& pos) { this->pos = pos; }
+	virtual void SetTo(const glm::vec3& to) { this->to = to; }
+	virtual void SetUp(const glm::vec3& up) { this->up = up; }
 	void SetWidth(float width) { this->width = width; }
 	void SetHeight(float height) { this->height = height; }
-	void SetNear(float nearPlane) { this->nearPlane = nearPlane; }
-	void SetFar(float farPlane) { this->farPlane = farPlane; }
-	void SetOrtho() { bOrtho = true; }
-	void SetPerspective() { bOrtho = false; }
+	virtual void SetNear(float nearPlane) { this->nearPlane = nearPlane; }
+	virtual void SetFar(float farPlane) { this->farPlane = farPlane; }
+	virtual void SetOrtho() { bOrtho = true; }
+	virtual void SetPerspective() { bOrtho = false; }
 
-	void UpdateMatrix();
+	virtual void UpdateMatrix();
 
 	auto GetPos() const -> const glm::vec3& { return pos; }
 	auto GetTo() const -> const glm::vec3& { return to; }
@@ -40,8 +41,8 @@ private:
 	glm::vec3 to{ 0.f, 0.f, 0.f };
 	glm::vec3 up{ 0.f, 1.f, 0.f };
 
-	glm::mat4 proj;
-	glm::mat4 view;
+	glm::mat4 proj{ 1.f };
+	glm::mat4 view{ 1.f };
 
 	bool bOrtho = false;
 };

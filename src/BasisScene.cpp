@@ -228,7 +228,6 @@ void BasisScene::DrawDebugGUI()
 		if (ImGui::InputFloat3("##camPos", pos, "%.3f", ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
 		{
 			camera.SetPos({ pos[0], pos[1], pos[2] });
-			camera.CalcTo();
 			camera.UpdateMatrix();
 			UpdateCameraData();
 		}
@@ -292,12 +291,12 @@ void BasisScene::ControlCamera(double dt)
 	}
 	if (Input::IsKeyDown(Event::KeyType::A))
 	{
-		camera.AddYaw(-30.0 * dt);
+		camera.AddYaw(30.0 * dt);
 		camera.UpdateMatrix();
 	}
 	if (Input::IsKeyDown(Event::KeyType::D))
 	{
-		camera.AddYaw(30.0 * dt);
+		camera.AddYaw(-30.0 * dt);
 		camera.UpdateMatrix();
 	}
 	if (Input::IsKeyDown(Event::KeyType::Space))
@@ -305,7 +304,6 @@ void BasisScene::ControlCamera(double dt)
 		glm::vec3 pos = camera.GetPos();
 		pos.y += 1000.0 * dt;
 		camera.SetPos(pos);
-		camera.CalcTo();
 		camera.UpdateMatrix();
 	}
 	if (Input::IsKeyDown(Event::KeyType::LCtrl))
@@ -313,7 +311,6 @@ void BasisScene::ControlCamera(double dt)
 		glm::vec3 pos = camera.GetPos();
 		pos.y -= 1000.0 * dt;
 		camera.SetPos(pos);
-		camera.CalcTo();
 		camera.UpdateMatrix();
 	}
 	UpdateCameraData();
