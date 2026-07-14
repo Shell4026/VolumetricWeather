@@ -13,6 +13,8 @@ public:
 	void SetHeight(float height) { this->height = height; }
 	void SetNear(float nearPlane) { this->nearPlane = nearPlane; }
 	void SetFar(float farPlane) { this->farPlane = farPlane; }
+	void SetOrtho() { bOrtho = true; }
+	void SetPerspective() { bOrtho = false; }
 
 	void UpdateMatrix();
 
@@ -25,6 +27,8 @@ public:
 	auto GetHeight() const -> float { return height; }
 	auto GetNear() const -> float { return nearPlane; }
 	auto GetFar() const -> float { return farPlane; }
+	auto IsOrtho() const -> bool { return bOrtho; }
+	auto IsPerspective() const -> bool { return !bOrtho; }
 private:
 	float fov = 60.f;
 	float fovRadians = glm::radians(fov);
@@ -38,4 +42,6 @@ private:
 
 	glm::mat4 proj;
 	glm::mat4 view;
+
+	bool bOrtho = false;
 };

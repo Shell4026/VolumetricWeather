@@ -1,4 +1,5 @@
 ﻿#include "render/VulkanContext.h"
+#include "render/VulkanImage.h"
 #include "core/Logger.h"
 #include "core/Window.h"
 
@@ -49,6 +50,15 @@ VulkanContext::~VulkanContext()
     if (instancePtr == nullptr)
         return;
 
+    defaultSampler.reset();
+    emptyImage.reset();
+
+    if (emptySetLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(device, emptySetLayout, nullptr);
+        emptySetLayout = VK_NULL_HANDLE;
+    }
+
     if (graphicsCommandPool == computeCommandPool)
         computeCommandPool = VK_NULL_HANDLE;
     else
@@ -97,6 +107,8 @@ void VulkanContext::Init()
     CreateDevice();
     CreateSwapChain();
     CreateCommandPool();
+
+    PrepareDefaultResources();
 }
 
 void VulkanContext::ReSize()
@@ -642,4 +654,19 @@ void VulkanContext::ClearSwapChain()
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
     swapChain = VK_NULL_HANDLE;
+}
+
+void VulkanContext::PrepareDefaultResources()
+{
+    VkDescriptorSetLayoutCreateInfo layoutCI{};
+    layoutCI.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    VK_RESULT_CHECK(vkCreateDescriptorSetLayout(device, &layoutCI, nullptr, &emptySetLayout));
+
+    VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
+    defaultSampler = std::make_unique<VulkanSampler>(*this, samplerCI);
+
+    VkImageCreateInfo imgCI = VulkanImage::GetCreateInfo();
+    imgCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
+    imgCI.extent = { 1, 1, 1 };
+    emptyImage = std::make_unique<VulkanImage>(*this, imgCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 }

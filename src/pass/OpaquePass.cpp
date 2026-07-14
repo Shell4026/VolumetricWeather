@@ -111,11 +111,13 @@ void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 			continue;
 		for (auto& [view, tex] : drawable->mat->GetUsingTextures())
 		{
-			if (tex != nullptr)
-				AddUsage(
-					tex->GetImage(),
-					VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-					VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			if (tex == nullptr)
+				continue;
+			VkImageAspectFlags aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT;
+			if (tex->GetInfo().format == VkFormat::VK_FORMAT_D32_SFLOAT ||
+				tex->GetInfo().format == VkFormat::VK_FORMAT_D24_UNORM_S8_UINT)
+				aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT;
+			AddUsage(tex->GetImage(), aspect, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 		}
 	}
 }

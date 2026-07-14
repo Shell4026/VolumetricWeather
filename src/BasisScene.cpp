@@ -8,6 +8,7 @@
 #include "pass/OpaquePass.h"
 #include "pass/AtmospherePass.h"
 #include "pass/PostProcessPass.h"
+#include "pass/ShadowPass.h"
 
 #include "imgui/imgui.h"
 #include "glm/gtc/quaternion.hpp"
@@ -90,7 +91,7 @@ void BasisScene::PrepareResource()
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
 	VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
 	binding0.binding = 0;
-	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT | VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
 	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	binding0.descriptorCount = 1;
 	VkDescriptorSetLayoutBinding& binding1 = set1Bindings.emplace_back();
@@ -98,6 +99,11 @@ void BasisScene::PrepareResource()
 	binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
 	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding1.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding2 = set1Bindings.emplace_back();
+	binding2.binding = 2;
+	binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding2.descriptorCount = 1;
 
 	VkPushConstantRange pc{};
 	pc.size = sizeof(glm::mat4);
@@ -113,6 +119,7 @@ void BasisScene::PrepareResource()
 	mountain.material = std::make_unique<Material>(ctx, opaqueShader);
 	mountain.material->AddBinding<Mountain::MaterialData>(0);
 	mountain.material->AddBinding(1, mountain.model.textures[0], sampler);
+	mountain.material->AddBinding(2, *ctx.GetEmptyImage(), sampler);
 	mountain.material->Build(GetDescriptorPool());
 
 	mountain.data.sun = sun;
@@ -123,6 +130,10 @@ void BasisScene::PrepareResource()
 
 void BasisScene::SetupPass()
 {
+	shadowPass = std::make_unique<ShadowPass>();
+	shadowPass->Init(ctx, GetDescriptorPool(), VK_NULL_HANDLE);
+	mountain.material->UpdateBindingData(2, *shadowPass->GetShadowMap(), shadowPass->GetShadowSampler()->GetSampler());
+
 	opaquePass = std::make_unique<OpaquePass>();
 	opaquePass->SetShader(opaqueShader);
 	opaquePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
@@ -135,13 +146,18 @@ void BasisScene::SetupPass()
 	postProcessPass = std::make_unique<PostProcessPass>(*atmospherePass->GetOutputImage());
 	postProcessPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	activePasses = { opaquePass.get(), atmospherePass.get(), postProcessPass.get() };
+	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get() };
+
+	UpdateSun();
 }
 
 void BasisScene::BeginBuildCommandBuffer()
 {
 	for (const Drawable& drawable : drawables)
+	{
 		opaquePass->PushDrawable(drawable);
+		shadowPass->PushDrawable(drawable);
+	}
 }
 
 void BasisScene::DrawDebugGUI()
@@ -193,11 +209,7 @@ void BasisScene::DrawDebugGUI()
 		ImGui::Text("Sun illuminance");
 		if (ImGui::SliderFloat("##SunIlluminance", &sun.w, 0.f, 1000.f))
 		{
-			mountain.data.sun = sun;
-			mountain.material->UpdateBindingData(0, mountain.data);
-
-			atmosphere.sun = sun;
-			atmospherePass->SetAtmosphere(atmosphere);
+			UpdateSun();
 		}
 
 		ImGui::Text("Sun direction");
@@ -208,11 +220,7 @@ void BasisScene::DrawDebugGUI()
 			glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
 			sun = glm::vec4(sunDir, sun.w);
 			
-			mountain.data.sun = sun;
-			mountain.material->UpdateBindingData(0, mountain.data);
-
-			atmosphere.sun = sun;
-			atmospherePass->SetAtmosphere(atmosphere);
+			UpdateSun();
 		}
 
 		ImGui::Text("Cam pos");
@@ -309,4 +317,26 @@ void BasisScene::ControlCamera(double dt)
 		camera.UpdateMatrix();
 	}
 	UpdateCameraData();
+}
+
+void BasisScene::UpdateSun()
+{
+	const float length = 10'000.f;
+	Camera sunCamera{};
+	sunCamera.SetPos({ -sun.x * length, -sun.y * length, -sun.z * length });
+	sunCamera.SetTo({ 0.f, 0.f, 0.f });
+	sunCamera.SetNear(1000.f);
+	sunCamera.SetFar(100'000.f);
+	sunCamera.SetOrtho();
+	sunCamera.UpdateMatrix();
+
+	AtmospherePass::Atmosphere atmosphere = atmospherePass->GetAtmosphere();
+	mountain.data.sun = sun;
+	mountain.data.viewProj = sunCamera.GetMatrixProj() * sunCamera.GetMatrixView();
+	mountain.material->UpdateBindingData(0, mountain.data);
+
+	atmosphere.sun = sun;
+	atmospherePass->SetAtmosphere(atmosphere);
+
+	shadowPass->SetCamera(sunCamera);
 }

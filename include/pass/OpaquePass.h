@@ -1,9 +1,9 @@
 ﻿#pragma once
 #include "APass.h"
 #include "GLBLoader.h"
+#include "IDrawablePass.h"
 
 #include "render/Shader.h"
-#include "render/Drawable.hpp"
 
 #include "glm/glm.hpp"
 
@@ -11,7 +11,7 @@
 #include <vector>
 class VulkanBuffer;
 class VulkanImage;
-class OpaquePass : public APass
+class OpaquePass : public APass, public IDrawablePass
 {
 public:
 	OpaquePass() { bUseSwapchainImage = false; }
@@ -24,7 +24,7 @@ public:
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetShader(const Shader& opaqueShader) { this->opaqueShader = &opaqueShader; }
 	/// @brief 같은 셰이더만 허용
-	void PushDrawable(const Drawable& mesh);
+	void PushDrawable(const Drawable& mesh) override;
 
 	auto GetShader() const -> const Shader* { return opaqueShader; }
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }

@@ -16,6 +16,8 @@ if (VkResult result = func; result != VkResult::VK_SUCCESS)\
 #include <vector>
 #include <optional>
 class Window;
+class VulkanImage;
+class VulkanSampler;
 class VulkanContext
 {
 public:
@@ -54,6 +56,9 @@ public:
 	auto GetPresentQueue() const -> VkQueue { return presentQueue; }
 	auto GetComputeQueueFamily() const -> uint32_t { return computeQueueFamily; }
 	auto GetComputeQueue() const -> VkQueue { return computeQueue; }
+	auto GetEmptyDescriptorSetLayout() const -> VkDescriptorSetLayout { return emptySetLayout; }
+	auto GetEmptyImage() const -> VulkanImage* { return emptyImage.get(); }
+	auto GetDefaultSampler() const -> VulkanSampler* { return defaultSampler.get(); }
 private:
 	void QueryInstanceLayers();
 	void CreateDebugInfo();
@@ -67,6 +72,7 @@ private:
 	void CreateSwapChain();
 	void CreateCommandPool();
 	void ClearSwapChain();
+	void PrepareDefaultResources();
 public:
 	static constexpr uint32_t MAX_CONCURRENT_FRAMES{ 2 };
 private:
@@ -130,5 +136,11 @@ private:
 	VkCommandPool graphicsCommandPool = VK_NULL_HANDLE;
 	VkCommandPool computeCommandPool = VK_NULL_HANDLE;
 
+	// 기본 리소스
+	VkDescriptorSetLayout emptySetLayout = VK_NULL_HANDLE;
+	std::unique_ptr<VulkanImage> emptyImage;
+	std::unique_ptr<VulkanSampler> defaultSampler;
+
+	//
 	bool bEnableValidationLayers = true;
 };
