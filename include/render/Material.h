@@ -10,6 +10,12 @@
 class Material
 {
 public:
+	struct UsingTexture
+	{
+		const VulkanImage* imagePtr = nullptr;
+		VkImageLayout usage = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
+	};
+public:
 	Material(const VulkanContext& ctx, const Shader& shader) :
 		ctx(ctx), shader(shader)
 	{}
@@ -20,13 +26,13 @@ public:
 
 	template<typename T>
 	void AddBinding(uint32_t binding);
-	void AddBinding(uint32_t binding, const VulkanImage& image, VkSampler sampler);
+	void AddBinding(uint32_t binding, const VulkanImage& image, VkSampler sampler = nullptr);
 	template<typename T>
 	void UpdateBindingData(uint32_t binding, const T& data);
 	void UpdateBindingData(uint32_t binding, const VulkanImage& image, VkSampler sampler);
 
 	auto GetVkDescriptorSet() const -> VkDescriptorSet { return descSet; }
-	auto GetUsingTextures() const -> const std::map<VkImageView, const VulkanImage*>& { return usingTextures; }
+	auto GetUsingTextures() const -> const std::map<VkImageView, UsingTexture>& { return usingTextures; }
 protected:
 	auto CreateUniformBuffer(std::size_t size) -> VulkanBuffer;
 public:
@@ -43,7 +49,7 @@ private:
 		std::variant<VkDescriptorBufferInfo, VkDescriptorImageInfo> info;
 	};
 	std::vector<BindingInfo> bindingInfos;
-	std::map<VkImageView, const VulkanImage*> usingTextures;
+	std::map<VkImageView, UsingTexture> usingTextures;
 	std::unique_ptr<VulkanBuffer> buffer;
 
 	std::size_t nextBufferOffset = 0;

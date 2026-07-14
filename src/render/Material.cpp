@@ -68,16 +68,19 @@ void Material::AddBinding(uint32_t binding, const VulkanImage& image, VkSampler 
 
 	BindingInfo& bindingInfo = bindingInfos[binding];
 	bindingInfo.binding = binding;
-	bindingInfo.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	bindingInfo.type = sampler != nullptr ? 
+		VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 
 	VkDescriptorImageInfo imageInfo{};
-	imageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageLayout = sampler != nullptr ? VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VkImageLayout::VK_IMAGE_LAYOUT_GENERAL;
 	imageInfo.imageView = image.GetView();
 	imageInfo.sampler = sampler;
-
 	bindingInfo.info = imageInfo;
 
-	usingTextures.insert_or_assign(imageInfo.imageView, &image);
+	UsingTexture usingTexture{};
+	usingTexture.imagePtr = &image;
+	usingTexture.usage = imageInfo.imageLayout;
+	usingTextures.insert_or_assign(imageInfo.imageView, usingTexture);
 }
 
 void Material::UpdateBindingData(uint32_t binding, const VulkanImage& image, VkSampler sampler)
@@ -90,11 +93,15 @@ void Material::UpdateBindingData(uint32_t binding, const VulkanImage& image, VkS
 
 	usingTextures.erase(imageInfo.imageView);
 
-	imageInfo.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageLayout = sampler != nullptr ? 
+		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VkImageLayout::VK_IMAGE_LAYOUT_GENERAL;
 	imageInfo.imageView = image.GetView();
 	imageInfo.sampler = sampler;
 
-	usingTextures.insert_or_assign(imageInfo.imageView, &image);
+	UsingTexture usingTexture{};
+	usingTexture.imagePtr = &image;
+	usingTexture.usage = imageInfo.imageLayout;
+	usingTextures.insert_or_assign(imageInfo.imageView, usingTexture);
 
 	VkWriteDescriptorSet write{};
 	write.sType = VkStructureType::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

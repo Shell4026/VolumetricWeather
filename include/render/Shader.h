@@ -18,6 +18,7 @@ public:
 	void AddSet(uint32_t set, VkDescriptorSetLayout setLayout);
 	void AddSet(uint32_t set, std::vector<VkDescriptorSetLayoutBinding> bindingInfo);
 
+	void Build(VkDevice device, const std::filesystem::path& computeShaderPath);
 	void Build(VkDevice device, const std::filesystem::path& vertShaderPath, const std::filesystem::path& fragShaderPath, VkPushConstantRange* pushConstant = nullptr);
 
 	auto GetSetInfos() const -> const std::vector<SetInfo>& { return setInfos; }
@@ -25,7 +26,9 @@ public:
 	auto GetPipelineLayout() const -> VkPipelineLayout { return pipelineLayout; }
 	auto GetPipelineShaderStageCreateInfos() const -> const std::vector<VkPipelineShaderStageCreateInfo>& { return pipelineShaderStageCreateInfos; }
 private:
+	void CreatePipelineLayout(VkPushConstantRange* pushConstant);
 	void LoadShaderModule(const std::filesystem::path& vertShader, const std::filesystem::path& fragShader);
+	void LoadComputeShaderModule(const std::filesystem::path& computeShaderPath);
 private:
 	VkDevice device = VK_NULL_HANDLE;
 
@@ -36,5 +39,6 @@ private:
 
 	VkShaderModule vertShader = VK_NULL_HANDLE;
 	VkShaderModule fragShader = VK_NULL_HANDLE;
+	VkShaderModule computeShader = VK_NULL_HANDLE;
 	std::vector<VkPipelineShaderStageCreateInfo> pipelineShaderStageCreateInfos;
 };
