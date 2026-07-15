@@ -61,7 +61,7 @@ void Material::Clear()
 	}
 }
 
-void Material::AddBinding(uint32_t binding, const VulkanImage& image, VkSampler sampler)
+auto Material::AddBinding(uint32_t binding, const VulkanImage& image, VkSampler sampler) -> Material&
 {
 	if (bindingInfos.size() <= binding)
 		bindingInfos.resize(binding + 1);
@@ -81,6 +81,7 @@ void Material::AddBinding(uint32_t binding, const VulkanImage& image, VkSampler 
 	usingTexture.imagePtr = &image;
 	usingTexture.usage = imageInfo.imageLayout;
 	usingTextures.insert_or_assign(imageInfo.imageView, usingTexture);
+	return *this;
 }
 
 void Material::UpdateBindingData(uint32_t binding, const VulkanImage& image, VkSampler sampler)

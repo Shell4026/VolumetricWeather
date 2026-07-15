@@ -25,8 +25,8 @@ public:
 	void Clear();
 
 	template<typename T>
-	void AddBinding(uint32_t binding);
-	void AddBinding(uint32_t binding, const VulkanImage& image, VkSampler sampler = nullptr);
+	auto AddBinding(uint32_t binding) -> Material&;
+	auto AddBinding(uint32_t binding, const VulkanImage& image, VkSampler sampler = nullptr) -> Material&;
 	template<typename T>
 	void UpdateBindingData(uint32_t binding, const T& data);
 	void UpdateBindingData(uint32_t binding, const VulkanImage& image, VkSampler sampler);
@@ -56,7 +56,7 @@ private:
 };
 
 template<typename T>
-inline void Material::AddBinding(uint32_t binding)
+inline auto Material::AddBinding(uint32_t binding) -> Material&
 {
 	if (bindingInfos.size() <= binding)
 		bindingInfos.resize(binding + 1);
@@ -73,6 +73,7 @@ inline void Material::AddBinding(uint32_t binding)
 	bindingInfo.info = bufferInfo;
 
 	nextBufferOffset += sizeof(T);
+	return *this;
 }
 
 template<typename T>

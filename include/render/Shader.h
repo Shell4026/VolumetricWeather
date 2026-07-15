@@ -15,8 +15,8 @@ public:
 	
 	void Clear();
 	
-	void AddSet(uint32_t set, VkDescriptorSetLayout setLayout);
-	void AddSet(uint32_t set, std::vector<VkDescriptorSetLayoutBinding> bindingInfo);
+	auto AddSet(uint32_t set, VkDescriptorSetLayout setLayout) -> Shader&;
+	auto AddSet(uint32_t set, std::vector<VkDescriptorSetLayoutBinding> bindingInfo) -> Shader&;
 
 	void Build(VkDevice device, const std::filesystem::path& computeShaderPath);
 	void Build(VkDevice device, const std::filesystem::path& vertShaderPath, const std::filesystem::path& fragShaderPath, VkPushConstantRange* pushConstant = nullptr);

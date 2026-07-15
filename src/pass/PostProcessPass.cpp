@@ -112,14 +112,16 @@ void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetL
 	binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	binding2.descriptorCount = 1;
 
-	shader.AddSet(0, cameraSetLayout);
-	shader.AddSet(1, set1LayoutBindings);
-	shader.Build(device, "shaders/postprocess.vert.spv", "shaders/postprocess.frag.spv");
+	shader.
+		AddSet(0, cameraSetLayout).
+		AddSet(1, set1LayoutBindings).
+		Build(device, "shaders/postprocess.vert.spv", "shaders/postprocess.frag.spv");
 
 	material = std::make_unique<Material>(ctx, shader);
-	material->AddBinding(0, outputImage, sampler->GetSampler());
-	material->AddBinding<Data>(DATA_BINDING);
-	material->Build(descPool);
+	material->
+		AddBinding(0, outputImage, sampler->GetSampler()).
+		AddBinding<Data>(DATA_BINDING).
+		Build(descPool);
 
 	material->UpdateBindingData(DATA_BINDING, data);
 }

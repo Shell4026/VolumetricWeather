@@ -59,20 +59,22 @@ void Shader::Clear()
 	pipelineShaderStageCreateInfos.clear();
 }
 
-void Shader::AddSet(uint32_t set, VkDescriptorSetLayout setLayout)
+auto Shader::AddSet(uint32_t set, VkDescriptorSetLayout setLayout) -> Shader&
 {
 	if (setInfos.size() <= set)
 		setInfos.resize(set + 1);
 
 	setInfos[set] = setLayout;
+	return *this;
 }
 
-void Shader::AddSet(uint32_t set, std::vector<VkDescriptorSetLayoutBinding> bindingInfo)
+auto Shader::AddSet(uint32_t set, std::vector<VkDescriptorSetLayoutBinding> bindingInfo) -> Shader&
 {
 	if (setInfos.size() <= set)
 		setInfos.resize(set + 1);
 	
 	setInfos[set] = std::move(bindingInfo);
+	return *this;
 }
 
 void Shader::Build(VkDevice device, const std::filesystem::path& computeShaderPath)

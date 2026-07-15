@@ -137,9 +137,10 @@ void ShadowPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout
 	set1[0].descriptorCount = 1;
 	set1[0].descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	set1[0].stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
-	shader.AddSet(0, ctx.GetEmptyDescriptorSetLayout());
-	shader.AddSet(1, std::move(set1));
-	shader.Build(device, "shaders/shadow.vert.spv", "", &pc);
+	shader.
+		AddSet(0, ctx.GetEmptyDescriptorSetLayout()).
+		AddSet(1, std::move(set1)).
+		Build(device, "shaders/shadow.vert.spv", "", &pc);
 }
 
 void ShadowPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
@@ -153,8 +154,9 @@ void ShadowPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool des
 	VK_RESULT_CHECK(vkAllocateDescriptorSets(ctx.GetDevice(), &info, &emptyDescSet));
 
 	material = std::make_unique<Material>(ctx, shader);
-	material->AddBinding<UniformData>(0);
-	material->Build(descPool);
+	material->
+		AddBinding<UniformData>(0).
+		Build(descPool);
 
 	material->UpdateBindingData(0, uniformData);
 }

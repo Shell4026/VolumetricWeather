@@ -116,9 +116,10 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLa
 	binding4.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding4.descriptorCount = 1;
 
-	computeShader.AddSet(0, cameraSetLayout);
-	computeShader.AddSet(1, std::move(set1Bindings));
-	computeShader.Build(device, "shaders/atmosphere.comp.spv");
+	computeShader.
+		AddSet(0, cameraSetLayout).
+		AddSet(1, std::move(set1Bindings)).
+		Build(device, "shaders/atmosphere.comp.spv");
 }
 
 void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
@@ -126,12 +127,13 @@ void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool
 	const VkDevice device = ctx.GetDevice();
 
 	material = std::make_unique<Material>(ctx, computeShader);
-	material->AddBinding<Atmosphere>(0);
-	material->AddBinding(1, *outputImage);
-	material->AddBinding(2, *opaqueDepthTex, opaqueSampler.GetSampler());
-	material->AddBinding(3, *opaqueTex, opaqueSampler.GetSampler());
-	material->AddBinding(4, *shadowMap, shadowSampler->GetSampler());
-	material->Build(descPool);
+	material->
+		AddBinding<Atmosphere>(0).
+		AddBinding(1, *outputImage).
+		AddBinding(2, *opaqueDepthTex, opaqueSampler.GetSampler()).
+		AddBinding(3, *opaqueTex, opaqueSampler.GetSampler()).
+		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
+		Build(descPool);
 
 	material->UpdateBindingData(0, atmosphere);
 }

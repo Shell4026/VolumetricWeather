@@ -110,18 +110,20 @@ void BasisScene::PrepareResource()
 	pc.size = sizeof(glm::mat4);
 	pc.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
 
-	opaqueShader.AddSet(0, GetCameraDescriptorSetLayout());
-	opaqueShader.AddSet(1, std::move(set1Bindings));
-	opaqueShader.Build(ctx.GetDevice(), "shaders/mesh.vert.spv", "shaders/mesh.frag.spv", &pc);
+	opaqueShader.
+		AddSet(0, GetCameraDescriptorSetLayout()).
+		AddSet(1, std::move(set1Bindings)).
+		Build(ctx.GetDevice(), "shaders/mesh.vert.spv", "shaders/mesh.frag.spv", &pc);
 
 	// 산
 	mountain.model = GLBLoader::LoadGLB(ctx, "models/mountain_1.glb");
 
 	mountain.material = std::make_unique<Material>(ctx, opaqueShader);
-	mountain.material->AddBinding<Mountain::MaterialData>(0);
-	mountain.material->AddBinding(1, mountain.model.textures[0], sampler);
-	mountain.material->AddBinding(2, *ctx.GetEmptyImage(), sampler);
-	mountain.material->Build(GetDescriptorPool());
+	mountain.material->
+		AddBinding<Mountain::MaterialData>(0).
+		AddBinding(1, mountain.model.textures[0], sampler).
+		AddBinding(2, *ctx.GetEmptyImage(), sampler).
+		Build(GetDescriptorPool());
 
 	mountain.data.sun = sun;
 	mountain.material->UpdateBindingData(0, mountain.data);
