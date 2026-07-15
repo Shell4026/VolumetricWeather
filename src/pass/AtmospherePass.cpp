@@ -40,7 +40,7 @@ void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 	std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, material->GetVkDescriptorSet() };
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, computeShader.GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
-	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
+	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 8.f)), static_cast<uint32_t>(std::ceil(height / 8.f)), 1);
 }
 
 void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)

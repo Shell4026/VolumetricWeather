@@ -1,6 +1,6 @@
 #version 450
 
-layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 layout(set = 0, binding = 0) uniform Camera
 {
 	vec3 pos;
@@ -32,7 +32,7 @@ vec3 PixelToViewPos(vec2 uv, float z)
 	return viewPos.xyz;
 }
 
-float Shadowing(vec3 worldPos)
+float Visible(vec3 worldPos)
 {
 	vec4 sunProjCoord = atmosphere.sunViewProj * vec4(worldPos, 1.0);
 	vec2 uv = (sunProjCoord.xy / sunProjCoord.w + 1.0) * 0.5;
@@ -47,13 +47,13 @@ float Shadowing(vec3 worldPos)
 	return shadowing;
 }
 
-vec3 rayleighScattering(float y)
+vec3 RayleighScattering(float y)
 {
 	const vec3 rayleigh = vec3(5.802, 13.558, 33.1) * 1e-6;
 	return rayleigh * exp(-y / 8000.0);
 }
 
-vec3 mieScattering(float y)
+vec3 MieScattering(float y)
 {
 	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6;
 	return mie * exp(-y / 1200.0);
@@ -61,7 +61,7 @@ vec3 mieScattering(float y)
 
 vec3 ScatteringCoefficient(float y)
 {
-	vec3 sigma = rayleighScattering(y) + mieScattering(y);
+	vec3 sigma = RayleighScattering(y) + MieScattering(y);
 	return sigma;
 }
 
@@ -131,11 +131,12 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		const float sampleHeight = length(samplePos - PLANET_CENTER) - GROUND_RADIUS;
 		if (sampleHeight < 0.0)
 			break;
-		
-		const vec3 sigmaT = ScatteringCoefficient(sampleHeight) + AbsorptionCoefficient(sampleHeight);
-		sigmaSum += sigmaT * stepSize;
 
 		const vec3 transmittance = exp(-sigmaSum); // L_scat의 T(c, x)
+		
+		const vec3 sigmaS = ScatteringCoefficient(sampleHeight);
+		const vec3 sigmaT = sigmaS + AbsorptionCoefficient(sampleHeight);
+		sigmaSum += sigmaT * stepSize;
 		
 		float near = 0.0;
 		float far = 0.0;
@@ -143,7 +144,7 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		const bool groundHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, GROUND_RADIUS, near, far);
 		if (groundHit)
 			continue;
-		const float shadowing = Shadowing(samplePos);
+		const float visibility = Visible(samplePos);
 
 		vec3 lightViewTransmittance = vec3(1.0, 1.0, 1.0); // L_scat의 S(x, l_i)
 		const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, atmosphere.radius, near, far);
@@ -152,11 +153,11 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		
 		const vec3 phase = 
 		(
-			rayleighScattering(sampleHeight) * RayleighPhase(mu) + 
-			mieScattering(sampleHeight) * MiePhase(mu, 0.8)
+			RayleighScattering(sampleHeight) * RayleighPhase(mu) + 
+			MieScattering(sampleHeight) * MiePhase(mu, 0.8)
 		) * stepSize;
 		
-		inScattering += transmittance * shadowing * lightViewTransmittance * phase * illuminance;
+		inScattering += transmittance * visibility * lightViewTransmittance * phase * illuminance;
 	}
 	return inScattering;
 }
