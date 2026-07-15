@@ -10,10 +10,12 @@
 #include "render/Shader.h"
 
 #include <memory>
-class OpaquePass;
-class AtmospherePass;
-class PostProcessPass;
 class ShadowPass;
+class OpaquePass;
+class LUTPass;
+class AtmospherePass;
+class HillairePass;
+class PostProcessPass;
 class Material;
 class BasisScene : public AScene
 {
@@ -42,8 +44,12 @@ private:
 
 	std::unique_ptr<ShadowPass> shadowPass;
 	std::unique_ptr<OpaquePass> opaquePass;
+	std::unique_ptr<LUTPass> lutPass;
 	std::unique_ptr<AtmospherePass> atmospherePass;
+	std::unique_ptr<HillairePass> hillairePass;
 	std::unique_ptr<PostProcessPass> postProcessPass;
+
+	AtmospherePass* currentAtmospherePass = nullptr;
 
 	Shader opaqueShader;
 
@@ -58,6 +64,7 @@ private:
 		std::unique_ptr<Material> material;
 	} mountain;
 
+	std::vector<APass*> allPasses;
 	std::vector<APass*> activePasses;
 	std::vector<Drawable> drawables;
 

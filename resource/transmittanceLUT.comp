@@ -1,0 +1,79 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(set = 1, binding = 0) uniform Setting
+{
+	int steps;
+	float groundRadius;
+	float atmosphereRadius;
+} setting;
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
+
+vec3 RayleighScattering(float y)
+{
+	const vec3 rayleigh = vec3(5.802, 13.558, 33.1) * 1e-6;
+	return rayleigh * exp(-y / 8000.0);
+}
+
+vec3 MieScattering(float y)
+{
+	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6;
+	return mie * exp(-y / 1200.0);
+}
+
+vec3 ScatteringCoefficient(float y)
+{
+	vec3 sigma = RayleighScattering(y) + MieScattering(y);
+	return sigma;
+}
+
+vec3 AbsorptionCoefficient(float y)
+{
+	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6;
+	const vec3 ozone = vec3(0.65, 1.881, 0.085) * 1e-6;
+	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
+}
+
+vec3 Transmittance(float height, float mu)
+{
+	const float sampleDis = setting.groundRadius + height;
+	const float rayProj = sampleDis * mu;
+	const float d2 = sampleDis * sampleDis - rayProj * rayProj;
+	const float r2 = setting.atmosphereRadius * setting.atmosphereRadius;
+	const float sampleToAtmosphere = sqrt(r2 - d2) - rayProj;
+	if (sampleToAtmosphere <= 0.0)
+		return vec3(1.0);
+	
+	const float stepSize = sampleToAtmosphere / setting.steps;
+
+	vec3 sigmaSum = vec3(0.0, 0.0, 0.0);
+	for (uint i = 0; i < setting.steps; ++i)
+	{
+		const float t = (i + 0.5) * stepSize;
+		float sampleRadius = sqrt(d2 + (rayProj + t) * (rayProj + t));
+		float sampleHeight = sampleRadius - setting.groundRadius;
+		if (sampleHeight < 0.0)
+			return vec3(0.0);
+		
+		const vec3 sigmaT = ScatteringCoefficient(sampleHeight) + AbsorptionCoefficient(sampleHeight);
+		sigmaSum += sigmaT * stepSize;
+	}
+	return exp(-sigmaSum);
+}
+
+void main()
+{
+	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	const ivec2 size = imageSize(outImage);
+	if (pixel.x >= size.x || pixel.y >= size.y)
+		return;
+	
+	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+	uv.y = 1.0 - uv.y;
+	
+	const float atmosphereLength = max(0.0, setting.atmosphereRadius - setting.groundRadius);
+	const float height = atmosphereLength * uv.y;
+	const float transMu = uv.x * 2.0 - 1.0;
+	const vec3 transmittance = Transmittance(height, transMu);
+	imageStore(outImage, pixel, vec4(transmittance, 1.0));
+}

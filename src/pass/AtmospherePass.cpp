@@ -1,5 +1,8 @@
 ﻿#include "pass/AtmospherePass.h"
+
 #include "core/Logger.h"
+
+#include "render/Shader.h"
 #include "render/VulkanBuffer.h"
 #include "render/VulkanImage.h"
 #include "render/Material.h"
@@ -19,12 +22,8 @@ void AtmospherePass::Clear()
 		vkDestroyPipeline(device, pipeline, nullptr);
 		pipeline = VK_NULL_HANDLE;
 	}
-	computeShader.Clear();
+	computeShader.reset();
 	material.reset();
-
-	if (descSetLayouts.size() >= 2)
-		vkDestroyDescriptorSetLayout(device, descSetLayouts[1], nullptr);
-	descSetLayouts.clear();
 
 	opaqueSampler.Clear();
 	outputImage.reset();
@@ -39,7 +38,7 @@ void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 	std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, material->GetVkDescriptorSet() };
-	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, computeShader.GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, computeShader->GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
 	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 8.f)), static_cast<uint32_t>(std::ceil(height / 8.f)), 1);
 }
 
@@ -67,27 +66,8 @@ void AtmospherePass::SetAtmosphere(const Atmosphere& atmosphere)
 	material->UpdateBindingData(0, this->atmosphere);
 }
 
-void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
+auto AtmospherePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
 {
-	this->cameraSetLayout = cameraSetLayout;
-	const VkDevice device = ctx.GetDevice();
-
-	glm::vec3 sunDir = glm::normalize(glm::vec3{ -1.f, 0.f, 0.f });
-	atmosphere.sun = glm::vec4{ sunDir, 20.f };
-
-	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
-	imgCi.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
-	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT;
-	imgCi.extent = { 1024, 768, 1 };
-	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
-	samplerCI.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	samplerCI.addressModeV = samplerCI.addressModeU;
-	samplerCI.addressModeW = samplerCI.addressModeU;
-	samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	opaqueSampler.Create(ctx, samplerCI);
-
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
 	set1Bindings.reserve(5);
 	VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
@@ -116,17 +96,42 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLa
 	binding4.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding4.descriptorCount = 1;
 
-	computeShader.
+	Shader shader{};
+	shader.
 		AddSet(0, cameraSetLayout).
 		AddSet(1, std::move(set1Bindings)).
 		Build(device, "shaders/atmosphere.comp.spv");
+	return shader;
+}
+
+void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
+{
+	this->cameraSetLayout = cameraSetLayout;
+
+	glm::vec3 sunDir = glm::normalize(glm::vec3{ -1.f, 0.f, 0.f });
+	atmosphere.sun = glm::vec4{ sunDir, 20.f };
+
+	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
+	imgCi.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
+	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT;
+	imgCi.extent = { 1024, 768, 1 };
+	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
+	samplerCI.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	samplerCI.addressModeV = samplerCI.addressModeU;
+	samplerCI.addressModeW = samplerCI.addressModeU;
+	samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	opaqueSampler.Create(ctx, samplerCI);
+
+	computeShader = std::make_unique<Shader>(CreateShader(ctx.GetDevice(), cameraSetLayout));
 }
 
 void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
 {
 	const VkDevice device = ctx.GetDevice();
 
-	material = std::make_unique<Material>(ctx, computeShader);
+	material = std::make_unique<Material>(ctx, *computeShader);
 	material->
 		AddBinding<Atmosphere>(0).
 		AddBinding(1, *outputImage).
@@ -142,7 +147,7 @@ void AtmospherePass::BuildPipeline(const VulkanContext& ctx)
 {
 	VkComputePipelineCreateInfo ci{};
 	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-	ci.layout = computeShader.GetPipelineLayout();
-	ci.stage = computeShader.GetPipelineShaderStageCreateInfos().front();
+	ci.layout = computeShader->GetPipelineLayout();
+	ci.stage = computeShader->GetPipelineShaderStageCreateInfos().front();
 	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &pipeline));
 }

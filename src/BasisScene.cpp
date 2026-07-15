@@ -5,10 +5,12 @@
 
 #include "render/Material.h"
 
-#include "pass/OpaquePass.h"
-#include "pass/AtmospherePass.h"
-#include "pass/PostProcessPass.h"
 #include "pass/ShadowPass.h"
+#include "pass/OpaquePass.h"
+#include "pass/LUTPass.h"
+#include "pass/AtmospherePass.h"
+#include "pass/HillairePass.h"
+#include "pass/PostProcessPass.h"
 
 #include "imgui/imgui.h"
 #include "glm/gtc/quaternion.hpp"
@@ -32,8 +34,9 @@ void BasisScene::Clear()
 	const VkDevice device = ctx.GetDevice();
 	vkDeviceWaitIdle(device);
 
-	for (APass* pass : activePasses)
+	for (APass* pass : allPasses)
 		pass->Clear();
+	allPasses.clear();
 	activePasses.clear();
 
 	opaqueShader.Clear();
@@ -60,7 +63,7 @@ void BasisScene::Render(double dt)
 	{
 		shadowPassElapsed.Push(shadowPass->GetElapsedTimeMs());
 		opaquePassElapsed.Push(opaquePass->GetElapsedTimeMs());
-		atmospherePassElapsed.Push(atmospherePass->GetElapsedTimeMs());
+		atmospherePassElapsed.Push(currentAtmospherePass->GetElapsedTimeMs());
 		postProcessPassElapsed.Push(postProcessPass->GetElapsedTimeMs());
 	}
 	AScene::Render(dt);
@@ -141,6 +144,9 @@ void BasisScene::SetupPass()
 	opaquePass->SetShader(opaqueShader);
 	opaquePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
+	lutPass = std::make_unique<LUTPass>();
+	lutPass->Init(ctx, GetDescriptorPool(), VK_NULL_HANDLE);
+
 	atmospherePass = std::make_unique<AtmospherePass>();
 	atmospherePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
 	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
@@ -148,10 +154,21 @@ void BasisScene::SetupPass()
 	atmospherePass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	atmospherePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	postProcessPass = std::make_unique<PostProcessPass>(*atmospherePass->GetOutputImage());
+	hillairePass = std::make_unique<HillairePass>();
+	hillairePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
+	hillairePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
+	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
+	hillairePass->SetShadowSampler(*shadowPass->GetShadowSampler());
+	hillairePass->SetTransmittanceLUT(*lutPass->GetTransmittanceLUT(), *lutPass->GetTransmittanceLUTSampler());
+	hillairePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+
+	currentAtmospherePass = atmospherePass.get();
+
+	postProcessPass = std::make_unique<PostProcessPass>(*currentAtmospherePass->GetOutputImage());
 	postProcessPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get() };
+	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), postProcessPass.get() };
+	activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), postProcessPass.get() };
 
 	UpdateSun();
 }
@@ -207,20 +224,20 @@ void BasisScene::DrawDebugGUI()
 	ImGui::SetNextWindowSize(ImVec2{ 300.f, 300.f }, ImGuiCond_::ImGuiCond_Appearing);
 	if (ImGui::Begin("Debug"))
 	{
-		AtmospherePass::Atmosphere atmosphere = atmospherePass->GetAtmosphere();
+		AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
 		ImGui::Text("View Steps");
 		if (ImGui::SliderInt("##viewSteps", &atmosphere.steps.x, 1, 256))
-			atmospherePass->SetAtmosphere(atmosphere);
+			currentAtmospherePass->SetAtmosphere(atmosphere);
 		ImGui::Text("Sky-View Steps");
 		if (ImGui::SliderInt("##skyViewSteps", &atmosphere.steps.y, 1, 256))
-			atmospherePass->SetAtmosphere(atmosphere);
+			currentAtmospherePass->SetAtmosphere(atmosphere);
 
 		ImGui::Text("Atmosphere radius(km)");
 		int atmoRadiusKM = static_cast<int>(atmosphere.radius / 1000.f);
 		if (ImGui::SliderInt("##atmosphereRadius", &atmoRadiusKM, 6360, 10000))
 		{
 			atmosphere.radius = atmoRadiusKM * 1000.f;
-			atmospherePass->SetAtmosphere(atmosphere);
+			currentAtmospherePass->SetAtmosphere(atmosphere);
 		}
 
 		ImGui::Text("Sun illuminance");
@@ -346,14 +363,14 @@ void BasisScene::UpdateSun()
 	sunCamera.SetHeight(length * 2.f);
 	sunCamera.UpdateMatrix();
 
-	AtmospherePass::Atmosphere atmosphere = atmospherePass->GetAtmosphere();
+	AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
 	mountain.data.sun = sun;
 	mountain.data.viewProj = sunCamera.GetMatrixProj() * sunCamera.GetMatrixView();
 	mountain.material->UpdateBindingData(0, mountain.data);
 
 	atmosphere.sun = sun;
 	atmosphere.sunViewProj = mountain.data.viewProj;
-	atmospherePass->SetAtmosphere(atmosphere);
+	currentAtmospherePass->SetAtmosphere(atmosphere);
 
 	shadowPass->SetCamera(sunCamera);
 }

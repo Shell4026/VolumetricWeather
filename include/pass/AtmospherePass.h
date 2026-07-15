@@ -1,6 +1,5 @@
 ﻿#pragma once
 #include "APass.h"
-#include "render/Shader.h"
 #include "render/VulkanImage.h"
 
 #include "glm/glm.hpp"
@@ -8,6 +7,7 @@
 #include <vector>
 #include <memory>
 
+class Shader;
 class Material;
 class AtmospherePass : public APass
 {
@@ -34,19 +34,18 @@ public:
 
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
 	auto GetAtmosphere() const -> const Atmosphere& { return atmosphere; }
+	auto GetShader() const -> Shader* { return computeShader.get(); }
 protected:
+	virtual auto CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader;
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 	void BuildPipeline(const VulkanContext& ctx) override;
-private:
-	VkDescriptorSetLayout cameraSetLayout = VK_NULL_HANDLE;
+protected:
 	std::unique_ptr<Material> material;
-	std::vector<VkDescriptorSetLayout> descSetLayouts;
-
-	Shader computeShader;
 	VkPipeline pipeline = VK_NULL_HANDLE;
 
 	Atmosphere atmosphere;
+
 	std::unique_ptr<VulkanImage> outputImage;
 
 	const VulkanImage* opaqueDepthTex = nullptr;
@@ -54,4 +53,8 @@ private:
 	const VulkanImage* shadowMap = nullptr;
 	VulkanSampler opaqueSampler;
 	const VulkanSampler* shadowSampler = nullptr;
+private:
+	VkDescriptorSetLayout cameraSetLayout = VK_NULL_HANDLE;
+
+	std::unique_ptr<Shader> computeShader;
 };

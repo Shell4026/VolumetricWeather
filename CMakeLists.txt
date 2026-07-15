@@ -8,8 +8,23 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 set(CORE_HEADERS "include/core/Event.h" "include/core/ImGUI.h" "include/core/Input.h" "include/core/Logger.h" "include/core/Window.h" "include/core/CircularQueue.hpp")
 set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "src/core/Logger.cpp" "src/core/Window.cpp")
-set(PASS_HEADERS "include/pass/APass.h" "include/pass/AtmospherePass.h" "include/pass/PostProcessPass.h" "include/pass/OpaquePass.h" "include/pass/ShadowPass.h")
-set(PASS_CPPS "src/pass/APass.cpp" "src/pass/AtmospherePass.cpp" "src/pass/PostProcessPass.cpp" "src/pass/OpaquePass.cpp" "src/pass/ShadowPass.cpp" "include/pass/IDrawablePass.h")
+set(PASS_HEADERS 
+"include/pass/APass.h"
+"include/pass/AtmospherePass.h"
+"include/pass/PostProcessPass.h"
+"include/pass/OpaquePass.h"
+"include/pass/ShadowPass.h"
+"include/pass/IDrawablePass.h"
+"include/pass/LUTPass.h"
+ "include/pass/HillairePass.h")
+set(PASS_CPPS 
+"src/pass/APass.cpp"
+"src/pass/AtmospherePass.cpp"
+"src/pass/PostProcessPass.cpp"
+"src/pass/OpaquePass.cpp"
+"src/pass/ShadowPass.cpp"
+"src/pass/LUTPass.cpp"
+ "src/pass/HillairePass.cpp")
 set(RENDER_HEADERS 
 "include/render/BarrierBuilder.h"
 "include/render/BarrierInfo.h"
