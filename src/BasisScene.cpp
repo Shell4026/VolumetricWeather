@@ -11,6 +11,7 @@
 #include "pass/AtmospherePass.h"
 #include "pass/HillairePass.h"
 #include "pass/PostProcessPass.h"
+#include "pass/BlitPass.h"
 
 #include "imgui/imgui.h"
 #include "glm/gtc/quaternion.hpp"
@@ -59,10 +60,34 @@ void BasisScene::Update(double dt)
 
 void BasisScene::Render(double dt)
 {
+	if (bChangeAtmosphereModelRequest)
+	{
+		counter = 0;
+		atmospherePassElapsed.Clear();
+
+		if (currentAtmospherePass == atmospherePass.get())
+		{
+			SH_INFO("Change to Hillarire");
+			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+			postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
+			currentAtmospherePass = hillairePass.get();
+		}
+		else
+		{
+			SH_INFO("Change to default");
+			activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
+			postProcessPass->SetOutputImage(*atmospherePass->GetOutputImage());
+			currentAtmospherePass = atmospherePass.get();
+		}
+		UpdateSun();
+		bChangeAtmosphereModelRequest = false;
+	}
 	if (counter > 0)
 	{
 		shadowPassElapsed.Push(shadowPass->GetElapsedTimeMs());
 		opaquePassElapsed.Push(opaquePass->GetElapsedTimeMs());
+		if (currentAtmospherePass == hillairePass.get())
+			transmittanceLUTPassElapsed.Push(lutPass->GetElapsedTimeMs());
 		atmospherePassElapsed.Push(currentAtmospherePass->GetElapsedTimeMs());
 		postProcessPassElapsed.Push(postProcessPass->GetElapsedTimeMs());
 	}
@@ -167,8 +192,11 @@ void BasisScene::SetupPass()
 	postProcessPass = std::make_unique<PostProcessPass>(*currentAtmospherePass->GetOutputImage());
 	postProcessPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), postProcessPass.get() };
-	activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), postProcessPass.get() };
+	blitPass = std::make_unique<BlitPass>();
+	blitPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+
+	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
 
 	UpdateSun();
 }
@@ -200,6 +228,11 @@ void BasisScene::DrawDebugGUI()
 	{
 		const glm::vec3& pos = camera.GetPos();
 		const glm::vec3& to = camera.GetTo();
+		const bool hillaire = currentAtmospherePass == hillairePass.get();
+		if (!hillaire)
+			ImGui::Text("Atmosphere model: default");
+		else
+			ImGui::Text("Atmosphere model: hillaire");
 		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
 		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
 		double sum = 0;
@@ -210,6 +243,13 @@ void BasisScene::DrawDebugGUI()
 		for (int i = 0; i < opaquePassElapsed.Size(); ++i)
 			sum += opaquePassElapsed[i];
 		ImGui::Text(std::format("OpaquePass: {:.2}ms", sum / opaquePassElapsed.MaxSize()).c_str());
+		if (hillaire)
+		{
+			sum = 0;
+			for (int i = 0; i < transmittanceLUTPassElapsed.Size(); ++i)
+				sum += transmittanceLUTPassElapsed[i];
+			ImGui::Text(std::format("LUTPass: {:.2}ms", sum / transmittanceLUTPassElapsed.MaxSize()).c_str());
+		}
 		sum = 0;
 		for (int i = 0; i < atmospherePassElapsed.Size(); ++i)
 			sum += atmospherePassElapsed[i];
@@ -271,6 +311,19 @@ void BasisScene::DrawDebugGUI()
 		if (ImGui::SliderFloat("##exposure", &exposure, 0.f, 1.f))
 			postProcessPass->SetExposure(exposure);
 
+		if (ImGui::Button("Change Atmosphere model"))
+			bChangeAtmosphereModelRequest = true;
+
+		static std::future<glm::vec4> future;
+		if (ImGui::Button("Test"))
+		{
+			future = blitPass->RequestBlit(*lutPass->GetTransmittanceLUT(), 127, 127);
+		}
+		if (future.valid() && future.wait_for(std::chrono::milliseconds{ 0 }) == std::future_status::ready)
+		{
+			glm::vec4 pixel = future.get();
+			SH_INFO_FORMAT("{}, {}, {}, {}", pixel.r, pixel.g, pixel.b, pixel.a);
+		}
 		ImGui::End();
 	}
 }

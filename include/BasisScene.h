@@ -16,6 +16,7 @@ class LUTPass;
 class AtmospherePass;
 class HillairePass;
 class PostProcessPass;
+class BlitPass;
 class Material;
 class BasisScene : public AScene
 {
@@ -48,6 +49,7 @@ private:
 	std::unique_ptr<AtmospherePass> atmospherePass;
 	std::unique_ptr<HillairePass> hillairePass;
 	std::unique_ptr<PostProcessPass> postProcessPass;
+	std::unique_ptr<BlitPass> blitPass;
 
 	AtmospherePass* currentAtmospherePass = nullptr;
 
@@ -72,8 +74,11 @@ private:
 
 	CircularQueue<double, 10> shadowPassElapsed;
 	CircularQueue<double, 10> opaquePassElapsed;
+	CircularQueue<double, 10> transmittanceLUTPassElapsed;
 	CircularQueue<double, 10> atmospherePassElapsed;
 	CircularQueue<double, 10> postProcessPassElapsed;
 
 	uint64_t counter = 0;
+
+	bool bChangeAtmosphereModelRequest = false;
 };
