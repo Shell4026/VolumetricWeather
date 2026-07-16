@@ -52,7 +52,7 @@ auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSet
 	shader.
 		AddSet(0, cameraSetLayout).
 		AddSet(1, std::move(set1Bindings)).
-		Build(device, "shaders/atmosphere.comp.spv");
+		Build(device, "shaders/atmosphere2.comp.spv");
 	return shader;
 }
 
