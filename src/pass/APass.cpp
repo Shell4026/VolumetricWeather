@@ -20,12 +20,21 @@ void APass::Init(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescript
 	BuildPipeline(ctx);
 
 	timer.Create(ctx);
+
+	submitInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &cmd;
 }
 
 void APass::Clear()
 {
 	if (ctx == nullptr)
 		return;
+	if (submitCompleted != VK_NULL_HANDLE)
+	{
+		vkDestroyFence(ctx->GetDevice(), submitCompleted, nullptr);
+		submitCompleted = VK_NULL_HANDLE;
+	}
 	if (cmd != VK_NULL_HANDLE)
 	{
 		vkFreeCommandBuffers(ctx->GetDevice(), cmdPool, 1, &cmd);
@@ -110,6 +119,13 @@ void APass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	imageUsages.clear();
 }
 
+void APass::CreateFence()
+{
+	VkFenceCreateInfo ci{};
+	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	VK_RESULT_CHECK(vkCreateFence(ctx->GetDevice(), &ci, nullptr, &submitCompleted));
+}
+
 auto APass::GetElapsedTimeMs() const -> double
 {
 	if (!bUseTimer)
@@ -145,6 +161,11 @@ void APass::AddUsage(VkImage image, VkImageAspectFlags apsect, VkImageLayout usa
 	case VkImageLayout::VK_IMAGE_LAYOUT_GENERAL:
 		imgUsage.stage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 		imgUsage.access = VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT;
+		break;
+	case VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+		imgUsage.stage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TRANSFER_BIT;
+		imgUsage.access = VkAccessFlagBits::VK_ACCESS_TRANSFER_READ_BIT;
+		break;
 	}
 	imageUsages.push_back(imgUsage);
 }

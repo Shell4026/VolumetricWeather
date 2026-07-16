@@ -8,7 +8,7 @@
 
 #include <vector>
 PostProcessPass::PostProcessPass(const VulkanImage& outputImage) :
-	outputImage(outputImage)
+	outputImage(&outputImage)
 {
 }
 void PostProcessPass::Clear()
@@ -86,12 +86,18 @@ void PostProcessPass::SetUsages(const VulkanContext& ctx, const FrameContext& fr
 {
 	APass::SetUsages(ctx, frame);
 	AddUsage(ctx.GetSwapChainImages()[frame.imgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	AddUsage(outputImage.GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 void PostProcessPass::SetExposure(float exposure)
 {
 	data.exposure = exposure;
 	material->UpdateBindingData(DATA_BINDING, exposure);
+}
+void PostProcessPass::SetOutputImage(const VulkanImage& outputImage)
+{
+	this->outputImage = &outputImage;
+
+	material->UpdateBindingData(0, outputImage, sampler->GetSampler());
 }
 void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
@@ -119,7 +125,7 @@ void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetL
 
 	material = std::make_unique<Material>(ctx, shader);
 	material->
-		AddBinding(0, outputImage, sampler->GetSampler()).
+		AddBinding(0, *outputImage, sampler->GetSampler()).
 		AddBinding<Data>(DATA_BINDING).
 		Build(descPool);
 

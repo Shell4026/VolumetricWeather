@@ -103,6 +103,7 @@ void ShadowPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 
 void ShadowPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
+	APass::SetUsages(ctx, frame);
 	AddUsage(sunShadowMap->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 }
 

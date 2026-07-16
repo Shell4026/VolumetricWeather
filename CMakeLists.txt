@@ -16,7 +16,7 @@ set(PASS_HEADERS
 "include/pass/ShadowPass.h"
 "include/pass/IDrawablePass.h"
 "include/pass/LUTPass.h"
- "include/pass/HillairePass.h")
+ "include/pass/HillairePass.h" "include/pass/BlitPass.h")
 set(PASS_CPPS 
 "src/pass/APass.cpp"
 "src/pass/AtmospherePass.cpp"
@@ -24,7 +24,7 @@ set(PASS_CPPS
 "src/pass/OpaquePass.cpp"
 "src/pass/ShadowPass.cpp"
 "src/pass/LUTPass.cpp"
- "src/pass/HillairePass.cpp")
+ "src/pass/HillairePass.cpp" "src/pass/BlitPass.cpp")
 set(RENDER_HEADERS 
 "include/render/BarrierBuilder.h"
 "include/render/BarrierInfo.h"

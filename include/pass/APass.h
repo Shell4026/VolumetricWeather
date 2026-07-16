@@ -22,6 +22,7 @@ public:
 	virtual void SetUsages(const VulkanContext& ctx, const FrameContext& frame);
 
 	void UseTimer(bool bUse) { bUseTimer = bUse; }
+	void CreateFence();
 
 	/// @brief 타이머 사용 안 하면 0 반환
 	auto GetElapsedTimeMs() const -> double;
@@ -29,6 +30,8 @@ public:
 	auto GetUsages() const -> const std::vector<ImageUsage>& { return imageUsages; }
 	auto IsUsingSwapchainImage() const -> bool { return bUseSwapchainImage; }
 	auto UsingTimer() const -> bool { return bUseTimer; }
+	auto GetFence() const -> VkFence { return submitCompleted; }
+	auto GetSubmitInfo() const -> VkSubmitInfo { return submitInfo; }
 protected:
 	virtual void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) {};
 	virtual void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) {}
@@ -42,10 +45,13 @@ private:
 protected:
 	const VulkanContext* ctx = nullptr;
 	VkDescriptorPool descPool = VK_NULL_HANDLE;
+	VkSubmitInfo submitInfo{};
+
 	bool bUseSwapchainImage = true;
 private:
 	VkCommandPool cmdPool = VK_NULL_HANDLE;
 	VkCommandBuffer cmd = VK_NULL_HANDLE;
+	VkFence submitCompleted = VK_NULL_HANDLE;
 
 	std::vector<ImageUsage> imageUsages;
 

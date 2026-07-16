@@ -1,6 +1,9 @@
 ﻿#pragma once
 #include "VulkanContext.h"
 
+#include "glm/vec4.hpp"
+
+#include <cstdint>
 class VulkanSampler
 {
 public:

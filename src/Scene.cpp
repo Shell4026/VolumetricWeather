@@ -240,40 +240,84 @@ void AScene::SubmitCommandBuffer()
 	std::vector<APass*>& activePassList = GetActivePassList();
 	const APass* firstSwapchainPass = nullptr;
 	int idx = 0;
-	const VkPipelineStageFlags waitStages[] = { VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	for (APass* pass : activePassList)
 	{
-		const VkCommandBuffer cmd = pass->GetCommandBuffer();
-		VkSubmitInfo info{};
-		info.sType = VkStructureType::VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		info.commandBufferCount = 1;
-		info.pCommandBuffers = &cmd;
+		if (pass == nullptr)
+			continue;
+		VkSubmitInfo info = pass->GetSubmitInfo();
+		std::array<VkSemaphore, 10> waits{ VK_NULL_HANDLE };
+		std::array<VkSemaphore, 10> signals{ VK_NULL_HANDLE };
+		std::array<VkPipelineStageFlags, 10> waitStages{};
+		std::array<uint64_t, 10> waitTimelineValues{ 0 };
+		std::array<uint64_t, 10> signalTimelineValues{ 0 };
+		if (info.waitSemaphoreCount > 0)
+		{
+			for (std::size_t i = 0; i < info.waitSemaphoreCount; ++i)
+			{
+				waits[i] = *(info.pWaitSemaphores + i);
+				waitStages[i] = *(info.pWaitDstStageMask + i);
+			}
+			if (info.pNext != nullptr)
+			{
+				const VkTimelineSemaphoreSubmitInfo* tsInfo = reinterpret_cast<const VkTimelineSemaphoreSubmitInfo*>(info.pNext);
+				if (tsInfo->sType == VkStructureType::VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO)
+				{
+					for (std::size_t i = 0; i < info.waitSemaphoreCount; ++i)
+						waitTimelineValues[i] = *(tsInfo->pWaitSemaphoreValues + i);
+				}
+			}
+		}
+		if (info.signalSemaphoreCount > 0)
+		{
+			for (std::size_t i = 0; i < info.signalSemaphoreCount; ++i)
+				signals[i] = *(info.pSignalSemaphores + i);
+			if (info.pNext != nullptr)
+			{
+				const VkTimelineSemaphoreSubmitInfo* tsInfo = reinterpret_cast<const VkTimelineSemaphoreSubmitInfo*>(info.pNext);
+				if (tsInfo->sType == VkStructureType::VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO)
+				{
+					for (std::size_t i = 0; i < info.signalSemaphoreCount; ++i)
+						signalTimelineValues[i] = *(tsInfo->pSignalSemaphoreValues + i);
+				}
+			}
+		}
+
 		// 처음 스왑체인에 쓰는 패스
 		if (firstSwapchainPass == nullptr && pass->IsUsingSwapchainImage())
 		{
-			info.waitSemaphoreCount = 1;
-			info.pWaitSemaphores = &frame.imageAvailableSemaphore;
-			info.pWaitDstStageMask = waitStages;
+			waits[info.waitSemaphoreCount] = frame.imageAvailableSemaphore;
+			waitStages[info.waitSemaphoreCount] = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+			VkTimelineSemaphoreSubmitInfo tsInfo{};
+			tsInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+			tsInfo.waitSemaphoreValueCount = waits.size();
+			tsInfo.pWaitSemaphoreValues = waitTimelineValues.data();
+
+			info.waitSemaphoreCount += 1;
+			info.pWaitSemaphores = waits.data();
+			info.pWaitDstStageMask = waitStages.data();
+			info.pNext = &tsInfo;
 			firstSwapchainPass = pass;
 		}
 		// 마지막 패스
 		if (idx == activePassList.size() - 1)
 		{
-			std::array<VkSemaphore, 2> signals = { timelineSemaphore, renderFinishedSemaphores[currentImgIdx] };
-			std::array<uint64_t, 2> values = { frame.submittedValue, 0 };
+			signals[info.signalSemaphoreCount] = timelineSemaphore;
+			signals[info.signalSemaphoreCount + 1] = renderFinishedSemaphores[currentImgIdx];
+			signalTimelineValues[info.signalSemaphoreCount] = frame.submittedValue;
+			info.signalSemaphoreCount += 2;
 
 			VkTimelineSemaphoreSubmitInfo tsInfo{};
 			tsInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-			tsInfo.signalSemaphoreValueCount = signals.size();
-			tsInfo.pSignalSemaphoreValues = values.data();
+			tsInfo.signalSemaphoreValueCount = info.signalSemaphoreCount;
+			tsInfo.pSignalSemaphoreValues = signalTimelineValues.data();
 
-			info.signalSemaphoreCount = signals.size();
 			info.pSignalSemaphores = signals.data();
 			info.pNext = &tsInfo;
-			VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
+			VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, pass->GetFence()));
 			break;
 		}
-		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, nullptr));
+		VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, pass->GetFence()));
 		++idx;
 	}
 

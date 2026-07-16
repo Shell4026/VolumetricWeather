@@ -38,6 +38,7 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 
 void LUTPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
+	APass::SetUsages(ctx, frame);
 	AddUsage(transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 }
 
@@ -67,7 +68,7 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 	VkImageCreateInfo imageCI = VulkanImage::GetCreateInfo();
 	imageCI.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
 	imageCI.extent = { 256, 256, 1 };
-	imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	transmittance.lut = std::make_unique<VulkanImage>(ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();

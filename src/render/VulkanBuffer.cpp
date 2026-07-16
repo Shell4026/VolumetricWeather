@@ -100,3 +100,8 @@ auto VulkanBuffer::Create(const VulkanContext& ctx, VkBufferUsageFlags usage, Vk
 
 	return buffer;
 }
+
+auto VulkanBuffer::GetData() const -> void*
+{
+	return mapped;
+}

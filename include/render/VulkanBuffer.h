@@ -28,6 +28,7 @@ public:
 
 	static auto Create(const VulkanContext& ctx, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size, const void* data = nullptr) -> VulkanBuffer;
 
+	auto GetData() const -> void*;
 	auto GetBuffer() const -> VkBuffer { return buffer; }
 	auto GetDescriptorBufferInfo() const -> const VkDescriptorBufferInfo& { return descriptorInfo; }
 protected:

@@ -21,6 +21,7 @@ public:
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetExposure(float exposure);
+	void SetOutputImage(const VulkanImage& outputImage);
 
 	auto GetShader() const -> const Shader& { return shader; }
 	auto GetExposure() const -> float { return data.exposure; }
@@ -33,7 +34,7 @@ private:
 	std::unique_ptr<Material> material;
 	VkPipeline pipeline = VK_NULL_HANDLE;
 
-	const VulkanImage& outputImage;
+	const VulkanImage* outputImage;
 	std::unique_ptr<VulkanSampler> sampler;
 
 	struct Data
