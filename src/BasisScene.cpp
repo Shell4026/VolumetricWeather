@@ -54,32 +54,31 @@ void BasisScene::Clear()
 
 void BasisScene::Update(double dt)
 {
-	ControlCamera(dt);
+	if (!rmseMeasurement.IsRunning())
+		ControlCamera(dt);
 	DrawDebugGUI();
+
+	if (const std::optional<bool> requestedModel = rmseMeasurement.Update(
+		*blitPass, *atmospherePass->GetOutputImage(), *hillairePass->GetOutputImage()))
+	{
+		SetAtmosphereModel(*requestedModel);
+		if (const auto& result = rmseMeasurement.GetResult())
+		{
+			SH_INFO_FORMAT("Atmosphere RGB RMSE: {} (R: {}, G: {}, B: {}, pixels: {})",
+				result->rmse,
+				result->channelRMSE.r,
+				result->channelRMSE.g,
+				result->channelRMSE.b,
+				result->pixelCount);
+		}
+	}
 }
 
 void BasisScene::Render(double dt)
 {
 	if (bChangeAtmosphereModelRequest)
 	{
-		counter = 0;
-		atmospherePassElapsed.Clear();
-
-		if (currentAtmospherePass == atmospherePass.get())
-		{
-			SH_INFO("Change to Hillarire");
-			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
-			postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
-			currentAtmospherePass = hillairePass.get();
-		}
-		else
-		{
-			SH_INFO("Change to default");
-			activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
-			postProcessPass->SetOutputImage(*atmospherePass->GetOutputImage());
-			currentAtmospherePass = atmospherePass.get();
-		}
-		UpdateSun();
+		SetAtmosphereModel(currentAtmospherePass == atmospherePass.get());
 		bChangeAtmosphereModelRequest = false;
 	}
 	if (counter > 0)
@@ -265,6 +264,7 @@ void BasisScene::DrawDebugGUI()
 	if (ImGui::Begin("Debug"))
 	{
 		AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
+		ImGui::BeginDisabled(rmseMeasurement.IsRunning());
 		ImGui::Text("View Steps");
 		if (ImGui::SliderInt("##viewSteps", &atmosphere.steps.x, 1, 256))
 			currentAtmospherePass->SetAtmosphere(atmosphere);
@@ -311,25 +311,60 @@ void BasisScene::DrawDebugGUI()
 		if (ImGui::SliderFloat("##exposure", &exposure, 0.f, 1.f))
 			postProcessPass->SetExposure(exposure);
 
-		if (ImGui::Button("Change Atmosphere model"))
+		if (!rmseMeasurement.IsRunning() && ImGui::Button("Change Atmosphere model"))
 			bChangeAtmosphereModelRequest = true;
+		ImGui::EndDisabled();
 
-		static std::future<std::vector<glm::vec4>> future;
+		ImGui::BeginDisabled(rmseMeasurement.IsRunning());
 		if (ImGui::Button("Test"))
 		{
-			future = blitPass->RequestBlit(*lutPass->GetTransmittanceLUT(), 127, 127);
+			const AtmospherePass::Atmosphere settings = currentAtmospherePass->GetAtmosphere();
+			atmospherePass->SetAtmosphere(settings);
+			hillairePass->SetAtmosphere(settings);
+			rmseMeasurement.Start(currentAtmospherePass == hillairePass.get());
 		}
-		if (future.valid() && future.wait_for(std::chrono::milliseconds{ 0 }) == std::future_status::ready)
+		ImGui::EndDisabled();
+
+		if (rmseMeasurement.IsRunning())
+			ImGui::Text("RMSE: %s", rmseMeasurement.GetStatus());
+		if (const auto& result = rmseMeasurement.GetResult())
 		{
-			const std::vector<glm::vec4> pixels = future.get();
-			if (!pixels.empty())
-			{
-				const glm::vec4& pixel = pixels.front();
-				SH_INFO_FORMAT("{}, {}, {}, {}", pixel.r, pixel.g, pixel.b, pixel.a);
-			}
+			ImGui::Text("RGB RMSE: %.8f", result->rmse);
+			ImGui::Text("Channel RMSE: %.8f, %.8f, %.8f",
+				result->channelRMSE.r, result->channelRMSE.g, result->channelRMSE.b);
+			ImGui::Text("Pixels: %zu", result->pixelCount);
 		}
+		if (!rmseMeasurement.GetError().empty())
+			ImGui::TextWrapped("RMSE error: %s", rmseMeasurement.GetError().c_str());
 		ImGui::End();
 	}
+}
+
+void BasisScene::SetAtmosphereModel(bool useHillaire)
+{
+	AtmospherePass* requestedPass = useHillaire
+		? static_cast<AtmospherePass*>(hillairePass.get())
+		: atmospherePass.get();
+	if (currentAtmospherePass == requestedPass)
+		return;
+
+	counter = 0;
+	atmospherePassElapsed.Clear();
+	currentAtmospherePass = requestedPass;
+
+	if (useHillaire)
+	{
+		SH_INFO("Change to Hillaire");
+		activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+		postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
+	}
+	else
+	{
+		SH_INFO("Change to default");
+		activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
+		postProcessPass->SetOutputImage(*atmospherePass->GetOutputImage());
+	}
+	UpdateSun();
 }
 
 void BasisScene::CreateDrawables()

@@ -2,6 +2,7 @@
 #include "Scene.h"
 #include "GLBLoader.h"
 #include "Camera.h"
+#include "AtmosphereRMSEMeasurement.h"
 
 #include "core/CircularQueue.hpp"
 
@@ -37,6 +38,7 @@ protected:
 	void BeginBuildCommandBuffer() override;
 private:
 	void DrawDebugGUI();
+	void SetAtmosphereModel(bool useHillaire);
 	void CreateDrawables();
 	void ControlCamera(double dt);
 	void UpdateSun();
@@ -50,6 +52,7 @@ private:
 	std::unique_ptr<HillairePass> hillairePass;
 	std::unique_ptr<PostProcessPass> postProcessPass;
 	std::unique_ptr<BlitPass> blitPass;
+	AtmosphereRMSEMeasurement rmseMeasurement;
 
 	AtmospherePass* currentAtmospherePass = nullptr;
 

@@ -53,11 +53,13 @@ set(HEADERS
 "include/FPSCamera.h"
 "include/Scene.h"
 "include/GLBLoader.h"
+"include/AtmosphereRMSEMeasurement.h"
  "include/BasisScene.h")
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
 "src/GLBLoader.cpp"
+"src/AtmosphereRMSEMeasurement.cpp"
 "src/Scene.cpp"
  "src/BasisScene.cpp")
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS})
