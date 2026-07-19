@@ -31,6 +31,7 @@ public:
 	auto GetData() const -> void*;
 	auto GetBuffer() const -> VkBuffer { return buffer; }
 	auto GetDescriptorBufferInfo() const -> const VkDescriptorBufferInfo& { return descriptorInfo; }
+	auto GetSize() const -> VkDeviceSize { return size; }
 protected:
 	VulkanBuffer() = default;
 private:

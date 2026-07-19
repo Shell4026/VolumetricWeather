@@ -7,18 +7,29 @@
 
 #include <glm/gtc/packing.hpp>
 #include <vulkan/utility/vk_format_utils.h>
+#include <limits>
+#include <stdexcept>
+
 BlitPass::BlitPass() = default;
 BlitPass::~BlitPass()
 {
-	bStopThread = true;
-	bHasRequest.store(true, std::memory_order::release);
-	bHasRequest.notify_all();
-
-	thr.join();
+	Clear();
 }
 
 void BlitPass::Clear()
 {
+	bStopThread.store(true, std::memory_order::release);
+	bHasRequest.store(true, std::memory_order::release);
+	bHasRequest.notify_all();
+	if (thr.joinable())
+		thr.join();
+
+	{
+		std::lock_guard<std::mutex> lock{ mu };
+		pendingRequests.clear();
+		submittedRequests.clear();
+	}
+
 	if (timeline != VK_NULL_HANDLE)
 	{
 		vkDestroySemaphore(ctx->GetDevice(), timeline, nullptr);
@@ -29,11 +40,8 @@ void BlitPass::Clear()
 
 void BlitPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
-	if (buffer == nullptr)
-		CreateBuffer();
-
 	std::lock_guard<std::mutex> lock{ mu };
-	if (blitQueue.empty())
+	if (pendingRequests.empty())
 	{
 		ts.signalSemaphoreValueCount = 0;
 		submitInfo.signalSemaphoreCount = 0;
@@ -42,17 +50,17 @@ void BlitPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	ts.signalSemaphoreValueCount = 1;
 	submitInfo.signalSemaphoreCount = 1;
 	const VkCommandBuffer cmd = GetCommandBuffer();
+	const uint64_t completionValue = ++timelineValue;
 
-	std::size_t offset = 0;
-	for (BlitRequest& req : blitQueue)
+	for (BlitRequest& req : pendingRequests)
 	{
 		VkImageAspectFlags aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT;
-		const VkFormat format = req.img->GetInfo().format;
+		const VkFormat format = req.format;
 		if (format == VkFormat::VK_FORMAT_D32_SFLOAT || format == VkFormat::VK_FORMAT_D24_UNORM_S8_UINT)
 			aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT;
 
 		VkBufferImageCopy cpy{};
-		cpy.bufferOffset = offset;
+		cpy.bufferOffset = 0;
 		cpy.bufferRowLength = 0;
 		cpy.bufferImageHeight = 0;
 		cpy.imageSubresource.aspectMask = aspect;
@@ -60,15 +68,15 @@ void BlitPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 		cpy.imageSubresource.baseArrayLayer = 0;
 		cpy.imageSubresource.layerCount = 1;
 		cpy.imageOffset = VkOffset3D{ req.x, req.y, 0 };
-		cpy.imageExtent = { 1, 1, 1 };
+		cpy.imageExtent = { req.width, req.height, 1 };
 
-		vkCmdCopyImageToBuffer(cmd, req.img->GetImage(), VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer->GetBuffer(), 1, &cpy);
-
-		offset += vkuFormatTexelBlockSize(format);
-
-		req.requestTimelineValue = timelineValue;
+		vkCmdCopyImageToBuffer(cmd, req.image, VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, req.buffer->GetBuffer(), 1, &cpy);
+		req.completionValue = completionValue;
 	}
-	++timelineValue;
+
+	for (BlitRequest& req : pendingRequests)
+		submittedRequests.push_back(std::move(req));
+	pendingRequests.clear();
 
 	bHasRequest.store(true, std::memory_order::release);
 	bHasRequest.notify_all();
@@ -77,29 +85,36 @@ void BlitPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 void BlitPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	APass::SetUsages(ctx, frame);
-	for (BlitRequest& req : blitQueue)
+	std::lock_guard<std::mutex> lock{ mu };
+	for (BlitRequest& req : pendingRequests)
 	{
-		const VkFormat format = req.img->GetInfo().format;
+		const VkFormat format = req.format;
 		VkImageAspectFlags aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT;
 		if (format == VkFormat::VK_FORMAT_D32_SFLOAT || format == VkFormat::VK_FORMAT_D24_UNORM_S8_UINT)
 			aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT;
 
-		AddUsage(req.img->GetImage(), aspect, VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+		AddUsage(req.image, aspect, VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 	}
 }
 
-auto BlitPass::RequestBlit(const VulkanImage& img, int32_t x, int32_t y) -> std::future<glm::vec4>
+auto BlitPass::RequestBlit(const VulkanImage& img, int32_t x, int32_t y, uint32_t width, uint32_t height) -> std::future<std::vector<glm::vec4>>
 {
+	const std::size_t texelSize = vkuFormatTexelBlockSize(img.GetInfo().format);
+
 	BlitRequest req;
-	req.img = &img;
+	req.image = img.GetImage();
+	req.format = img.GetInfo().format;
+	req.buffer = CreateBuffer(width * height * texelSize);
 	req.x = x;
 	req.y = y;
+	req.width = width;
+	req.height = height;
 
-	std::future<glm::vec4> future;
+	std::future<std::vector<glm::vec4>> future;
 	future = req.promise.get_future();
 
 	std::lock_guard<std::mutex> lock{ mu };
-	blitQueue.push_back(std::move(req));
+	pendingRequests.push_back(std::move(req));
 	return future;
 }
 
@@ -123,72 +138,84 @@ void BlitPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout c
 	submitInfo.pSignalSemaphores = &timeline;
 	submitInfo.pNext = &ts;
 
+	bStopThread.store(false, std::memory_order::release);
+	bHasRequest.store(false, std::memory_order::release);
 	thr = std::thread(
 		[this]()
 		{
 			const VkDevice device = this->ctx->GetDevice();
-			const VkFence fence = GetFence();
-			while (!bStopThread)
+			while (!bStopThread.load(std::memory_order::acquire))
 			{
 				bHasRequest.wait(false, std::memory_order::acquire);
-				if (bStopThread)
+				if (bStopThread.load(std::memory_order::acquire))
 					return;
 
 				std::unique_lock<std::mutex> lock{ mu };
 				bHasRequest.store(false, std::memory_order_release);
-				if (blitQueue.empty())
+				if (submittedRequests.empty())
 					continue;
 
-				std::vector<BlitRequest> reqs = std::move(blitQueue);
-				blitQueue.clear();
+				std::vector<BlitRequest> reqs = std::move(submittedRequests);
+				submittedRequests.clear();
 				lock.unlock();
 
-				std::size_t offset = 0;
 				for (BlitRequest& req : reqs)
 				{
-					uint64_t waitValue = req.requestTimelineValue + 1;
+					uint64_t waitValue = req.completionValue;
 					VkSemaphoreWaitInfo waitInfo{};
 					waitInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
 					waitInfo.semaphoreCount = 1;
 					waitInfo.pSemaphores = &timeline;
 					waitInfo.pValues = &waitValue;
-					vkWaitSemaphores(device, &waitInfo, UINT64_MAX);
+					VkResult waitResult = VkResult::VK_TIMEOUT;
+					while (!bStopThread.load(std::memory_order::acquire) && waitResult == VkResult::VK_TIMEOUT)
+						waitResult = vkWaitSemaphores(device, &waitInfo, 10'000'000);
+					if (bStopThread.load(std::memory_order::acquire))
+						return;
 
-					const std::size_t texelSize = vkuFormatTexelBlockSize(req.img->GetInfo().format);
-
-					glm::vec4 result{};
-					buffer->Map(VK_WHOLE_SIZE, offset);
-					if (texelSize == 8)
-					{
-						const uint16_t* const data = reinterpret_cast<uint16_t*>(buffer->GetData());
-						result.r = glm::unpackHalf1x16(data[0]);
-						result.g = glm::unpackHalf1x16(data[1]);
-						result.b = glm::unpackHalf1x16(data[2]);
-						result.a = glm::unpackHalf1x16(data[3]);
-					}
-					else if (texelSize == 4)
-					{
-						const uint8_t* const data = reinterpret_cast<uint8_t*>(buffer->GetData());
-						result.r = data[0];
-						result.g = data[1];
-						result.b = data[2];
-						result.a = data[3];
-					}
-					buffer->UnMap();
-					req.promise.set_value(result);
-					offset += vkuFormatTexelBlockSize(req.img->GetInfo().format);
+					const std::size_t texelSize = vkuFormatTexelBlockSize(req.format);
+					const std::size_t texelCount = req.width * req.height;
+					std::vector<glm::vec4> result(texelCount);
+					req.buffer->Map();
+					const auto* data = static_cast<const uint8_t*>(req.buffer->GetData());
+					for (std::size_t i = 0; i < texelCount; ++i)
+						result[i] = DecodeTexel(data + i * texelSize, req.format);
+					req.buffer->UnMap();
+					req.promise.set_value(std::move(result));
 				}
 			}
 		}
 	);
 }
 
-void BlitPass::CreateBuffer()
+auto BlitPass::CreateBuffer(std::size_t size) const -> std::unique_ptr<VulkanBuffer>
 {
-	buffer = std::make_unique<VulkanBuffer>(VulkanBuffer::Create(
+	return std::make_unique<VulkanBuffer>(VulkanBuffer::Create(
 		*ctx,
 		VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-		sizeof(uint8_t) * 4 * CAPACITY
+		size
 	));
+}
+
+auto BlitPass::DecodeTexel(const uint8_t* data, VkFormat format) -> glm::vec4
+{
+	switch (format)
+	{
+	case VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT:
+	{
+		const auto* values = reinterpret_cast<const uint16_t*>(data);
+		return {
+			glm::unpackHalf1x16(values[0]),
+			glm::unpackHalf1x16(values[1]),
+			glm::unpackHalf1x16(values[2]),
+			glm::unpackHalf1x16(values[3])
+		};
+	}
+	case VkFormat::VK_FORMAT_R8G8B8A8_UNORM:
+	case VkFormat::VK_FORMAT_R8G8B8A8_SRGB:
+		return glm::vec4{ data[0], data[1], data[2], data[3] } / 255.0f;
+	default:
+		throw std::runtime_error{ "BlitPass does not support the requested image format" };
+	}
 }

@@ -24,12 +24,13 @@ public:
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 
-	auto RequestBlit(const VulkanImage& img, int32_t x, int32_t y) -> std::future<glm::vec4>;
+	auto RequestBlit(const VulkanImage& img, int32_t x, int32_t y, uint32_t width = 1, uint32_t height = 1) -> std::future<std::vector<glm::vec4>>;
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void BuildPipeline(const VulkanContext& ctx) override {}
 private:
-	void CreateBuffer();
+	auto CreateBuffer(std::size_t size) const -> std::unique_ptr<VulkanBuffer>;
+	static auto DecodeTexel(const uint8_t* data, VkFormat format) -> glm::vec4;
 public:
 	inline static constexpr std::size_t CAPACITY = 10;
 private:
@@ -39,20 +40,22 @@ private:
 
 	struct BlitRequest
 	{
-		const VulkanImage* img = nullptr;
-		VkFence fence = VK_NULL_HANDLE;
-		std::promise<glm::vec4> promise;
+		VkImage image = VK_NULL_HANDLE;
+		VkFormat format = VkFormat::VK_FORMAT_UNDEFINED;
+		std::unique_ptr<VulkanBuffer> buffer;
+		std::promise<std::vector<glm::vec4>> promise;
 		int32_t x = 0;
 		int32_t y = 0;
-		uint64_t requestTimelineValue = 0;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint64_t completionValue = 0;
 	};
-	std::vector<BlitRequest> blitQueue;
+	std::vector<BlitRequest> pendingRequests;
+	std::vector<BlitRequest> submittedRequests;
 	std::atomic_bool bHasRequest{ false };
-
-	std::unique_ptr<VulkanBuffer> buffer;
 
 	VkTimelineSemaphoreSubmitInfo ts{};
 	uint64_t timelineValue = 0;
 
-	bool bStopThread = false;
+	std::atomic_bool bStopThread{ false };
 };

@@ -314,15 +314,19 @@ void BasisScene::DrawDebugGUI()
 		if (ImGui::Button("Change Atmosphere model"))
 			bChangeAtmosphereModelRequest = true;
 
-		static std::future<glm::vec4> future;
+		static std::future<std::vector<glm::vec4>> future;
 		if (ImGui::Button("Test"))
 		{
 			future = blitPass->RequestBlit(*lutPass->GetTransmittanceLUT(), 127, 127);
 		}
 		if (future.valid() && future.wait_for(std::chrono::milliseconds{ 0 }) == std::future_status::ready)
 		{
-			glm::vec4 pixel = future.get();
-			SH_INFO_FORMAT("{}, {}, {}, {}", pixel.r, pixel.g, pixel.b, pixel.a);
+			const std::vector<glm::vec4> pixels = future.get();
+			if (!pixels.empty())
+			{
+				const glm::vec4& pixel = pixels.front();
+				SH_INFO_FORMAT("{}, {}, {}, {}", pixel.r, pixel.g, pixel.b, pixel.a);
+			}
 		}
 		ImGui::End();
 	}
