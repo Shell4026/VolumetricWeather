@@ -5,6 +5,10 @@
 #include "render/VulkanImage.h"
 #include "render/Material.h"
 #include "render/Shader.h"
+
+#ifdef max
+#undef max
+#endif
 void LUTPass::Clear()
 {
 	const VkDevice device = ctx->GetDevice();

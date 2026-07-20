@@ -339,10 +339,23 @@ void BasisScene::DrawDebugGUI()
 			ImGui::Text("View Steps");
 			if (ImGui::SliderInt("##viewSteps", &atmosphere.steps.x, 1, 256))
 				currentAtmospherePass->SetAtmosphere(atmosphere);
-			ImGui::Text("Sky-View Steps");
-			if (ImGui::SliderInt("##skyViewSteps", &atmosphere.steps.y, 1, 256))
-				currentAtmospherePass->SetAtmosphere(atmosphere);
 
+			if (currentAtmospherePass == atmospherePass.get())
+			{
+				ImGui::Text("Sky-View Steps");
+				if (ImGui::SliderInt("##skyViewSteps", &atmosphere.steps.y, 1, 256))
+					currentAtmospherePass->SetAtmosphere(atmosphere);
+			}
+			else
+			{
+				ImGui::Text("Transmittance LUT");
+				ImGui::Separator();
+				ImGui::Text("Steps");
+				LUTPass::Setting& setting = lutPass->GetTransmittanceSetting();
+				ImGui::SliderInt("#TransmittanceLUTSteps", &setting.steps, 1, 64);
+			}
+
+			ImGui::Separator();
 			if (ImGui::Button("Measure"))
 			{
 				const AtmospherePass::Atmosphere settings = currentAtmospherePass->GetAtmosphere();

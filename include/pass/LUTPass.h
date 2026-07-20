@@ -26,6 +26,8 @@ public:
 
 	auto GetTransmittanceLUT() const -> VulkanImage* { return transmittance.lut.get(); }
 	auto GetTransmittanceLUTSampler() const -> VulkanSampler* { return transmittance.sampler.get(); }
+	auto GetTransmittanceSetting() -> Setting& { return setting; }
+	auto GetTransmittanceSetting() const -> const Setting& { return setting; }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
