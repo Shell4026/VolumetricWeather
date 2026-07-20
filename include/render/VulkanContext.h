@@ -29,10 +29,6 @@ public:
 
 	auto FindExtension(const char* name) const -> bool;
 	auto AcquireNextImage(VkSemaphore semaphore, VkFence fence, uint32_t* imgIdx) -> bool;
-	void BarrierCommand(VkCommandBuffer cmd, VkImage img, VkImageAspectFlags aspect,
-		VkImageLayout srcLayout, VkImageLayout dstLayout, 
-		VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
-		VkAccessFlags srcAccess, VkAccessFlags dstAccess);
 
 	auto FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const -> uint32_t;
 
@@ -59,6 +55,11 @@ public:
 	auto GetEmptyDescriptorSetLayout() const -> VkDescriptorSetLayout { return emptySetLayout; }
 	auto GetEmptyImage() const -> VulkanImage* { return emptyImage.get(); }
 	auto GetDefaultSampler() const -> VulkanSampler* { return defaultSampler.get(); }
+
+	static void BarrierCommand(VkCommandBuffer cmd, VkImage img, VkImageAspectFlags aspect,
+		VkImageLayout srcLayout, VkImageLayout dstLayout,
+		VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
+		VkAccessFlags srcAccess, VkAccessFlags dstAccess);
 private:
 	void QueryInstanceLayers();
 	void CreateDebugInfo();

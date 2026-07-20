@@ -139,33 +139,6 @@ auto VulkanContext::AcquireNextImage(VkSemaphore semaphore, VkFence fence, uint3
     return true;
 }
 
-void VulkanContext::BarrierCommand(VkCommandBuffer cmd, VkImage img, VkImageAspectFlags aspect, 
-    VkImageLayout srcLayout, VkImageLayout dstLayout, 
-    VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage, 
-    VkAccessFlags srcAccess, VkAccessFlags dstAccess)
-{
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.srcAccessMask = srcAccess;
-    barrier.dstAccessMask = dstAccess;
-    barrier.oldLayout = srcLayout;
-    barrier.newLayout = dstLayout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.subresourceRange = { aspect, 0, 1, 0, 1 };
-    barrier.image = img;
-
-    vkCmdPipelineBarrier(
-        cmd,
-        srcStage,
-        dstStage,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier);
-}
-
-
 auto VulkanContext::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const -> uint32_t
 {
     VkPhysicalDeviceMemoryProperties memProperties;
@@ -193,6 +166,32 @@ auto VulkanContext::GetMemoryTypeIndex(uint32_t memoryTypeBits, VkMemoryProperty
         memoryTypeBits >>= 1;
     }
     return {};
+}
+
+void VulkanContext::BarrierCommand(VkCommandBuffer cmd, VkImage img, VkImageAspectFlags aspect,
+    VkImageLayout srcLayout, VkImageLayout dstLayout,
+    VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
+    VkAccessFlags srcAccess, VkAccessFlags dstAccess)
+{
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask = srcAccess;
+    barrier.dstAccessMask = dstAccess;
+    barrier.oldLayout = srcLayout;
+    barrier.newLayout = dstLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.subresourceRange = { aspect, 0, 1, 0, 1 };
+    barrier.image = img;
+
+    vkCmdPipelineBarrier(
+        cmd,
+        srcStage,
+        dstStage,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier);
 }
 
 void VulkanContext::QueryInstanceLayers()

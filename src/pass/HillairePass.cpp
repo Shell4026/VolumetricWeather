@@ -11,6 +11,10 @@ void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame
 		transmittanceLUT->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(
+		skyViewLUT->GetImage(),
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
@@ -47,6 +51,11 @@ auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSet
 	binding5.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 	binding5.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding5.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding6 = set1Bindings.emplace_back();
+	binding6.binding = 6;
+	binding6.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+	binding6.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding6.descriptorCount = 1;
 
 	Shader shader{};
 	shader.
@@ -66,6 +75,7 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 		AddBinding(3, *opaqueTex, opaqueSampler.GetSampler()).
 		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
 		AddBinding(5, *transmittanceLUT, transmittanceLUTSampler->GetSampler()).
+		AddBinding(6, *skyViewLUT, skyViewLUTSampler->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, atmosphere);

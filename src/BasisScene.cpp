@@ -179,7 +179,7 @@ void BasisScene::SetupPass()
 	opaquePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	lutPass = std::make_unique<LUTPass>();
-	lutPass->Init(ctx, GetDescriptorPool(), VK_NULL_HANDLE);
+	lutPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	atmospherePass = std::make_unique<AtmospherePass>();
 	atmospherePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
@@ -194,7 +194,10 @@ void BasisScene::SetupPass()
 	hillairePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
 	hillairePass->SetShadowSampler(*shadowPass->GetShadowSampler());
-	hillairePass->SetTransmittanceLUT(*lutPass->GetTransmittanceLUT(), *lutPass->GetTransmittanceLUTSampler());
+	hillairePass->SetTransmittanceLUTSampler(*lutPass->GetTransmittanceLUTSampler());
+	hillairePass->SetTransmittanceLUT(*lutPass->GetTransmittanceLUT());
+	hillairePass->SetSkyViewLUTSampler(*lutPass->GetSkyViewLUTSampler());
+	hillairePass->SetSkyViewLUT(*lutPass->GetSkyViewLUT());
 	hillairePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	hillairePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
@@ -299,6 +302,7 @@ void BasisScene::DrawDebugGUI()
 			{
 				atmosphere.radius = atmoRadiusKM * 1000.f;
 				currentAtmospherePass->SetAtmosphere(atmosphere);
+				lutPass->GetSkyViewSetting().atmosphereRadius = atmosphere.radius;
 			}
 
 			ImGui::Text("Sun illuminance");
@@ -312,7 +316,7 @@ void BasisScene::DrawDebugGUI()
 			if (ImGui::SliderFloat("##SunDirection", &angle, 0.f, 360.f))
 			{
 				glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
-				glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
+				glm::vec3 sunDir = glm::normalize(q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f }));
 				sun = glm::vec4(sunDir, sun.w);
 
 				UpdateSun();
@@ -504,6 +508,7 @@ void BasisScene::UpdateSun()
 	atmosphere.sun = sun;
 	atmosphere.sunViewProj = mountain.data.viewProj;
 	currentAtmospherePass->SetAtmosphere(atmosphere);
+	lutPass->GetSkyViewSetting().sun = sun;
 
 	shadowPass->SetCamera(sunCamera);
 }

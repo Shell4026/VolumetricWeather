@@ -1,0 +1,228 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(set = 0, binding = 0) uniform Camera
+{
+	vec3 pos;
+	mat4 view;
+	mat4 proj;
+} camera;
+layout(set = 1, binding = 0) uniform Setting
+{
+	vec4 sun; // dir, illuminance
+	uint steps;
+	float groundRadius;
+	float atmosphereRadius;
+} setting;
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
+layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
+
+vec3 RayleighScattering(float y)
+{
+	const vec3 rayleigh = vec3(5.802, 13.558, 33.1) * 1e-6;
+	return rayleigh * exp(-y / 8000.0);
+}
+
+vec3 MieScattering(float y)
+{
+	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6;
+	return mie * exp(-y / 1200.0);
+}
+
+vec3 ScatteringCoefficient(float y)
+{
+	vec3 sigma = RayleighScattering(y) + MieScattering(y);
+	return sigma;
+}
+
+vec3 AbsorptionCoefficient(float y)
+{
+	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6;
+	const vec3 ozone = vec3(0.65, 1.881, 0.085) * 1e-6;
+	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
+}
+
+float RayleighPhase(float mu)
+{
+	return 3 * (1 + mu * mu) / (16 * 3.141592);
+}
+
+float MiePhase(float mu, float g)
+{
+	return 3 * (1 - g * g) * (1 + mu * mu) / (8 * 3.141592 * (2 + g * g) * pow(1 + g * g - 2 * g * mu, 3.0/2.0));
+}
+
+bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float radius, out float near, out float far)
+{
+	vec3 rs = sphereOrigin - rayOrigin;
+	float a2 = dot(rs, rs);
+	float b = dot(rs, rayDir);
+	float c2 = a2 - b * b;
+	float r2 = radius * radius;
+	if (c2 > r2)
+		return false;
+	
+	float d = sqrt(r2 - c2); // 구 내부 ray길이
+	near = b - d;
+	far = b + d;
+	
+	return far >= 0.0;
+}
+
+vec3 Transmittance(vec3 a, vec3 b, float distance, uint steps)
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	
+	const float stepSize = distance / steps;
+	const vec3 dir = (b - a) / distance;
+	
+	vec3 sigmaSum = vec3(0.0, 0.0, 0.0);
+	for (uint i = 0; i < steps; ++i)
+	{
+		const vec3 samplePos = a + dir * stepSize * (i + 0.5);
+		const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
+		if (sampleHeight < 0.0)
+			break;
+		
+		const vec3 sigmaT = ScatteringCoefficient(sampleHeight) + AbsorptionCoefficient(sampleHeight);
+		sigmaSum += sigmaT * stepSize;
+	}
+	return exp(-sigmaSum);
+}
+
+vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	
+	const float sampleLength = length(samplePos - PLANET_CENTER);
+	const float height = sampleLength - setting.groundRadius;
+	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
+	const float mu = dot(up, dir);
+	
+	const float r = height + setting.groundRadius;
+	// 지평면에서의 수평 방향 대기까지의 거리 H
+	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
+	// 지평선 거리 rho
+	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);
+	
+	const float dMin = setting.atmosphereRadius - r; // 머리 위의 대기까지의 거리
+	const float dMax = rho + H; // 지평선 너머의 대기까지의 거리
+	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + setting.atmosphereRadius * setting.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
+	d = max(d, 0.0);
+	
+	float u = (d - dMin) / (dMax - dMin); // 0(머리위) ~ 1(지평선)
+	float v = rho / H; // 그냥 높이 비율 대신 제곱근 비율로 바뀐거
+	v = 1.0 - v;
+	return vec2(u, v);
+}
+
+vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
+{
+	const ivec2 size = textureSize(transmittanceLUT, 0);
+	vec2 uv = GetTransmittanceUV(samplePos, dir);
+	uv = (vec2(0.5) + uv * (size - vec2(1.0))) / size;
+	
+	return texture(transmittanceLUT, uv).xyz;
+}
+
+vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float illuminance, uint steps, out vec3 sigmaSum)
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	
+	const float stepSize = distance / steps;
+	const vec3 dir = (b - a) / distance;
+	
+	vec3 inScattering = vec3(0.0, 0.0, 0.0);
+	sigmaSum = vec3(0.0, 0.0, 0.0);
+	for (uint i = 0; i < steps; ++i)
+	{
+		const vec3 samplePos = a + dir * stepSize * (i + 0.5);
+		const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
+		if (sampleHeight < 0.0)
+			break;
+
+		const vec3 transmittance = exp(-sigmaSum); // L_scat의 T(c, x)
+		
+		const vec3 sigmaS = ScatteringCoefficient(sampleHeight);
+		const vec3 sigmaT = sigmaS + AbsorptionCoefficient(sampleHeight);
+		sigmaSum += sigmaT * stepSize;
+		
+		float near = 0.0;
+		float far = 0.0;
+		
+		const bool groundHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, setting.groundRadius, near, far);
+		if (groundHit)
+			continue;
+		const float visibility = 1.0;
+
+		vec3 lightViewTransmittance = vec3(1.0, 1.0, 1.0); // L_scat의 S(x, l_i)
+		const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, setting.atmosphereRadius, near, far);
+		if (atmosphereHit)
+			lightViewTransmittance = TransmittanceUsingLUT(samplePos, -sunDir);
+		
+		const vec3 phase = 
+		(
+			RayleighScattering(sampleHeight) * RayleighPhase(mu) + 
+			MieScattering(sampleHeight) * MiePhase(mu, 0.8)
+		) * stepSize;
+		
+		inScattering += transmittance * visibility * lightViewTransmittance * phase * illuminance;
+	}
+	return inScattering;
+}
+
+void main()
+{
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(outImage);
+	if (pixel.x >= size.x || pixel.y >= size.y)
+		return;
+	
+	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+	uv.y = 1.0 - uv.y;
+	
+	const vec3 camToSun = -setting.sun.xyz;
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 up = normalize(camera.pos - PLANET_CENTER);
+	const vec3 forward = normalize(camToSun - up * dot(camToSun, up));
+	const vec3 right = cross(forward, up);
+	
+	const float PI = 3.141592;
+	
+	const float longtitude = mix(-PI, PI, uv.x);
+	const float latitude = mix(-PI * 0.5, PI * 0.5, uv.y);
+	
+	const vec3 horizonDir = cos(longtitude) * forward + sin(longtitude) * right;
+	const vec3 rayDir = cos(latitude) * horizonDir + sin(latitude) * up;
+	
+	float nearAtmo = 0.0;
+	float farAtmo = 1.0;
+	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.atmosphereRadius, nearAtmo, farAtmo))
+	{
+		imageStore(outImage, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
+		return;
+	}
+	
+	float rayStart = max(nearAtmo, 0.0);
+	float rayEnd = farAtmo;
+	
+    float nearGround = 0.0;
+    float farGround = 0.0;
+	if (RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.groundRadius, nearGround, farGround))
+		rayEnd = min(rayEnd, nearGround); // 땅에 닿으면 땅까지만 raymarching
+	
+    if (rayEnd <= rayStart)
+    {
+        imageStore(outImage, pixel, vec4(0, 0, 0, 1));
+        return;
+    }
+	const vec3 sunDir = setting.sun.xyz;
+	const float mu = dot(-rayDir, sunDir); // cos, 태양빛이 카메라로 산란될 확률 계산에 쓰임
+	
+    const vec3 start = camera.pos + rayDir * rayStart;
+    const vec3 end   = camera.pos + rayDir * rayEnd;
+	vec3 sigmaSum; // start에서 end까지 누적된 소멸 계수(sigmaT)
+	vec3 result = InScattering(start, end, rayEnd - rayStart, sunDir, mu, setting.sun.w, setting.steps, sigmaSum);
+	
+	imageStore(outImage, pixel, vec4(result, 1.0));
+}
