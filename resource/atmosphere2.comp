@@ -119,17 +119,36 @@ vec3 Transmittance(vec3 a, vec3 b, float distance, uint steps)
 	return exp(-sigmaSum);
 }
 
-vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
+vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
 {
 	const float sampleLength = length(samplePos - PLANET_CENTER);
 	const float height = sampleLength - GROUND_RADIUS;
 	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
-	const float transMu = dot(up, dir);
+	const float mu = dot(up, dir);
 	
-	vec2 uv = vec2(0.0, 0.0);
-	uv.x = (transMu + 1.0) / 2.0;
-	uv.y = height / (ATMOSPHERE_RADIUS - GROUND_RADIUS);
-	uv.y = 1.0 - uv.y;
+	const float r = height + GROUND_RADIUS;
+	// 지평면에서의 수평 방향 대기까지의 거리 H
+	const float H = sqrt(atmosphere.radius * atmosphere.radius - GROUND_RADIUS * GROUND_RADIUS);
+	// 지평선 거리 rho
+	const float rho = sqrt(r * r - GROUND_RADIUS * GROUND_RADIUS);
+	
+	const float dMin = atmosphere.radius - r; // 머리 위의 대기까지의 거리
+	const float dMax = rho + H; // 지평선 너머의 대기까지의 거리
+	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + atmosphere.radius * atmosphere.radius); // 샘플에서 ray방향으로의 대기권까지의 거리
+	d = max(d, 0.0);
+	
+	float u = (d - dMin) / (dMax - dMin); // 0(머리위) ~ 1(지평선)
+	float v = rho / H; // 그냥 높이 비율 대신 제곱근 비율로 바뀐거
+	v = 1.0 - v;
+	return vec2(u, v);
+}
+
+vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
+{
+	const ivec2 size = textureSize(transmittanceLUT, 0);
+	vec2 uv = GetTransmittanceUV(samplePos, dir);
+	uv = (vec2(0.5) + uv * (size - vec2(1.0))) / size;
+	
 	return texture(transmittanceLUT, uv).xyz;
 }
 

@@ -34,7 +34,7 @@ vec3 AbsorptionCoefficient(float y)
 	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
 }
 
-vec3 Transmittance(float height, float mu)
+vec3 Transmittance(float mu, float height)
 {
 	const float sampleDis = setting.groundRadius + height;
 	const float rayProj = sampleDis * mu;
@@ -61,6 +61,41 @@ vec3 Transmittance(float height, float mu)
 	return exp(-sigmaSum);
 }
 
+vec2 GetUV(float mu, float height)
+{
+	const float r = height + setting.groundRadius;
+	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + setting.atmosphereRadius * setting.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
+	d = max(d, 0.0);
+	
+	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
+	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);
+	
+	const float dMin = setting.atmosphereRadius - r;
+	const float dMax = rho + H;
+	
+	float u = (d - dMin) / (dMax - dMin);
+	float v = rho / H;
+	v = 1.0 - v;
+	return vec2(u, v);
+}
+
+vec2 GetMuHeight(vec2 uv)
+{
+	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
+	const float rho = uv.y * H;
+	
+	const float r = sqrt(rho * rho + setting.groundRadius * setting.groundRadius);
+	
+	const float dMin = setting.atmosphereRadius - r;
+	const float dMax = rho + H;
+	
+	float d = mix(dMin, dMax, uv.x);
+	if (d < 0.000001)
+		return vec2(1.0, r);
+	const float mu = clamp((H * H - rho * rho - d * d) / (2 * r * d), -1.0, 1.0);
+	return vec2(mu, r - setting.groundRadius);
+}
+
 void main()
 {
 	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -68,12 +103,18 @@ void main()
 	if (pixel.x >= size.x || pixel.y >= size.y)
 		return;
 	
-	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+	vec2 uv = vec2(pixel) / vec2(size - ivec2(1));
 	uv.y = 1.0 - uv.y;
 	
 	const float atmosphereLength = max(0.0, setting.atmosphereRadius - setting.groundRadius);
-	const float height = atmosphereLength * uv.y;
-	const float transMu = uv.x * 2.0 - 1.0;
-	const vec3 transmittance = Transmittance(height, transMu);
+	const vec2 muHeight = GetMuHeight(uv);
+	
+	//const float transMu = uv.x * 2.0 - 1.0;
+	//const float height = atmosphereLength * uv.y;
+	
+	const float transMu = muHeight.x;
+	const float height = muHeight.y;
+	
+	const vec3 transmittance = Transmittance(transMu, height);
 	imageStore(outImage, pixel, vec4(transmittance, 1.0));
 }
