@@ -28,6 +28,7 @@ public:
 
 	void Init();
 	virtual void Clear();
+	/// @brief 이 시점에선 아직 GPU에서 쓰고 있을 수 있기 때문에 렌더링 리소스를 업데이트 해서는 안 됨
 	virtual void Update(double dt) {};
 	virtual void BeginRender(double dt);
 	virtual void Render(double dt);

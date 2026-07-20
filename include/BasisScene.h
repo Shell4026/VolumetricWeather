@@ -27,7 +27,9 @@ public:
 
 	void Clear() override;
 
+	/// @brief 이 시점에선 아직 GPU에서 쓰고 있을 수 있기 때문에 렌더링 리소스를 업데이트 해서는 안 됨
 	void Update(double dt) override;
+	void BeginRender(double dt) override;
 	void Render(double dt) override;
 protected:
 	auto CreateSceneCamera() -> std::unique_ptr<Camera> override;
