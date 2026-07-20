@@ -2,6 +2,7 @@
 #include "FPSCamera.h"
 
 #include "core/Input.h"
+#include "core/Window.h"
 
 #include "render/Material.h"
 
@@ -57,7 +58,15 @@ void BasisScene::Update(double dt)
 	if (!rmseMeasurement.IsRunning())
 		ControlCamera(dt);
 	DrawDebugGUI();
+}
 
+void BasisScene::Render(double dt)
+{
+	if (bChangeAtmosphereModelRequest)
+	{
+		SetAtmosphereModel(currentAtmospherePass == atmospherePass.get());
+		bChangeAtmosphereModelRequest = false;
+	}
 	if (const std::optional<bool> requestedModel = rmseMeasurement.Update(
 		*blitPass, *atmospherePass->GetOutputImage(), *hillairePass->GetOutputImage()))
 	{
@@ -72,15 +81,7 @@ void BasisScene::Update(double dt)
 				result->pixelCount);
 		}
 	}
-}
 
-void BasisScene::Render(double dt)
-{
-	if (bChangeAtmosphereModelRequest)
-	{
-		SetAtmosphereModel(currentAtmospherePass == atmospherePass.get());
-		bChangeAtmosphereModelRequest = false;
-	}
 	if (counter > 0)
 	{
 		shadowPassElapsed.Push(shadowPass->GetElapsedTimeMs());
@@ -97,6 +98,8 @@ void BasisScene::Render(double dt)
 auto BasisScene::CreateSceneCamera() -> std::unique_ptr<Camera>
 {
 	std::unique_ptr<FPSCamera> camPtr = std::make_unique<FPSCamera>();
+	camPtr->SetWidth(window.GetWidth());
+	camPtr->SetHeight(window.GetHeight());
 	camPtr->SetFar(100000.0f);
 	camPtr->SetPos(glm::vec3{ 0.f, 100.f, 0.f });
 	camPtr->SetYaw(-90.f);
@@ -166,6 +169,7 @@ void BasisScene::SetupPass()
 
 	opaquePass = std::make_unique<OpaquePass>();
 	opaquePass->SetShader(opaqueShader);
+	opaquePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	opaquePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	lutPass = std::make_unique<LUTPass>();
@@ -176,6 +180,7 @@ void BasisScene::SetupPass()
 	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	atmospherePass->SetShadowMap(*shadowPass->GetShadowMap());
 	atmospherePass->SetShadowSampler(*shadowPass->GetShadowSampler());
+	atmospherePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	atmospherePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	hillairePass = std::make_unique<HillairePass>();
@@ -184,6 +189,7 @@ void BasisScene::SetupPass()
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
 	hillairePass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	hillairePass->SetTransmittanceLUT(*lutPass->GetTransmittanceLUT(), *lutPass->GetTransmittanceLUTSampler());
+	hillairePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	hillairePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	currentAtmospherePass = atmospherePass.get();

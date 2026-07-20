@@ -22,10 +22,12 @@ Window::Window()
 	RegisterClassW(&wc);
 }
 
-void Window::Open()
+void Window::Open(uint32_t width, uint32_t height)
 {
+	this->width = width;
+	this->height = height;
 	unsigned long winStyle = WS_VISIBLE | WS_MINIMIZEBOX | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME;
-	hwnd = CreateWindowExW(0, L"Window", L"Window", winStyle, 0, 0, 1024, 768, nullptr, nullptr, GetModuleHandleW(nullptr), this);
+	hwnd = CreateWindowExW(0, L"Window", L"Window", winStyle, 0, 0, width, height, nullptr, nullptr, GetModuleHandleW(nullptr), this);
 }
 
 void Window::Close()

@@ -31,6 +31,7 @@ public:
 	void SetOpaqueTexture(const VulkanImage& opaqueDepthTex) { this->opaqueTex = &opaqueDepthTex; }
 	void SetShadowMap(const VulkanImage& shadowMap) { this->shadowMap = &shadowMap; }
 	void SetShadowSampler(const VulkanSampler& sampler) { shadowSampler = &sampler; }
+	void SetImageSize(uint32_t width, uint32_t height) { this->width = width; this->height = height; }
 
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
 	auto GetAtmosphere() const -> const Atmosphere& { return atmosphere; }
@@ -57,4 +58,7 @@ private:
 	VkDescriptorSetLayout cameraSetLayout = VK_NULL_HANDLE;
 
 	std::unique_ptr<Shader> computeShader;
+
+	uint32_t width = 1024;
+	uint32_t height = 768;
 };

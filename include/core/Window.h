@@ -9,7 +9,7 @@ class Window
 public:
 	Window();
 
-	void Open();
+	void Open(uint32_t width, uint32_t height);
 	void Close();
 	void Update();
 	void AddEventHook(const std::function<void(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)>& fn);

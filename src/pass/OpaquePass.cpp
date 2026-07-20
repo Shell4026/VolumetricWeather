@@ -122,6 +122,12 @@ void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	}
 }
 
+void OpaquePass::SetImageSize(uint32_t width, uint32_t height)
+{
+	this->width = width;
+	this->height = height;
+}
+
 void OpaquePass::PushDrawable(const Drawable& drawable)
 {
 	if (drawable.mat == nullptr || &drawable.mat->shader != opaqueShader)
@@ -133,7 +139,7 @@ void OpaquePass::PushDrawable(const Drawable& drawable)
 void OpaquePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
 	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
-	imgCi.extent = { 1024, 768, 1 };
+	imgCi.extent = { width, height, 1 };
 	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	imgCi.format = VkFormat::VK_FORMAT_D24_UNORM_S8_UINT;
 	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;

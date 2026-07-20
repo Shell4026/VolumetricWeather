@@ -13,7 +13,7 @@ int main()
 	bool bPauseRendering = false;
 
 	Window win{};
-	win.Open();
+	win.Open(1920, 1080);
 
 	VulkanContext ctx{ win };
 	ctx.Init();
@@ -32,7 +32,10 @@ int main()
 					SH_INFO("Pause");
 				}
 				else
+				{
 					bPauseRendering = false;
+					ctx.ReSize();
+				}
 			}
 		}
 	);
