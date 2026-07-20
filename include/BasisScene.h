@@ -82,6 +82,7 @@ private:
 	CircularQueue<double, 10> postProcessPassElapsed;
 
 	uint64_t counter = 0;
+	int menu = 0;
 
 	bool bChangeAtmosphereModelRequest = false;
 };

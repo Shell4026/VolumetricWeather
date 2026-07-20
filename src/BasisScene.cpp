@@ -267,81 +267,97 @@ void BasisScene::DrawDebugGUI()
 	ImGui::End();
 
 	ImGui::SetNextWindowSize(ImVec2{ 300.f, 300.f }, ImGuiCond_::ImGuiCond_Appearing);
-	if (ImGui::Begin("Debug"))
+	if (ImGui::Begin("Debug", nullptr, ImGuiWindowFlags_::ImGuiWindowFlags_MenuBar))
 	{
+		if (ImGui::BeginMenuBar())
+		{
+			if (ImGui::Button("Atmosphere"))
+				menu = 0;
+			if (ImGui::Button("Camera"))
+				menu = 1;
+			if (ImGui::Button("Quality"))
+				menu = 2;
+			ImGui::EndMenuBar();
+		}
+
 		AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
 		ImGui::BeginDisabled(rmseMeasurement.IsRunning());
-		ImGui::Text("View Steps");
-		if (ImGui::SliderInt("##viewSteps", &atmosphere.steps.x, 1, 256))
-			currentAtmospherePass->SetAtmosphere(atmosphere);
-		ImGui::Text("Sky-View Steps");
-		if (ImGui::SliderInt("##skyViewSteps", &atmosphere.steps.y, 1, 256))
-			currentAtmospherePass->SetAtmosphere(atmosphere);
-
-		ImGui::Text("Atmosphere radius(km)");
-		int atmoRadiusKM = static_cast<int>(atmosphere.radius / 1000.f);
-		if (ImGui::SliderInt("##atmosphereRadius", &atmoRadiusKM, 6360, 10000))
+		if (menu == 0) // Atmosphere
 		{
-			atmosphere.radius = atmoRadiusKM * 1000.f;
-			currentAtmospherePass->SetAtmosphere(atmosphere);
-		}
+			if (!rmseMeasurement.IsRunning() && ImGui::Button("Change Atmosphere model"))
+				bChangeAtmosphereModelRequest = true;
 
-		ImGui::Text("Sun illuminance");
-		if (ImGui::SliderFloat("##SunIlluminance", &sun.w, 0.f, 1000.f))
+			ImGui::Text("Atmosphere radius(km)");
+			int atmoRadiusKM = static_cast<int>(atmosphere.radius / 1000.f);
+			if (ImGui::SliderInt("##atmosphereRadius", &atmoRadiusKM, 6370, 10000))
+			{
+				atmosphere.radius = atmoRadiusKM * 1000.f;
+				currentAtmospherePass->SetAtmosphere(atmosphere);
+			}
+
+			ImGui::Text("Sun illuminance");
+			if (ImGui::SliderFloat("##SunIlluminance", &sun.w, 0.f, 1000.f))
+			{
+				UpdateSun();
+			}
+
+			ImGui::Text("Sun direction");
+			static float angle = 0.0f;
+			if (ImGui::SliderFloat("##SunDirection", &angle, 0.f, 360.f))
+			{
+				glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
+				glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
+				sun = glm::vec4(sunDir, sun.w);
+
+				UpdateSun();
+			}
+		}
+		else if (menu == 1) // Camera
 		{
-			UpdateSun();
-		}
+			ImGui::Text("Cam pos");
+			float pos[] = { camera.GetPos().x, camera.GetPos().y, camera.GetPos().z };
+			if (ImGui::InputFloat3("##camPos", pos, "%.3f", ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
+			{
+				camera.SetPos({ pos[0], pos[1], pos[2] });
+				camera.UpdateMatrix();
+				UpdateCameraData();
+			}
 
-		ImGui::Text("Sun direction");
-		static float angle = 0.0f;
-		if (ImGui::SliderFloat("##SunDirection", &angle, 0.f, 360.f))
+			ImGui::Text("Exposure");
+			float exposure = postProcessPass->GetExposure();
+			if (ImGui::SliderFloat("##exposure", &exposure, 0.f, 1.f))
+				postProcessPass->SetExposure(exposure);
+		}
+		else if (menu == 2) // Quality
 		{
-			glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
-			glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
-			sun = glm::vec4(sunDir, sun.w);
-			
-			UpdateSun();
+			ImGui::Text("View Steps");
+			if (ImGui::SliderInt("##viewSteps", &atmosphere.steps.x, 1, 256))
+				currentAtmospherePass->SetAtmosphere(atmosphere);
+			ImGui::Text("Sky-View Steps");
+			if (ImGui::SliderInt("##skyViewSteps", &atmosphere.steps.y, 1, 256))
+				currentAtmospherePass->SetAtmosphere(atmosphere);
+
+			if (ImGui::Button("Measure"))
+			{
+				const AtmospherePass::Atmosphere settings = currentAtmospherePass->GetAtmosphere();
+				atmospherePass->SetAtmosphere(settings);
+				hillairePass->SetAtmosphere(settings);
+				rmseMeasurement.Start(currentAtmospherePass == hillairePass.get());
+			}
+
+			if (rmseMeasurement.IsRunning())
+				ImGui::Text("RMSE: %s", rmseMeasurement.GetStatus());
+			if (const auto& result = rmseMeasurement.GetResult())
+			{
+				ImGui::Text("RGB RMSE: %.8f", result->rmse);
+				ImGui::Text("Channel RMSE: %.8f, %.8f, %.8f",
+					result->channelRMSE.r, result->channelRMSE.g, result->channelRMSE.b);
+				ImGui::Text("Pixels: %zu", result->pixelCount);
+			}
+			if (!rmseMeasurement.GetError().empty())
+				ImGui::TextWrapped("RMSE error: %s", rmseMeasurement.GetError().c_str());
 		}
-
-		ImGui::Text("Cam pos");
-		float pos[] = { camera.GetPos().x, camera.GetPos().y, camera.GetPos().z };
-		if (ImGui::InputFloat3("##camPos", pos, "%.3f", ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
-		{
-			camera.SetPos({ pos[0], pos[1], pos[2] });
-			camera.UpdateMatrix();
-			UpdateCameraData();
-		}
-
-		ImGui::Text("Exposure");
-		float exposure = postProcessPass->GetExposure();
-		if (ImGui::SliderFloat("##exposure", &exposure, 0.f, 1.f))
-			postProcessPass->SetExposure(exposure);
-
-		if (!rmseMeasurement.IsRunning() && ImGui::Button("Change Atmosphere model"))
-			bChangeAtmosphereModelRequest = true;
 		ImGui::EndDisabled();
-
-		ImGui::BeginDisabled(rmseMeasurement.IsRunning());
-		if (ImGui::Button("Test"))
-		{
-			const AtmospherePass::Atmosphere settings = currentAtmospherePass->GetAtmosphere();
-			atmospherePass->SetAtmosphere(settings);
-			hillairePass->SetAtmosphere(settings);
-			rmseMeasurement.Start(currentAtmospherePass == hillairePass.get());
-		}
-		ImGui::EndDisabled();
-
-		if (rmseMeasurement.IsRunning())
-			ImGui::Text("RMSE: %s", rmseMeasurement.GetStatus());
-		if (const auto& result = rmseMeasurement.GetResult())
-		{
-			ImGui::Text("RGB RMSE: %.8f", result->rmse);
-			ImGui::Text("Channel RMSE: %.8f, %.8f, %.8f",
-				result->channelRMSE.r, result->channelRMSE.g, result->channelRMSE.b);
-			ImGui::Text("Pixels: %zu", result->pixelCount);
-		}
-		if (!rmseMeasurement.GetError().empty())
-			ImGui::TextWrapped("RMSE error: %s", rmseMeasurement.GetError().c_str());
 		ImGui::End();
 	}
 }
