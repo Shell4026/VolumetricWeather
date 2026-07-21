@@ -190,6 +190,7 @@ void BasisScene::SetupPass()
 
 	lutPass = std::make_unique<LUTPass>();
 	lutPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 
 	atmospherePass = std::make_unique<AtmospherePass>();
 	atmospherePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
@@ -309,6 +310,7 @@ void BasisScene::DrawDebugGUI()
 				atmosphere.radius = atmoRadiusKM * 1000.f;
 				currentAtmospherePass->SetAtmosphere(atmosphere);
 				lutPass->globalSetting.atmosphereRadius = atmosphere.radius;
+				lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 			}
 
 			ImGui::Text("Sun illuminance");
@@ -361,12 +363,14 @@ void BasisScene::DrawDebugGUI()
 				ImGui::Separator();
 				ImGui::Text("Transmittance LUT");
 				ImGui::Text("Steps");
-				ImGui::SliderInt("##TransmittanceLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.transmittanceLUTSteps), 1, 64);
+				if (ImGui::SliderInt("##TransmittanceLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.transmittanceLUTSteps), 1, 64))
+					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 				
 				ImGui::Separator();
 				ImGui::Text("SkyView LUT");
 				ImGui::Text("Steps");
-				ImGui::SliderInt("##SkyViewLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.skyViewLUTSteps), 1, 64);
+				if (ImGui::SliderInt("##SkyViewLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.skyViewLUTSteps), 1, 64))
+					lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
 				ImGui::Text("Width / Height");
 				int size[2] = { lutPass->GetSkyViewLUT()->GetInfo().extent.width, lutPass->GetSkyViewLUT()->GetInfo().extent.height };
 				if (ImGui::InputInt2("##SkyViewSize", size, ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
@@ -378,12 +382,14 @@ void BasisScene::DrawDebugGUI()
 					request.width = size[0];
 					request.height = size[1];
 					imgRecreateRequests.insert_or_assign(lutPass->GetSkyViewLUT(), request);
+					lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
 				}
 
 				ImGui::Separator();
 				ImGui::Text("AerialPerspective LUT");
 				ImGui::Text("Steps");
-				ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 64);
+				if (ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 64))
+					lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
 			}
 
 			ImGui::Separator();
@@ -538,6 +544,7 @@ void BasisScene::ControlCamera(double dt)
 		camera.UpdateMatrix();
 	}
 	UpdateCameraData();
+	lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective); // 카메라 때문에 매번 업데이트 해야함
 }
 
 void BasisScene::UpdateSun()
@@ -562,6 +569,7 @@ void BasisScene::UpdateSun()
 	atmosphere.sunViewProj = mountain.data.viewProj;
 	currentAtmospherePass->SetAtmosphere(atmosphere);
 	lutPass->globalSetting.sun = sun;
+	lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView | LUTPass::LUTType::AerialPerspective);
 
 	shadowPass->SetCamera(sunCamera);
 }

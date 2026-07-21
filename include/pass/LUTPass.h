@@ -22,6 +22,13 @@ public:
 		uint32_t skyViewLUTSteps = 40;
 		uint32_t aerialPerspectiveLUTSteps = 40;
 	} globalSetting;
+	enum LUTType
+	{
+		SkyView = 0b0001,
+		AerialPerspective = 0b0010,
+		Transmittance = 0b0111
+	};
+	using LUTTypeFlags = uint32_t;
 public:
 	void Clear() override;
 
@@ -29,6 +36,7 @@ public:
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 
+	void UpdateLUTFlags(LUTTypeFlags types) { updateLUTFlags |= types; }
 	void ReCreateSkyViewLUT(uint32_t width, uint32_t height);
 
 	auto GetTransmittanceLUTSampler() const -> VulkanSampler* { return transmittance.sampler.get(); }
@@ -89,4 +97,6 @@ private:
 		std::unique_ptr<VulkanSampler> sampler;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 	} aerialPerspective;
+
+	uint32_t updateLUTFlags = 0;
 };

@@ -48,9 +48,12 @@ void LUTPass::Clear()
 
 void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
+	if (updateLUTFlags == 0)
+		return;
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	UpdateMaterials();
 	// Transmittance LUT
+	if (updateLUTFlags & LUTType::Transmittance)
 	{
 		const uint32_t width = transmittance.lut->GetInfo().extent.width;
 		const uint32_t height = transmittance.lut->GetInfo().extent.height;
@@ -59,8 +62,11 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 		std::array<VkDescriptorSet, 1> descSets = { transmittance.material->GetVkDescriptorSet() };
 		vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, transmittance.shader->GetPipelineLayout(), 1, descSets.size(), descSets.data(), 0, nullptr);
 		vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
+
+		updateLUTFlags = LUTType::All; // 투과율 LUT가 바뀌면 사실상 다 갱신해야
 	}
 	// Sky-View LUT
+	if (updateLUTFlags & LUTType::SkyView)
 	{
 		VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 			VkImageLayout::VK_IMAGE_LAYOUT_GENERAL, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -74,11 +80,22 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 		std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, skyView.material->GetVkDescriptorSet() };
 		vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, skyView.shader->GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
 		vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
+
+		VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+			VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT, VkAccessFlagBits::VK_ACCESS_NONE);
 	}
 	// AerialPerspective LUT
+	if (updateLUTFlags & LUTType::AerialPerspective)
 	{
 		const uint32_t width = aerialPerspective.lut->GetInfo().extent.width;
 		const uint32_t height = aerialPerspective.lut->GetInfo().extent.height;
+
+		VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+			VkImageLayout::VK_IMAGE_LAYOUT_GENERAL, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT);
 
 		vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, aerialPerspective.pipeline);
 		std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, aerialPerspective.material->GetVkDescriptorSet() };
@@ -90,14 +107,21 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
 			VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT, VkAccessFlagBits::VK_ACCESS_NONE);
 	}
+	updateLUTFlags = 0;
 }
 
 void LUTPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	APass::SetUsages(ctx, frame);
-	AddUsage(transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	AddUsage(skyView.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	AddUsage(aerialPerspective.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	if (updateLUTFlags == 0)
+		return;
+
+	//if (updateLUTFlags & 0b0100)
+		AddUsage(transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	//if (updateLUTFlags & LUTType::SkyView)
+		AddUsage(skyView.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	//if (updateLUTFlags & LUTType::AerialPerspective)
+		AddUsage(aerialPerspective.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 }
 
 void LUTPass::ReCreateSkyViewLUT(uint32_t width, uint32_t height)
