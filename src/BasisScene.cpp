@@ -455,24 +455,50 @@ void BasisScene::CreateDrawables()
 void BasisScene::ControlCamera(double dt)
 {
 	FPSCamera& camera = static_cast<FPSCamera&>(*GetCamera());
+	if (Input::IsKeyDown(Event::KeyType::Up))
+	{
+		camera.AddPitch(60.0 * dt);
+		camera.UpdateMatrix();
+	}
+	if (Input::IsKeyDown(Event::KeyType::Down))
+	{
+		camera.AddPitch(-60.0 * dt);
+		camera.UpdateMatrix();
+	}
+	if (Input::IsKeyDown(Event::KeyType::Left))
+	{
+		camera.AddYaw(60.0 * dt);
+		camera.UpdateMatrix();
+	}
+	if (Input::IsKeyDown(Event::KeyType::Right))
+	{
+		camera.AddYaw(-60.0 * dt);
+		camera.UpdateMatrix();
+	}
 	if (Input::IsKeyDown(Event::KeyType::W))
 	{
-		camera.AddPitch(30.0 * dt);
+		const glm::vec3 forward = glm::normalize(camera.GetTo() - camera.GetPos()) * 500.f * static_cast<float>(dt);
+		camera.SetPos(camera.GetPos() + forward);
 		camera.UpdateMatrix();
 	}
 	if (Input::IsKeyDown(Event::KeyType::S))
 	{
-		camera.AddPitch(-30.0 * dt);
-		camera.UpdateMatrix();
-	}
-	if (Input::IsKeyDown(Event::KeyType::A))
-	{
-		camera.AddYaw(30.0 * dt);
+		const glm::vec3 forward = glm::normalize(camera.GetTo() - camera.GetPos()) * 500.f * static_cast<float>(dt);
+		camera.SetPos(camera.GetPos() - forward);
 		camera.UpdateMatrix();
 	}
 	if (Input::IsKeyDown(Event::KeyType::D))
 	{
-		camera.AddYaw(-30.0 * dt);
+		const glm::vec3 forward = glm::normalize(camera.GetTo() - camera.GetPos());
+		const glm::vec3 right = glm::cross(forward, camera.GetUp()) * 500.f * static_cast<float>(dt);
+		camera.SetPos(camera.GetPos() + right);
+		camera.UpdateMatrix();
+	}
+	if (Input::IsKeyDown(Event::KeyType::A))
+	{
+		const glm::vec3 forward = glm::normalize(camera.GetTo() - camera.GetPos());
+		const glm::vec3 right = glm::cross(forward, camera.GetUp()) * 500.f * static_cast<float>(dt);
+		camera.SetPos(camera.GetPos() - right);
 		camera.UpdateMatrix();
 	}
 	if (Input::IsKeyDown(Event::KeyType::Space))
