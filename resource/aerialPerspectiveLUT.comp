@@ -131,6 +131,9 @@ void main()
 	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
 	const float mu = dot(ray, -sunDir); // cos, 태양빛이 카메라로 산란될 확률 계산에 쓰임
 	
+	const float rayleighPhase = RayleighPhase(mu);
+	const float miePhase = MiePhase(mu, 0.8);
+	
 	vec3 sigmaSum = vec3(0.0); // 소멸률
 	vec3 inScattering = vec3(0.0);
 	for (int z = 0; z < size.z; ++z)
@@ -163,8 +166,8 @@ void main()
 			
 			const vec3 phase = 
 			(
-				RayleighScattering(sampleHeight) * RayleighPhase(mu) + 
-				MieScattering(sampleHeight) * MiePhase(mu, 0.8)
+				RayleighScattering(sampleHeight) * rayleighPhase + 
+				MieScattering(sampleHeight) * miePhase
 			) * stepSize;
 			inScattering += exp(-sigmaSum) * lightViewTransmittance * phase * setting.sun.w;
 		}

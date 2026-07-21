@@ -125,6 +125,9 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 	const float stepSize = distance / steps.x;
 	const vec3 dir = (b - a) / distance;
 	
+	const float rayleighPhase = RayleighPhase(mu);
+	const float miePhase = MiePhase(mu, 0.8);
+	
 	vec3 inScattering = vec3(0.0, 0.0, 0.0);
 	sigmaSum = vec3(0.0, 0.0, 0.0);
 	for (uint i = 0; i < steps.x; ++i)
@@ -155,8 +158,8 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		
 		const vec3 phase = 
 		(
-			RayleighScattering(sampleHeight) * RayleighPhase(mu) + 
-			MieScattering(sampleHeight) * MiePhase(mu, 0.8)
+			RayleighScattering(sampleHeight) * rayleighPhase + 
+			MieScattering(sampleHeight) * miePhase
 		) * stepSize;
 		
 		inScattering += transmittance * visibility * lightViewTransmittance * phase * illuminance;
