@@ -6,6 +6,8 @@ layout(set = 0, binding = 0) uniform Camera
 	vec3 pos;
 	mat4 view;
 	mat4 proj;
+	mat4 invView;
+	mat4 invProj;
 } camera;
 layout(set = 1, binding = 0) uniform Setting
 {
@@ -19,9 +21,9 @@ layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
 vec3 projToWorldPos(vec2 pixel)
 {
 	const vec3 ndc = vec3(pixel * 2.0 - 1.0, 1.0);
-	vec4 viewPos = inverse(camera.proj) * vec4(ndc, 1.0);
+	vec4 viewPos = camera.invProj * vec4(ndc, 1.0);
 	viewPos.xyz /= viewPos.w;
-	const vec3 worldPos = (inverse(camera.view) * vec4(viewPos.xyz, 1.0)).xyz;
+	const vec3 worldPos = (camera.invView * vec4(viewPos.xyz, 1.0)).xyz;
 	return worldPos;
 }
 

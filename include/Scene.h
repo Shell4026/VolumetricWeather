@@ -74,6 +74,8 @@ private:
 		alignas(16) glm::vec3 pos;
 		alignas(16) glm::mat4 view;
 		alignas(16) glm::mat4 proj;
+		alignas(16) glm::mat4 invView;
+		alignas(16) glm::mat4 invProj;
 	} cameraUniformData;
 	std::unique_ptr<VulkanBuffer> cameraUniformBuffers;
 	VkDescriptorSetLayout cameraDescSetLayout = VK_NULL_HANDLE;

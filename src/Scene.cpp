@@ -341,4 +341,6 @@ void AScene::UpdateCameraData()
 	cameraUniformData.pos = camera->GetPos();
 	cameraUniformData.view = camera->GetMatrixView();
 	cameraUniformData.proj = camera->GetMatrixProj();
+	cameraUniformData.invView = camera->GetMatrixInverseView();
+	cameraUniformData.invProj = camera->GetMatrixInverseProj();
 }
