@@ -9,21 +9,15 @@
 #include <memory>
 
 class Material;
+class LUTPass;
 class HillairePass : public AtmospherePass
 {
 public:
+	HillairePass(const LUTPass& lutPass);
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
-
-	void SetTransmittanceLUTSampler(const VulkanSampler& sampler) { transmittanceLUTSampler = &sampler; }
-	void SetTransmittanceLUT(const VulkanImage& lut) { transmittanceLUT = &lut; }
-	void SetSkyViewLUTSampler(const VulkanSampler& sampler) { skyViewLUTSampler = &sampler; }
-	void SetSkyViewLUT(const VulkanImage& lut) { skyViewLUT = &lut; }
 protected:
 	auto CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 private:
-	const VulkanImage* transmittanceLUT = nullptr;
-	const VulkanImage* skyViewLUT = nullptr;
-	const VulkanSampler* transmittanceLUTSampler = nullptr;
-	const VulkanSampler* skyViewLUTSampler = nullptr;
+	const LUTPass& lutPass;
 };

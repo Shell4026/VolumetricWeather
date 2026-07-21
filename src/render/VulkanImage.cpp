@@ -81,6 +81,8 @@ void VulkanImage::Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, 
 	viewCi.format = info.format;
 	viewCi.subresourceRange = { aspect, 0, 1, 0, 1 };
 	viewCi.image = img;
+	if (ci.imageType == VkImageType::VK_IMAGE_TYPE_3D)
+		viewCi.viewType = VkImageViewType::VK_IMAGE_VIEW_TYPE_3D;
 	VK_RESULT_CHECK(vkCreateImageView(device, &viewCi, nullptr, &view));
 }
 

@@ -20,6 +20,7 @@ layout(set = 1, binding = 3) uniform sampler2D opaque;
 layout(set = 1, binding = 4) uniform sampler2DShadow shadowMap;
 layout(set = 1, binding = 5) uniform sampler2D transmittanceLUT;
 layout(set = 1, binding = 6) uniform sampler2D skyViewLUT;
+layout(set = 1, binding = 7) uniform sampler3D aerialPerspectiveLUT;
 
 const float GROUND_RADIUS = 6360 * 1000.0;
 const vec3 PLANET_CENTER = vec3(0.0, -GROUND_RADIUS, 0.0);
@@ -65,31 +66,7 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 	return far >= 0.0;
 }
 
-vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
-{
-	const float sampleLength = length(samplePos - PLANET_CENTER);
-	const float height = sampleLength - GROUND_RADIUS;
-	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
-	const float mu = dot(up, dir);
-	
-	const float r = height + GROUND_RADIUS;
-	// 지평면에서의 수평 방향 대기까지의 거리 H
-	const float H = sqrt(atmosphere.radius * atmosphere.radius - GROUND_RADIUS * GROUND_RADIUS);
-	// 지평선 거리 rho
-	const float rho = sqrt(r * r - GROUND_RADIUS * GROUND_RADIUS);
-	
-	const float dMin = atmosphere.radius - r; // 머리 위의 대기까지의 거리
-	const float dMax = rho + H; // 지평선 너머의 대기까지의 거리
-	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + atmosphere.radius * atmosphere.radius); // 샘플에서 ray방향으로의 대기권까지의 거리
-	d = max(d, 0.0);
-	
-	float u = (d - dMin) / (dMax - dMin); // 0(머리위) ~ 1(지평선)
-	float v = rho / H; // 그냥 높이 비율 대신 제곱근 비율로 바뀐거
-	v = 1.0 - v;
-	return vec2(u, v);
-}
-
-vec3 InScatteringUsingLUT(vec3 rayDir)
+vec3 SkyViewLUT(vec3 rayDir)
 {
 	const float PI = 3.141592;
 	const vec3 camToSun = -atmosphere.sun.xyz;
@@ -127,45 +104,22 @@ void main()
 		return;
 	}
 	
-	// float rayStart = max(nearAtmo, 0.0);
-	// float rayEnd = farAtmo;
-	
-    // float nearGround = 0.0;
-    // float farGround = 0.0;
-	// if (RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, GROUND_RADIUS, nearGround, farGround))
-		// rayEnd = min(rayEnd, nearGround); // 땅에 닿으면 땅까지만 raymarching
-	
-	// const float z = texture(depth, uv).r;
-	// vec3 surfaceT = vec3(0.0, 0.0, 0.0);
-	// bool surfaceHit = z < 0.999999;
-	// if (surfaceHit)
-	// {
-		// const vec3 viewPos = PixelToViewPos(uv, z);
-        // const vec3 worldPos = (inverse(camera.view) * vec4(viewPos, 1.0)).xyz;
-        // const float surfaceDistance = length(worldPos - camera.pos);
+	const float z = texture(depth, uv).r;
+	vec3 result = vec3(0.0);
+	if (z < 1.0)
+	{
+		const vec3 opaqueViewPos = PixelToViewPos(uv, z);
+		const float opaqueZ = length(opaqueViewPos);
+		const float lutZ = clamp(opaqueZ / 32000.0, 0.0, 1.0);
+		const vec4 opaqueColor = texture(opaque, uv);
+		const vec4 aerialPerspective = texture(aerialPerspectiveLUT, vec3(uv, lutZ));
 		
-		// rayEnd = min(rayEnd, surfaceDistance);
-	// }
-	
-    // if (rayEnd <= rayStart)
-    // {
-        // imageStore(outImage, pixel, vec4(0, 0, 0, 1));
-        // return;
-    // }
-	
-	// const vec3 sunDir = atmosphere.sun.xyz;
-	// const float mu = dot(-rayDir, sunDir); // cos, 태양빛이 카메라로 산란될 확률 계산에 쓰임
-	
-    // const vec3 start = camera.pos + rayDir * rayStart;
-    // const vec3 end   = camera.pos + rayDir * rayEnd;
-	// vec3 sigmaSum; // start에서 end까지 누적된 소멸 계수(sigmaT)
-	// vec3 result = InScattering(start, end, rayEnd - rayStart, sunDir, mu, atmosphere.sun.w, atmosphere.steps, sigmaSum);
-	// if (surfaceHit)
-		// result += exp(-sigmaSum) * texture(opaque, uv).rgb;
-	
-	vec3 result = InScatteringUsingLUT(rayDir);
-	vec4 opaqueColor = texture(opaque, uv);
-	result = result.rgb * (1 - opaqueColor.a) + opaqueColor.rgb;
-	
+		result = opaqueColor.rgb * aerialPerspective.a + aerialPerspective.rgb;
+	}
+	else
+	{
+		const vec3 skyViewColor = SkyViewLUT(rayDir);
+		result = skyViewColor;
+	}
 	imageStore(outImage, pixel, vec4(result, 1.0));
 }

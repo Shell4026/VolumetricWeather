@@ -189,15 +189,11 @@ void BasisScene::SetupPass()
 	atmospherePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	atmospherePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	hillairePass = std::make_unique<HillairePass>();
+	hillairePass = std::make_unique<HillairePass>(*lutPass);
 	hillairePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
 	hillairePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
 	hillairePass->SetShadowSampler(*shadowPass->GetShadowSampler());
-	hillairePass->SetTransmittanceLUTSampler(*lutPass->GetTransmittanceLUTSampler());
-	hillairePass->SetTransmittanceLUT(*lutPass->GetTransmittanceLUT());
-	hillairePass->SetSkyViewLUTSampler(*lutPass->GetSkyViewLUTSampler());
-	hillairePass->SetSkyViewLUT(*lutPass->GetSkyViewLUT());
 	hillairePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	hillairePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
@@ -302,7 +298,7 @@ void BasisScene::DrawDebugGUI()
 			{
 				atmosphere.radius = atmoRadiusKM * 1000.f;
 				currentAtmospherePass->SetAtmosphere(atmosphere);
-				lutPass->GetSkyViewSetting().atmosphereRadius = atmosphere.radius;
+				lutPass->globalSetting.atmosphereRadius = atmosphere.radius;
 			}
 
 			ImGui::Text("Sun illuminance");
@@ -352,11 +348,20 @@ void BasisScene::DrawDebugGUI()
 			}
 			else
 			{
-				ImGui::Text("Transmittance LUT");
 				ImGui::Separator();
+				ImGui::Text("Transmittance LUT");
 				ImGui::Text("Steps");
-				LUTPass::Setting& setting = lutPass->GetTransmittanceSetting();
-				ImGui::SliderInt("#TransmittanceLUTSteps", &setting.steps, 1, 64);
+				ImGui::SliderInt("##TransmittanceLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.transmittanceLUTSteps), 1, 64);
+				
+				ImGui::Separator();
+				ImGui::Text("SkyView LUT");
+				ImGui::Text("Steps");
+				ImGui::SliderInt("##SkyViewLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.skyViewLUTSteps), 1, 64);
+
+				ImGui::Separator();
+				ImGui::Text("AerialPerspective LUT");
+				ImGui::Text("Steps");
+				ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 64);
 			}
 
 			ImGui::Separator();
@@ -508,7 +513,7 @@ void BasisScene::UpdateSun()
 	atmosphere.sun = sun;
 	atmosphere.sunViewProj = mountain.data.viewProj;
 	currentAtmospherePass->SetAtmosphere(atmosphere);
-	lutPass->GetSkyViewSetting().sun = sun;
+	lutPass->globalSetting.sun = sun;
 
 	shadowPass->SetCamera(sunCamera);
 }

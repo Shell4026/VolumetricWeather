@@ -13,19 +13,15 @@ class Shader;
 class LUTPass : public APass
 {
 public:
-	struct alignas(16) Setting
-	{
-		int steps = 40;
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
-	};
-	struct alignas(16) SkyViewSetting
+	struct GlobalSetting
 	{
 		glm::vec4 sun;
-		uint32_t steps = 40;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
-	};
+		uint32_t transmittanceLUTSteps = 40;
+		uint32_t skyViewLUTSteps = 40;
+		uint32_t aerialPerspectiveLUTSteps = 40;
+	} globalSetting;
 public:
 	void Clear() override;
 
@@ -35,19 +31,37 @@ public:
 
 	auto GetTransmittanceLUTSampler() const -> VulkanSampler* { return transmittance.sampler.get(); }
 	auto GetTransmittanceLUT() const -> VulkanImage* { return transmittance.lut.get(); }
-	auto GetTransmittanceSetting() -> Setting& { return setting; }
-	auto GetTransmittanceSetting() const -> const Setting& { return setting; }
 	auto GetSkyViewLUTSampler() const -> VulkanSampler* { return skyView.sampler.get(); }
 	auto GetSkyViewLUT() const -> VulkanImage* { return skyView.lut.get(); }
-	auto GetSkyViewSetting() -> SkyViewSetting& { return skyViewSetting; }
-	auto GetSkyViewSetting() const -> const SkyViewSetting& { return skyViewSetting; }
+	auto GetAerialPerspectiveSampler() const -> VulkanSampler* { return aerialPerspective.sampler.get(); }
+	auto GetAerialPerspectiveLUT() const -> VulkanImage* { return aerialPerspective.lut.get(); }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 	void BuildPipeline(const VulkanContext& ctx) override;
 private:
-	Setting setting;
-	SkyViewSetting skyViewSetting;
+	void UpdateMaterials();
+private:
+	struct alignas(16) TransmittanceSetting
+	{
+		uint32_t steps = 40;
+		float groundRadius = 6'360'000.f;
+		float atmosphereRadius = 6'460'000.f;
+	} transmitSetting;
+	struct alignas(16) SkyViewSetting
+	{
+		glm::vec4 sun;
+		uint32_t steps = 40;
+		float groundRadius = 6'360'000.f;
+		float atmosphereRadius = 6'460'000.f;
+	} skyViewSetting;
+	struct alignas(16) AerialPerspectiveSetting
+	{
+		glm::vec4 sun;
+		uint32_t steps = 40;
+		float groundRadius = 6'360'000.f;
+		float atmosphereRadius = 6'460'000.f;
+	} aerialSetting;
 
 	struct Transmittance
 	{
@@ -65,4 +79,12 @@ private:
 		std::unique_ptr<VulkanSampler> sampler;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 	} skyView;
+	struct AerialPerspective
+	{
+		std::unique_ptr<Shader> shader;
+		std::unique_ptr<Material> material;
+		std::unique_ptr<VulkanImage> lut;
+		std::unique_ptr<VulkanSampler> sampler;
+		VkPipeline pipeline = VK_NULL_HANDLE;
+	} aerialPerspective;
 };

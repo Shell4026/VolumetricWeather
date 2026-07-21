@@ -1,18 +1,30 @@
 ﻿#include "pass/HillairePass.h"
+#include "pass/LUTPass.h"
+
 #include "core/Logger.h"
+
 #include "render/VulkanBuffer.h"
 #include "render/VulkanImage.h"
 #include "render/Material.h"
+
+HillairePass::HillairePass(const LUTPass& lutPass) :
+	lutPass(lutPass)
+{
+}
 
 void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	AtmospherePass::SetUsages(ctx, frame);
 	AddUsage(
-		transmittanceLUT->GetImage(),
+		lutPass.GetTransmittanceLUT()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(
-		skyViewLUT->GetImage(),
+		lutPass.GetSkyViewLUT()->GetImage(),
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(
+		lutPass.GetAerialPerspectiveLUT()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
@@ -56,6 +68,11 @@ auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSet
 	binding6.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 	binding6.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding6.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding7 = set1Bindings.emplace_back();
+	binding7.binding = 7;
+	binding7.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+	binding7.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding7.descriptorCount = 1;
 
 	Shader shader{};
 	shader.
@@ -74,8 +91,9 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 		AddBinding(2, *opaqueDepthTex, opaqueSampler.GetSampler()).
 		AddBinding(3, *opaqueTex, opaqueSampler.GetSampler()).
 		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
-		AddBinding(5, *transmittanceLUT, transmittanceLUTSampler->GetSampler()).
-		AddBinding(6, *skyViewLUT, skyViewLUTSampler->GetSampler()).
+		AddBinding(5, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler()).
+		AddBinding(6, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler()).
+		AddBinding(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, atmosphere);

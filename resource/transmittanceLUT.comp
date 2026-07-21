@@ -61,6 +61,32 @@ vec3 Transmittance(float mu, float height)
 	return exp(-sigmaSum);
 }
 
+vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir) // 여기서는 안 씀
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	
+	const float sampleLength = length(samplePos - PLANET_CENTER);
+	const float height = sampleLength - setting.groundRadius;
+	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
+	const float mu = dot(up, dir);
+	
+	const float r = height + setting.groundRadius;
+	// 지평면에서의 수평 방향 대기까지의 거리 H
+	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
+	// 지평선 거리 rho
+	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);
+	
+	const float dMin = setting.atmosphereRadius - r; // 머리 위의 대기까지의 거리
+	const float dMax = rho + H; // 지평선 너머의 대기까지의 거리
+	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + setting.atmosphereRadius * setting.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
+	d = max(d, 0.0);
+	
+	float u = (d - dMin) / (dMax - dMin); // 0(머리위) ~ 1(지평선)
+	float v = rho / H; // 그냥 높이 비율 대신 제곱근 비율로 바뀐거
+	v = 1.0 - v;
+	return vec2(u, v);
+}
+
 vec2 GetMuHeight(vec2 uv)
 {
 	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
