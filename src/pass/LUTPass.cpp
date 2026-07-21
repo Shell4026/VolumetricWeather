@@ -100,6 +100,17 @@ void LUTPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	AddUsage(aerialPerspective.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 }
 
+void LUTPass::ReCreateSkyViewLUT(uint32_t width, uint32_t height)
+{
+	VkImageCreateInfo imageCI = VulkanImage::GetCreateInfo();
+	imageCI.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
+	imageCI.extent = { width, height, 1 };
+	imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
+	skyView.lut = std::make_unique<VulkanImage>(*ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	skyView.material->UpdateBindingData(1, *skyView.lut, VK_NULL_HANDLE);
+}
+
 void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
 	const VkDevice device = ctx.GetDevice();

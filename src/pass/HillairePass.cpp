@@ -29,6 +29,13 @@ void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
+void HillairePass::UpdateMaterial()
+{
+	material->UpdateBindingData(5, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler());
+	material->UpdateBindingData(6, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler());
+	material->UpdateBindingData(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler());
+}
+
 auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
 {
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;

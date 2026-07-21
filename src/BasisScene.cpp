@@ -69,6 +69,16 @@ void BasisScene::BeginRender(double dt)
 		SetAtmosphereModel(currentAtmospherePass == atmospherePass.get());
 		bChangeAtmosphereModelRequest = false;
 	}
+	const bool bImgRecreate = !imgRecreateRequests.empty();
+	for (const auto& [img, req] : imgRecreateRequests)
+	{
+		if (img == lutPass->GetSkyViewLUT())
+			lutPass->ReCreateSkyViewLUT(req.width, req.height);
+	}
+	imgRecreateRequests.clear();
+	if (bImgRecreate)
+		hillairePass->UpdateMaterial();
+
 	if (const std::optional<bool> requestedModel = rmseMeasurement.Update(
 		*blitPass, *atmospherePass->GetOutputImage(), *hillairePass->GetOutputImage()))
 	{
@@ -357,6 +367,18 @@ void BasisScene::DrawDebugGUI()
 				ImGui::Text("SkyView LUT");
 				ImGui::Text("Steps");
 				ImGui::SliderInt("##SkyViewLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.skyViewLUTSteps), 1, 64);
+				ImGui::Text("Width / Height");
+				int size[2] = { lutPass->GetSkyViewLUT()->GetInfo().extent.width, lutPass->GetSkyViewLUT()->GetInfo().extent.height };
+				if (ImGui::InputInt2("##SkyViewSize", size, ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
+				{
+					size[0] = std::clamp(size[0], 1, 4096);
+					size[1] = std::clamp(size[1], 1, 4096);
+					ImageReCreateRequest request{};
+					request.img = lutPass->GetSkyViewLUT();
+					request.width = size[0];
+					request.height = size[1];
+					imgRecreateRequests.insert_or_assign(lutPass->GetSkyViewLUT(), request);
+				}
 
 				ImGui::Separator();
 				ImGui::Text("AerialPerspective LUT");

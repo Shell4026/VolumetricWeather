@@ -11,6 +11,7 @@
 #include "render/Shader.h"
 
 #include <memory>
+#include <map>
 class ShadowPass;
 class OpaquePass;
 class LUTPass;
@@ -19,6 +20,7 @@ class HillairePass;
 class PostProcessPass;
 class BlitPass;
 class Material;
+class VulkanImage;
 class BasisScene : public AScene
 {
 public:
@@ -86,5 +88,12 @@ private:
 	uint64_t counter = 0;
 	int menu = 0;
 
+	struct ImageReCreateRequest
+	{
+		const VulkanImage* img;
+		uint32_t width;
+		uint32_t height;
+	};
+	std::map<const VulkanImage*, ImageReCreateRequest> imgRecreateRequests;
 	bool bChangeAtmosphereModelRequest = false;
 };

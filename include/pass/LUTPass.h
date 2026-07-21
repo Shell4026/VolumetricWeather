@@ -29,6 +29,8 @@ public:
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 
+	void ReCreateSkyViewLUT(uint32_t width, uint32_t height);
+
 	auto GetTransmittanceLUTSampler() const -> VulkanSampler* { return transmittance.sampler.get(); }
 	auto GetTransmittanceLUT() const -> VulkanImage* { return transmittance.lut.get(); }
 	auto GetSkyViewLUTSampler() const -> VulkanSampler* { return skyView.sampler.get(); }
