@@ -19,6 +19,8 @@ layout(set = 1, binding = 0) uniform Setting
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
 layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
 
+const float PI = 3.141592;
+
 vec3 RayleighScattering(float y)
 {
 	const vec3 rayleigh = vec3(5.802, 13.558, 33.1) * 1e-6;
@@ -69,27 +71,6 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 	far = b + d;
 	
 	return far >= 0.0;
-}
-
-vec3 Transmittance(vec3 a, vec3 b, float distance, uint steps)
-{
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
-	
-	const float stepSize = distance / steps;
-	const vec3 dir = (b - a) / distance;
-	
-	vec3 sigmaSum = vec3(0.0, 0.0, 0.0);
-	for (uint i = 0; i < steps; ++i)
-	{
-		const vec3 samplePos = a + dir * stepSize * (i + 0.5);
-		const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
-		if (sampleHeight < 0.0)
-			break;
-		
-		const vec3 sigmaT = ScatteringCoefficient(sampleHeight) + AbsorptionCoefficient(sampleHeight);
-		sigmaSum += sigmaT * stepSize;
-	}
-	return exp(-sigmaSum);
 }
 
 vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
@@ -173,6 +154,11 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 	return inScattering;
 }
 
+float GetNonlinearLatitude(float uvY)
+{
+	return PI / 2.0 * sign(2 * uvY - 1) * (2 * uvY - 1) * (2 * uvY - 1);
+}
+
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -189,10 +175,8 @@ void main()
 	const vec3 forward = normalize(camToSun - up * dot(camToSun, up));
 	const vec3 right = cross(forward, up);
 	
-	const float PI = 3.141592;
-	
 	const float longtitude = mix(-PI, PI, uv.x);
-	const float latitude = mix(-PI * 0.5, PI * 0.5, uv.y);
+	const float latitude = GetNonlinearLatitude(uv.y); // -PI/2 ~ Pi/2
 	
 	const vec3 horizonDir = cos(longtitude) * forward + sin(longtitude) * right;
 	const vec3 rayDir = cos(latitude) * horizonDir + sin(latitude) * up;

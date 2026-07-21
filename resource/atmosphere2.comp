@@ -82,7 +82,7 @@ vec3 SkyViewLUT(vec3 rayDir)
 	
 	vec2 skyUV;
 	skyUV.x = longtitude / (2.0 * PI) + 0.5, 0.1, 0.9;
-	skyUV.y = 0.5 - latitude / PI, 0.0, 1;
+	skyUV.y = 1.0 - (0.5 + 0.5 * sign(latitude) * sqrt(abs(latitude) / (PI * 0.5)));
 	
 	return texture(skyViewLUT, skyUV).xyz;
 }
