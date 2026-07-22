@@ -26,7 +26,9 @@ public:
 	{
 		SkyView = 0b0001,
 		AerialPerspective = 0b0010,
-		Transmittance = 0b0111
+		Transmittance = 0b0100,
+		AerialShadow = 0b1000,
+		All = 0b1111
 	};
 	using LUTTypeFlags = uint32_t;
 public:
@@ -45,6 +47,8 @@ public:
 	auto GetSkyViewLUT() const -> VulkanImage* { return skyView.lut.get(); }
 	auto GetAerialPerspectiveSampler() const -> VulkanSampler* { return aerialPerspective.sampler.get(); }
 	auto GetAerialPerspectiveLUT() const -> VulkanImage* { return aerialPerspective.lut.get(); }
+	auto GetAerialShadowSampler() const -> VulkanSampler* { return aerialShadow.sampler.get(); }
+	auto GetAerialShadowLUT() const -> VulkanImage* { return aerialShadow.lut.get(); }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
@@ -97,6 +101,14 @@ private:
 		std::unique_ptr<VulkanSampler> sampler;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 	} aerialPerspective;
+	struct AerialShadow
+	{
+		std::unique_ptr<Shader> shader;
+		std::unique_ptr<Material> material;
+		std::unique_ptr<VulkanImage> lut;
+		std::unique_ptr<VulkanSampler> sampler;
+		VkPipeline pipeline = VK_NULL_HANDLE;
+	} aerialShadow;
 
 	uint32_t updateLUTFlags = 0;
 };

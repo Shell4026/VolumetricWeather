@@ -54,14 +54,14 @@ set(HEADERS
 "include/Scene.h"
 "include/GLBLoader.h"
 "include/AtmosphereRMSEMeasurement.h"
- "include/BasisScene.h")
+ "include/BasisScene.h" "include/PresetManager.h")
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
 "src/GLBLoader.cpp"
 "src/AtmosphereRMSEMeasurement.cpp"
 "src/Scene.cpp"
- "src/BasisScene.cpp")
+ "src/BasisScene.cpp" "src/PresetManager.cpp")
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -88,10 +88,18 @@ FetchContent_Declare(
   )
 FetchContent_MakeAvailable(GLM)
 
+FETCHCONTENT_DECLARE(
+	JSON
+	GIT_REPOSITORY "https://github.com/nlohmann/json"
+	GIT_TAG "v3.11.3"
+)
+FETCHCONTENT_MAKEAVAILABLE(JSON)
+
 target_precompile_headers(VolumetricWeather PRIVATE "include/PCH.h")
 target_link_libraries(VolumetricWeather PRIVATE Vulkan::Vulkan)
 target_link_libraries(VolumetricWeather PRIVATE glm)
 target_link_libraries(VolumetricWeather PRIVATE IMGUI)
+target_link_libraries(VolumetricWeather PRIVATE nlohmann_json)
 target_include_directories(VolumetricWeather PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_include_directories(VolumetricWeather PRIVATE ${CMAKE_SOURCE_DIR}/external)
 file(GLOB spvFiles "${CMAKE_SOURCE_DIR}/resource/*.spv")

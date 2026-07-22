@@ -3,12 +3,15 @@
 #include "GLBLoader.h"
 #include "Camera.h"
 #include "AtmosphereRMSEMeasurement.h"
+#include "PresetManager.h"
 
 #include "core/CircularQueue.hpp"
 
 #include "render/VulkanContext.h"
 #include "render/Drawable.hpp"
 #include "render/Shader.h"
+
+#include <glm/gtc/quaternion.hpp>
 
 #include <memory>
 #include <map>
@@ -42,6 +45,7 @@ protected:
 	void BeginBuildCommandBuffer() override;
 private:
 	void DrawDebugGUI();
+	void DrawPresetGUI();
 	void SetAtmosphereModel(bool useHillaire);
 	void CreateDrawables();
 	void ControlCamera(double dt);
@@ -87,6 +91,17 @@ private:
 
 	uint64_t counter = 0;
 	int menu = 0;
+
+	struct Preset
+	{
+		glm::vec3 camPos;
+		glm::quat camQuat;
+		glm::vec4 sun;
+		auto Serialize() const -> Json;
+		void Deserialize(const Json& json);
+	};
+	std::vector<Preset> presets;
+	PresetManager<Preset> presetManager;
 
 	struct ImageReCreateRequest
 	{

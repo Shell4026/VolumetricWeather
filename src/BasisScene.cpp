@@ -15,15 +15,19 @@
 #include "pass/BlitPass.h"
 
 #include "imgui/imgui.h"
+#include "imgui/imgui_stdlib.h"
 #include "glm/gtc/quaternion.hpp"
 
 #include <queue>
+#include <string>
 BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
 	AScene(ctx, imgui, window)
 {
 	const glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(0.f)) };
 	const glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
 	sun = glm::vec4{ sunDir, sun.w };
+
+	presetManager.LoadPresets("presets.json");
 }
 
 BasisScene::~BasisScene()
@@ -293,6 +297,8 @@ void BasisScene::DrawDebugGUI()
 				menu = 1;
 			if (ImGui::Button("Quality"))
 				menu = 2;
+			if (ImGui::Button("Preset"))
+				menu = 3;
 			ImGui::EndMenuBar();
 		}
 
@@ -413,9 +419,55 @@ void BasisScene::DrawDebugGUI()
 			if (!rmseMeasurement.GetError().empty())
 				ImGui::TextWrapped("RMSE error: %s", rmseMeasurement.GetError().c_str());
 		}
+		if (menu == 3)
+		{
+			DrawPresetGUI();
+		}
 		ImGui::EndDisabled();
 		ImGui::End();
 	}
+}
+
+void BasisScene::DrawPresetGUI()
+{
+	FPSCamera& camera = static_cast<FPSCamera&>(*GetCamera());
+
+	static std::string presetName;
+	ImGui::InputText("name", &presetName);
+	if (ImGui::Button("Make Preset"))
+	{
+		Preset preset{};
+		preset.camPos = camera.GetPos();
+		preset.camQuat = camera.GetQuat();
+		preset.sun = sun;
+		presetManager.AddPreset(presetName, preset);
+		presetName.clear();
+	}
+	ImGui::Separator();
+
+	for (const auto& presetInfo : presetManager.GetPresets())
+	{
+		ImGui::Text(presetInfo.name.c_str());
+		ImGui::SameLine();
+		if (ImGui::Button(std::format("Load##{}", presetInfo.name).c_str()))
+		{
+			camera.SetPos(presetInfo.preset.camPos);
+			camera.SetQuat(presetInfo.preset.camQuat);
+			camera.UpdateMatrix();
+			sun = presetInfo.preset.sun;
+			UpdateSun();
+			UpdateCameraData();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button(std::format("Delete##{}", presetInfo.name).c_str()))
+			presetManager.DeletePreset(presetInfo.name);
+	}
+
+	ImGui::Separator();
+	if (ImGui::Button("Export Presets"))
+		presetManager.ExportPresets("presets.json");
+	if (ImGui::Button("Load Presets"))
+		presetManager.LoadPresets("presets.json");
 }
 
 void BasisScene::SetAtmosphereModel(bool useHillaire)
@@ -482,6 +534,8 @@ void BasisScene::CreateDrawables()
 
 void BasisScene::ControlCamera(double dt)
 {
+	if (ImGui::GetIO().WantTextInput)
+		return;
 	FPSCamera& camera = static_cast<FPSCamera&>(*GetCamera());
 	if (Input::IsKeyDown(Event::KeyType::Up))
 	{
@@ -572,4 +626,29 @@ void BasisScene::UpdateSun()
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView | LUTPass::LUTType::AerialPerspective);
 
 	shadowPass->SetCamera(sunCamera);
+}
+
+auto BasisScene::Preset::Serialize() const -> Json
+{
+	Json json;
+	json["camPos"] = { camPos.x, camPos.y, camPos.z };
+	json["camQuat"] = { camQuat.x, camQuat.y, camQuat.z, camQuat.w };
+	json["sun"] = { sun.x, sun.y, sun.z, sun.w };
+	return json;
+}
+
+void BasisScene::Preset::Deserialize(const Json& json)
+{
+	if (auto it = json.find("camPos"); it != json.end())
+	{
+		camPos.x = it.value()[0]; camPos.y = it.value()[1]; camPos.z = it.value()[2];
+	}
+	if (auto it = json.find("camQuat"); it != json.end())
+	{
+		camQuat.x = it.value()[0]; camQuat.y = it.value()[1]; camQuat.z = it.value()[2]; camQuat.w = it.value()[3];
+	}
+	if (auto it = json.find("sun"); it != json.end())
+	{
+		sun.x = it.value()[0]; sun.y = it.value()[1]; sun.z = it.value()[2]; sun.w = it.value()[3];
+	}
 }

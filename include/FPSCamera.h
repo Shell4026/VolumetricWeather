@@ -14,8 +14,12 @@ public:
 	void AddYaw(float degree);
 	void SetPitch(float degree);
 	void AddPitch(float degree);
+	void SetQuat(const glm::quat quat);
+	auto GetQuat() const -> const glm::quat& { return quat; }
 private:
-	float yaw = 270.f;
+	void ApplyQuat();
+private:
+	float yaw = 0.f;
 	float pitch = 0.f;
 
 	glm::quat quat;
