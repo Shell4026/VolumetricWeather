@@ -27,6 +27,10 @@ void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame
 		lutPass.GetAerialPerspectiveLUT()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(
+		lutPass.GetAerialShadowLUT()->GetImage(),
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void HillairePass::UpdateMaterial()
@@ -34,6 +38,7 @@ void HillairePass::UpdateMaterial()
 	material->UpdateBindingData(5, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler());
 	material->UpdateBindingData(6, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler());
 	material->UpdateBindingData(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler());
+	material->UpdateBindingData(8, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler());
 }
 
 auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
@@ -80,6 +85,11 @@ auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSet
 	binding7.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 	binding7.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding7.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding8 = set1Bindings.emplace_back();
+	binding8.binding = 8;
+	binding8.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+	binding8.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding8.descriptorCount = 1;
 
 	Shader shader{};
 	shader.
@@ -101,6 +111,7 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 		AddBinding(5, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler()).
 		AddBinding(6, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler()).
 		AddBinding(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler()).
+		AddBinding(8, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, atmosphere);

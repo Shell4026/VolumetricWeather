@@ -71,7 +71,7 @@ vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir) // 여기서는 안 씀
 	const float mu = dot(up, dir);
 	
 	const float r = height + setting.groundRadius;
-	// 지평면에서의 수평 방향 대기까지의 거리 H
+	// 지평선에서 대기까지의 거리 H
 	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
 	// 지평선 거리 rho
 	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);

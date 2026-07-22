@@ -103,17 +103,17 @@ auto AScene::CreateDescriptorPool()->VkDescriptorPool
 	std::vector<VkDescriptorPoolSize> poolSizes;
 	VkDescriptorPoolSize& uniformBufferPoolSize = poolSizes.emplace_back();
 	uniformBufferPoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uniformBufferPoolSize.descriptorCount = 10;
+	uniformBufferPoolSize.descriptorCount = 20;
 	VkDescriptorPoolSize& storageImagePoolSize = poolSizes.emplace_back();
 	storageImagePoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	storageImagePoolSize.descriptorCount = 10;
 	VkDescriptorPoolSize& samplerPoolSize = poolSizes.emplace_back();
 	samplerPoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerPoolSize.descriptorCount = 10;
+	samplerPoolSize.descriptorCount = 20;
 
 	VkDescriptorPoolCreateInfo poolCi{};
 	poolCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolCi.maxSets = 10;
+	poolCi.maxSets = 20;
 	poolCi.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolCi.pPoolSizes = poolSizes.data();
 	poolCi.flags = VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;

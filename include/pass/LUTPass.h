@@ -4,6 +4,7 @@
 #include "render/VulkanContext.h"
 
 #include "glm/vec4.hpp"
+#include "glm/mat4x4.hpp"
 
 #include <memory>
 class VulkanImage;
@@ -16,11 +17,13 @@ public:
 	struct GlobalSetting
 	{
 		glm::vec4 sun;
+		glm::mat4 sunViewProj;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
 		uint32_t transmittanceLUTSteps = 40;
 		uint32_t skyViewLUTSteps = 40;
 		uint32_t aerialPerspectiveLUTSteps = 40;
+		uint32_t aerialShadowSteps = 20;
 	} globalSetting;
 	enum LUTType
 	{
@@ -37,6 +40,9 @@ public:
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	void SetShadowMap(const VulkanImage& shadowMap) { this->shadowMap = &shadowMap; }
+	void SetShadowSampler(const VulkanSampler& sampler) { shadowSampler = &sampler; }
+	void SetDepthTexture(const VulkanImage& depthTexture) { depthTex = &depthTexture; }
 
 	void UpdateLUTFlags(LUTTypeFlags types) { updateLUTFlags |= types; }
 	void ReCreateSkyViewLUT(uint32_t width, uint32_t height);
@@ -47,7 +53,7 @@ public:
 	auto GetSkyViewLUT() const -> VulkanImage* { return skyView.lut.get(); }
 	auto GetAerialPerspectiveSampler() const -> VulkanSampler* { return aerialPerspective.sampler.get(); }
 	auto GetAerialPerspectiveLUT() const -> VulkanImage* { return aerialPerspective.lut.get(); }
-	auto GetAerialShadowSampler() const -> VulkanSampler* { return aerialShadow.sampler.get(); }
+	auto GetAerialShadowSampler() const -> VulkanSampler* { return aerialPerspective.sampler.get(); } // 같은 샘플러
 	auto GetAerialShadowLUT() const -> VulkanImage* { return aerialShadow.lut.get(); }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
@@ -72,10 +78,19 @@ private:
 	struct alignas(16) AerialPerspectiveSetting
 	{
 		glm::vec4 sun;
-		uint32_t steps = 40;
+		glm::mat4 sunViewProj;
+		uint32_t steps = 20;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
 	} aerialSetting;
+	struct alignas(16) AerialShadowSetting
+	{
+		glm::vec4 sun;
+		glm::mat4 sunViewProj;
+		uint32_t steps = 20;
+		float groundRadius = 6'360'000.f;
+		float atmosphereRadius = 6'460'000.f;
+	} shadowSetting;
 
 	struct Transmittance
 	{
@@ -106,9 +121,12 @@ private:
 		std::unique_ptr<Shader> shader;
 		std::unique_ptr<Material> material;
 		std::unique_ptr<VulkanImage> lut;
-		std::unique_ptr<VulkanSampler> sampler;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 	} aerialShadow;
+
+	const VulkanImage* shadowMap = nullptr;
+	const VulkanSampler* shadowSampler = nullptr;
+	const VulkanImage* depthTex = nullptr;
 
 	uint32_t updateLUTFlags = 0;
 };

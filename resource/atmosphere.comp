@@ -45,8 +45,32 @@ float Visible(vec3 worldPos)
         z < 0.0 || z > 1.0)
         return 1.0;
 	
-	const float shadowing = texture(shadowMap, vec3(uv, z - 0.0005));
-	return shadowing;
+    vec2 texelSize =
+        1.0 / vec2(textureSize(shadowMap, 0));
+
+    const float bias = 0.0005;
+    const int radius = 2;
+
+    float visibility = 0.0;
+    float sampleCount = 0.0;
+
+    for (int y = -radius; y <= radius; ++y)
+    {
+        for (int x = -radius; x <= radius; ++x)
+        {
+            vec2 offset =
+                vec2(float(x), float(y)) * texelSize;
+
+            visibility += texture(
+                shadowMap,
+                vec3(uv + offset, z - bias)
+            );
+
+            sampleCount += 1.0;
+        }
+    }
+
+    return visibility / sampleCount;
 }
 
 vec3 RayleighScattering(float y)

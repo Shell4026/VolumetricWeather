@@ -12,12 +12,14 @@ layout(set = 0, binding = 0) uniform Camera
 layout(set = 1, binding = 0) uniform Setting
 {
 	vec4 sun;
+	mat4 sunViewProj;
 	int steps;
 	float groundRadius;
 	float atmosphereRadius;
 } setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image3D outImage;
 layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
+layout(set = 1, binding = 3) uniform sampler2DShadow shadowMap;
 vec3 projToWorldPos(vec2 pixel)
 {
 	const vec3 ndc = vec3(pixel * 2.0 - 1.0, 1.0);
@@ -25,6 +27,21 @@ vec3 projToWorldPos(vec2 pixel)
 	viewPos.xyz /= viewPos.w;
 	const vec3 worldPos = (camera.invView * vec4(viewPos.xyz, 1.0)).xyz;
 	return worldPos;
+}
+
+float Visible(vec3 worldPos)
+{
+	vec4 sunProjCoord = setting.sunViewProj * vec4(worldPos, 1.0);
+	vec2 uv = (sunProjCoord.xy / sunProjCoord.w + 1.0) * 0.5;
+	uv.y = 1.0 - uv.y;
+	const float z = sunProjCoord.z / sunProjCoord.w;
+    if (uv.x < 0.0 || uv.x > 1.0 ||
+        uv.y < 0.0 || uv.y > 1.0 ||
+        z < 0.0 || z > 1.0)
+        return 1.0;
+	
+	const float bias = 0.0005;
+    return texture(shadowMap, vec3(uv, z - bias));
 }
 
 vec3 RayleighScattering(float y)
@@ -89,7 +106,7 @@ vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
 	const float mu = dot(up, dir);
 	
 	const float r = height + setting.groundRadius;
-	// 지평면에서의 수평 방향 대기까지의 거리 H
+	// 지평선에서 대기까지의 거리 H
 	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
 	// 지평선 거리 rho
 	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);
@@ -164,12 +181,15 @@ void main()
 			if (atmosphereHit)
 				lightViewTransmittance = TransmittanceUsingLUT(samplePos, -sunDir);
 			
+			//float visibility = Visible(samplePos);
+			const float visibility = 1.0;
+			
 			const vec3 phase = 
 			(
 				RayleighScattering(sampleHeight) * rayleighPhase + 
 				MieScattering(sampleHeight) * miePhase
 			) * stepSize;
-			inScattering += exp(-sigmaSum) * lightViewTransmittance * phase * setting.sun.w;
+			inScattering += exp(-sigmaSum) * lightViewTransmittance * visibility * phase * setting.sun.w;
 		}
 		const vec3 transmittance = exp(-sigmaSum);
 		const float transmittanceGray = dot(transmittance, vec3(1.0 / 3.0));

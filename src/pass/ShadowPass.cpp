@@ -113,7 +113,7 @@ void ShadowPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout
 
 	VkImageCreateInfo imgCI = VulkanImage::GetCreateInfo();
 	imgCI.format = VkFormat::VK_FORMAT_D32_SFLOAT;
-	imgCI.extent = { 2048, 2048, 1 };
+	imgCI.extent = { 4096, 4096, 1 };
 	imgCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	sunShadowMap = std::make_unique<VulkanImage>(ctx, imgCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 

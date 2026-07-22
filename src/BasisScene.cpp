@@ -20,6 +20,7 @@
 
 #include <queue>
 #include <string>
+#include <format>
 BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
 	AScene(ctx, imgui, window)
 {
@@ -193,6 +194,9 @@ void BasisScene::SetupPass()
 	opaquePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	lutPass = std::make_unique<LUTPass>();
+	lutPass->SetDepthTexture(*opaquePass->GetOutputImageDepth());
+	lutPass->SetShadowMap(*shadowPass->GetShadowMap());
+	lutPass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	lutPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 
@@ -396,6 +400,12 @@ void BasisScene::DrawDebugGUI()
 				ImGui::Text("Steps");
 				if (ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 64))
 					lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
+
+				ImGui::Separator();
+				ImGui::Text("Aerial Shadow");
+				ImGui::Text("Steps");
+				if (ImGui::SliderInt("##AerialShadowStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialShadowSteps), 1, 64))
+					lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
 			}
 
 			ImGui::Separator();
@@ -499,7 +509,7 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 
 void BasisScene::CreateDrawables()
 {
-	glm::mat4 rootMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, -700.f, 0.f });
+	glm::mat4 rootMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, 0.f });
 	rootMatrix = glm::scale(rootMatrix, glm::vec3{ 10.f, 10.f, 10.f });
 
 	struct BFSInfo
@@ -614,15 +624,18 @@ void BasisScene::UpdateSun()
 	sunCamera.SetHeight(length * 2.f);
 	sunCamera.UpdateMatrix();
 
+	const glm::mat4 sunViewProj = sunCamera.GetMatrixProj() * sunCamera.GetMatrixView();;
+
 	AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
 	mountain.data.sun = sun;
-	mountain.data.viewProj = sunCamera.GetMatrixProj() * sunCamera.GetMatrixView();
+	mountain.data.viewProj = sunViewProj;
 	mountain.material->UpdateBindingData(0, mountain.data);
 
 	atmosphere.sun = sun;
 	atmosphere.sunViewProj = mountain.data.viewProj;
 	currentAtmospherePass->SetAtmosphere(atmosphere);
 	lutPass->globalSetting.sun = sun;
+	lutPass->globalSetting.sunViewProj = sunViewProj;
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView | LUTPass::LUTType::AerialPerspective);
 
 	shadowPass->SetCamera(sunCamera);

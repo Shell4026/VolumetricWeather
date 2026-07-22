@@ -23,7 +23,7 @@ layout(set = 1, binding = 4) uniform sampler2DShadow shadowMap;
 layout(set = 1, binding = 5) uniform sampler2D transmittanceLUT;
 layout(set = 1, binding = 6) uniform sampler2D skyViewLUT;
 layout(set = 1, binding = 7) uniform sampler3D aerialPerspectiveLUT;
-
+layout(set = 1, binding = 8) uniform sampler2D aerialShadow;
 const float GROUND_RADIUS = 6360 * 1000.0;
 const vec3 PLANET_CENTER = vec3(0.0, -GROUND_RADIUS, 0.0);
 
@@ -107,6 +107,7 @@ void main()
 	}
 	
 	const float z = texture(depth, uv).r;
+	const vec3 aerialShadow = texture(aerialShadow, uv).rgb;
 	vec3 result = vec3(0.0);
 	if (z < 1.0)
 	{
@@ -116,12 +117,12 @@ void main()
 		const vec4 opaqueColor = texture(opaque, uv);
 		const vec4 aerialPerspective = texture(aerialPerspectiveLUT, vec3(uv, lutZ));
 		
-		result = opaqueColor.rgb * aerialPerspective.a + aerialPerspective.rgb;
+		result = opaqueColor.rgb * aerialPerspective.a + (aerialPerspective.rgb - aerialShadow);
 	}
 	else
 	{
 		const vec3 skyViewColor = SkyViewLUT(rayDir);
-		result = skyViewColor;
+		result = skyViewColor - aerialShadow;
 	}
 	imageStore(outImage, pixel, vec4(result, 1.0));
 }
