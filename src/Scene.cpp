@@ -247,7 +247,7 @@ void AScene::SubmitCommandBuffer()
 		VkSubmitInfo info = pass->GetSubmitInfo();
 		std::array<VkSemaphore, 10> waits{ VK_NULL_HANDLE };
 		std::array<VkSemaphore, 10> signals{ VK_NULL_HANDLE };
-		std::array<VkPipelineStageFlags, 10> waitStages{};
+		std::array<VkPipelineStageFlags, 10> waitStages{ 0 };
 		std::array<uint64_t, 10> waitTimelineValues{ 0 };
 		std::array<uint64_t, 10> signalTimelineValues{ 0 };
 		if (info.waitSemaphoreCount > 0)
@@ -298,6 +298,9 @@ void AScene::SubmitCommandBuffer()
 			info.pWaitDstStageMask = waitStages.data();
 			info.pNext = &tsInfo;
 			firstSwapchainPass = pass;
+			VK_RESULT_CHECK(vkQueueSubmit(ctx.GetGraphicsQueue(), 1, &info, pass->GetFence()));
+			++idx;
+			continue;
 		}
 		// 마지막 패스
 		if (idx == activePassList.size() - 1)
