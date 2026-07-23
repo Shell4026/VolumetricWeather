@@ -43,9 +43,13 @@ public:
 	void SetShadowMap(const VulkanImage& shadowMap) { this->shadowMap = &shadowMap; }
 	void SetShadowSampler(const VulkanSampler& sampler) { shadowSampler = &sampler; }
 	void SetDepthTexture(const VulkanImage& depthTexture) { depthTex = &depthTexture; }
+	void EnablePass(LUTTypeFlags flags) { enableLUTFlags |= flags; }
+	void DisablePass(LUTTypeFlags flags) { enableLUTFlags &= ~flags; }
+	void TogglePass(LUTTypeFlags flags) { enableLUTFlags ^= flags; }
 
 	void UpdateLUTFlags(LUTTypeFlags types) { updateLUTFlags |= types; }
 	void ReCreateSkyViewLUT(uint32_t width, uint32_t height);
+	void ReCreateShadowLUT(uint32_t width, uint32_t height);
 
 	auto GetTransmittanceLUTSampler() const -> VulkanSampler* { return transmittance.sampler.get(); }
 	auto GetTransmittanceLUT() const -> VulkanImage* { return transmittance.lut.get(); }
@@ -129,4 +133,5 @@ private:
 	const VulkanImage* depthTex = nullptr;
 
 	uint32_t updateLUTFlags = 0;
+	uint32_t enableLUTFlags = LUTType::All;
 };

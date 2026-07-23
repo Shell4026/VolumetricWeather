@@ -79,6 +79,8 @@ void BasisScene::BeginRender(double dt)
 	{
 		if (img == lutPass->GetSkyViewLUT())
 			lutPass->ReCreateSkyViewLUT(req.width, req.height);
+		else if (img == lutPass->GetAerialShadowLUT())
+			lutPass->ReCreateShadowLUT(req.width, req.height);
 	}
 	imgRecreateRequests.clear();
 	if (bImgRecreate)
@@ -371,41 +373,74 @@ void BasisScene::DrawDebugGUI()
 			else
 			{
 				ImGui::Separator();
-				ImGui::Text("Transmittance LUT");
-				ImGui::Text("Steps");
-				if (ImGui::SliderInt("##TransmittanceLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.transmittanceLUTSteps), 1, 64))
-					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
-				
-				ImGui::Separator();
-				ImGui::Text("SkyView LUT");
-				ImGui::Text("Steps");
-				if (ImGui::SliderInt("##SkyViewLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.skyViewLUTSteps), 1, 64))
-					lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
-				ImGui::Text("Width / Height");
-				int size[2] = { lutPass->GetSkyViewLUT()->GetInfo().extent.width, lutPass->GetSkyViewLUT()->GetInfo().extent.height };
-				if (ImGui::InputInt2("##SkyViewSize", size, ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
+				if (ImGui::CollapsingHeader("Transmittance LUT"))
 				{
-					size[0] = std::clamp(size[0], 1, 4096);
-					size[1] = std::clamp(size[1], 1, 4096);
-					ImageReCreateRequest request{};
-					request.img = lutPass->GetSkyViewLUT();
-					request.width = size[0];
-					request.height = size[1];
-					imgRecreateRequests.insert_or_assign(lutPass->GetSkyViewLUT(), request);
-					lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
+					ImGui::Text("Steps");
+					if (ImGui::SliderInt("##TransmittanceLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.transmittanceLUTSteps), 1, 64))
+						lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
+				}
+				
+				if (ImGui::CollapsingHeader("Sky-View LUT"))
+				{
+					ImGui::Text("Steps");
+					if (ImGui::SliderInt("##SkyViewLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.skyViewLUTSteps), 1, 64))
+						lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
+					ImGui::Text("Width / Height");
+					int size[2] = { lutPass->GetSkyViewLUT()->GetInfo().extent.width, lutPass->GetSkyViewLUT()->GetInfo().extent.height };
+					if (ImGui::InputInt2("##SkyViewSize", size, ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
+					{
+						size[0] = std::clamp(size[0], 1, 4096);
+						size[1] = std::clamp(size[1], 1, 4096);
+						ImageReCreateRequest request{};
+						request.img = lutPass->GetSkyViewLUT();
+						request.width = size[0];
+						request.height = size[1];
+						imgRecreateRequests.insert_or_assign(lutPass->GetSkyViewLUT(), request);
+						lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
+					}
 				}
 
-				ImGui::Separator();
-				ImGui::Text("AerialPerspective LUT");
-				ImGui::Text("Steps");
-				if (ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 64))
-					lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
+				if (ImGui::CollapsingHeader("AerialPerspective LUT"))
+				{
+					bool bActive = atmosphere.modeFlags & 0b01;
+					if (ImGui::Checkbox("Toggle##AP", &bActive))
+					{
+						atmosphere.modeFlags ^= 0b01;
+						lutPass->TogglePass(LUTPass::LUTType::AerialPerspective);
 
-				ImGui::Separator();
-				ImGui::Text("Aerial Shadow");
-				ImGui::Text("Steps");
-				if (ImGui::SliderInt("##AerialShadowStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialShadowSteps), 1, 64))
-					lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
+						currentAtmospherePass->SetAtmosphere(atmosphere);
+					}
+					ImGui::Text("Steps");
+					if (ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 64))
+						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
+				}
+
+				if (ImGui::CollapsingHeader("Volumetric Shadow"))
+				{
+					bool bActive = atmosphere.modeFlags & 0b10;
+					if (ImGui::Checkbox("Toggle##VolumetricShadow", &bActive))
+					{
+						atmosphere.modeFlags ^= 0b10;
+						lutPass->TogglePass(LUTPass::LUTType::AerialShadow);
+						currentAtmospherePass->SetAtmosphere(atmosphere);
+					}
+					ImGui::Text("Steps");
+					if (ImGui::SliderInt("##AerialShadowStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialShadowSteps), 1, 64))
+						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
+					ImGui::Text("Width / Height");
+					int size[2] = { lutPass->GetAerialShadowLUT()->GetInfo().extent.width, lutPass->GetAerialShadowLUT()->GetInfo().extent.height };
+					if (ImGui::InputInt2("##VolumetricShadowSize", size, ImGuiInputTextFlags_::ImGuiInputTextFlags_EnterReturnsTrue))
+					{
+						size[0] = std::clamp(size[0], 1, 4096);
+						size[1] = std::clamp(size[1], 1, 4096);
+						ImageReCreateRequest request{};
+						request.img = lutPass->GetAerialShadowLUT();
+						request.width = size[0];
+						request.height = size[1];
+						imgRecreateRequests.insert_or_assign(lutPass->GetAerialShadowLUT(), request);
+						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialShadow);
+					}
+				}
 			}
 
 			ImGui::Separator();

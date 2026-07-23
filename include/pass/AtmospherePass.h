@@ -12,12 +12,13 @@ class Material;
 class AtmospherePass : public APass
 {
 public:
-	struct Atmosphere
+	struct alignas(16) Atmosphere
 	{
-		alignas(16) glm::vec4 sun; // dir, illuminance
-		alignas(16) glm::mat4 sunViewProj{ 1.f };
-		alignas(8) glm::ivec2 steps = { 64, 20 };
-		alignas(4) float radius = 6'460'000.f;
+		glm::vec4 sun; // dir, illuminance
+		glm::mat4 sunViewProj{ 1.f };
+		glm::ivec2 steps = { 64, 20 };
+		float radius = 6'460'000.f;
+		int modeFlags = 0b11;
 	};
 public:
 	AtmospherePass() { bUseSwapchainImage = false; }
