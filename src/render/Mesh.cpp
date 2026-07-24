@@ -1,5 +1,21 @@
 ﻿#include "render/Mesh.h"
 
+void AMeshBase::SetIndices(std::vector<uint32_t> _indices)
+{
+	indices = std::move(_indices);
+
+	faces.clear();
+	for (std::size_t i = 0; i < indices.size(); i += 3)
+	{
+		if (i + 2 >= indices.size())
+			return;
+		Face& face = faces.emplace_back();
+		face.verts[0] = indices[i];
+		face.verts[1] = indices[i + 1];
+		face.verts[2] = indices[i + 2];
+	}
+}
+
 void AMeshBase::CreateBuffers(const VulkanContext& ctx)
 {
 	buffer = std::make_unique<VulkanBuffer>(CreateVertexBuffer(ctx));

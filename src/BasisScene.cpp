@@ -13,6 +13,7 @@
 #include "pass/HillairePass.h"
 #include "pass/PostProcessPass.h"
 #include "pass/BlitPass.h"
+#include "pass/FakeVolumePass.h"
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_stdlib.h"
@@ -85,6 +86,12 @@ void BasisScene::BeginRender(double dt)
 	imgRecreateRequests.clear();
 	if (bImgRecreate)
 		hillairePass->UpdateMaterial();
+
+	if (bRecreateVolume)
+	{
+		CreateVolumes();
+		bRecreateVolume = false;
+	}
 
 	if (const std::optional<bool> requestedModel = rmseMeasurement.Update(
 		*blitPass, *atmospherePass->GetOutputImage(), *hillairePass->GetOutputImage()))
@@ -181,25 +188,32 @@ void BasisScene::PrepareResource()
 	mountain.data.sun = sun;
 	mountain.material->UpdateBindingData(0, mountain.data);
 
+
 	CreateDrawables();
+	CreateVolumes();
 }
 
 void BasisScene::SetupPass()
 {
+	const VkDescriptorSetLayout cameraSetLayout = GetCameraDescriptorSetLayout();
+
 	shadowPass = std::make_unique<ShadowPass>();
-	shadowPass->Init(ctx, GetDescriptorPool(), VK_NULL_HANDLE);
+	shadowPass->Init(ctx, GetDescriptorPool(), cameraSetLayout);
 	mountain.material->UpdateBindingData(2, *shadowPass->GetShadowMap(), shadowPass->GetShadowSampler()->GetSampler());
+
+	fakeVolumePass = std::make_unique<FakeVolumePass>();
+	fakeVolumePass->Init(ctx, GetDescriptorPool(), cameraSetLayout);
 
 	opaquePass = std::make_unique<OpaquePass>();
 	opaquePass->SetShader(opaqueShader);
 	opaquePass->SetImageSize(window.GetWidth(), window.GetHeight());
-	opaquePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	opaquePass->Init(ctx, GetDescriptorPool(), cameraSetLayout);
 
 	lutPass = std::make_unique<LUTPass>();
 	lutPass->SetDepthTexture(*opaquePass->GetOutputImageDepth());
 	lutPass->SetShadowMap(*shadowPass->GetShadowMap());
 	lutPass->SetShadowSampler(*shadowPass->GetShadowSampler());
-	lutPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	lutPass->Init(ctx, GetDescriptorPool(), cameraSetLayout);
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 
 	atmospherePass = std::make_unique<AtmospherePass>();
@@ -208,7 +222,7 @@ void BasisScene::SetupPass()
 	atmospherePass->SetShadowMap(*shadowPass->GetShadowMap());
 	atmospherePass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	atmospherePass->SetImageSize(window.GetWidth(), window.GetHeight());
-	atmospherePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	atmospherePass->Init(ctx, GetDescriptorPool(), cameraSetLayout);
 
 	hillairePass = std::make_unique<HillairePass>(*lutPass);
 	hillairePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
@@ -216,7 +230,7 @@ void BasisScene::SetupPass()
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
 	hillairePass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	hillairePass->SetImageSize(window.GetWidth(), window.GetHeight());
-	hillairePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	hillairePass->Init(ctx, GetDescriptorPool(), cameraSetLayout);
 
 	currentAtmospherePass = atmospherePass.get();
 
@@ -226,7 +240,7 @@ void BasisScene::SetupPass()
 	blitPass = std::make_unique<BlitPass>();
 	blitPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+	allPasses = { shadowPass.get(), fakeVolumePass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get()};
 	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
 
 	UpdateSun();
@@ -238,6 +252,11 @@ void BasisScene::BeginBuildCommandBuffer()
 	{
 		opaquePass->PushDrawable(drawable);
 		shadowPass->PushDrawable(drawable);
+	}
+	if (currentAtmospherePass == hillairePass.get())
+	{
+		for (const Drawable& drawable : volumes)
+			fakeVolumePass->PushDrawable(drawable);
 	}
 }
 
@@ -530,7 +549,7 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 	if (useHillaire)
 	{
 		SH_INFO("Change to Hillaire");
-		activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+		activePasses = { shadowPass.get(), fakeVolumePass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
 	}
 	else
@@ -575,6 +594,25 @@ void BasisScene::CreateDrawables()
 		}
 	}
 	return;
+}
+
+void BasisScene::CreateVolumes()
+{
+	mountain.volumeMeshes.clear();
+	volumes.clear();
+	for (std::size_t i = 0; i < drawables.size(); ++i)
+	{
+		if (drawables[i].mesh == nullptr)
+			continue;
+
+		const Mesh<GLBVertex>* modelPtr = static_cast<const Mesh<GLBVertex>*>(drawables[i].mesh);
+		const glm::mat4 modelMatrix = drawables[i].modelMatrix;
+		mountain.volumeMeshes.push_back(std::make_unique<Mesh<VolumeVertex>>(FakeVolumeGenerator::GenerateShadowVolumeMesh(ctx, *modelPtr, glm::vec3{ sun.x, sun.y, sun.z }, modelMatrix)));
+
+		Drawable& volume = volumes.emplace_back();
+		volume.modelMatrix = drawables[i].modelMatrix;
+		volume.mesh = mountain.volumeMeshes.back().get();
+	}
 }
 
 void BasisScene::ControlCamera(double dt)
@@ -674,6 +712,8 @@ void BasisScene::UpdateSun()
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView | LUTPass::LUTType::AerialPerspective);
 
 	shadowPass->SetCamera(sunCamera);
+
+	bRecreateVolume = true;
 }
 
 auto BasisScene::Preset::Serialize() const -> Json

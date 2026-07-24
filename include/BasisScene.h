@@ -4,6 +4,7 @@
 #include "Camera.h"
 #include "AtmosphereRMSEMeasurement.h"
 #include "PresetManager.h"
+#include "FakeVolumeGenerator.h"
 
 #include "core/CircularQueue.hpp"
 
@@ -22,6 +23,8 @@ class AtmospherePass;
 class HillairePass;
 class PostProcessPass;
 class BlitPass;
+class FakeVolumePass;
+
 class Material;
 class VulkanImage;
 class BasisScene : public AScene
@@ -48,6 +51,7 @@ private:
 	void DrawPresetGUI();
 	void SetAtmosphereModel(bool useHillaire);
 	void CreateDrawables();
+	void CreateVolumes();
 	void ControlCamera(double dt);
 	void UpdateSun();
 private:
@@ -60,6 +64,7 @@ private:
 	std::unique_ptr<HillairePass> hillairePass;
 	std::unique_ptr<PostProcessPass> postProcessPass;
 	std::unique_ptr<BlitPass> blitPass;
+	std::unique_ptr<FakeVolumePass> fakeVolumePass;
 	AtmosphereRMSEMeasurement rmseMeasurement;
 
 	AtmospherePass* currentAtmospherePass = nullptr;
@@ -69,6 +74,8 @@ private:
 	struct Mountain
 	{
 		GLBLoader::Model model;
+		std::vector<std::unique_ptr<Mesh<VolumeVertex>>> volumeMeshes;
+
 		struct MaterialData
 		{
 			alignas(16) glm::vec4 sun;
@@ -80,6 +87,7 @@ private:
 	std::vector<APass*> allPasses;
 	std::vector<APass*> activePasses;
 	std::vector<Drawable> drawables;
+	std::vector<Drawable> volumes;
 
 	glm::vec4 sun{ -1.f, 0.f, -1.f, 15.f };
 
@@ -111,4 +119,5 @@ private:
 	};
 	std::map<const VulkanImage*, ImageReCreateRequest> imgRecreateRequests;
 	bool bChangeAtmosphereModelRequest = false;
+	bool bRecreateVolume = false;
 };

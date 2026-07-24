@@ -10,10 +10,11 @@
 #include <cstdint>
 #include <memory>
 #include <concepts>
-
+#include <array>
 template<typename T>
 concept Vertex = std::is_class_v<T> && std::is_trivial_v<T> && requires(T)
 {
+	requires std::same_as<decltype(T::pos), glm::vec3>;
 	{ T::GetVertexInputAttributeDescription() } -> std::same_as<const std::vector<VkVertexInputAttributeDescription>&>;
 	{ T::GetVertexInputBindingDescription() } -> std::same_as<VkVertexInputBindingDescription>;
 };
@@ -27,15 +28,21 @@ struct SubMesh
 class AMeshBase
 {
 public:
+	struct Face
+	{
+		std::array<uint32_t, 3> verts;
+	};
+public:
 	AMeshBase() = default;
 	AMeshBase(AMeshBase&& other) noexcept:
 		buffer(std::move(other.buffer)),
 		indexBuffer(std::move(other.indexBuffer)),
-		indices(std::move(other.indices))
+		indices(std::move(other.indices)),
+		faces(std::move(other.faces))
 	{}
 	virtual ~AMeshBase() = default;
 
-	void SetIndices(std::vector<uint32_t> indices) { this->indices = std::move(indices); }
+	void SetIndices(std::vector<uint32_t> indices);
 	void ClearIndices() { indices.clear(); }
 	void CreateBuffers(const VulkanContext& ctx);
 	void ClearBuffers();
@@ -43,6 +50,7 @@ public:
 	auto GetVertexBuffer() const -> VulkanBuffer* { return buffer.get(); }
 	auto GetIndexBuffer() const -> VulkanBuffer* { return indexBuffer.get(); }
 	auto GetIndices() const -> const std::vector<uint32_t>& { return indices; }
+	auto GetFaces() const -> const std::vector<Face>& { return faces; }
 protected:
 	virtual auto CreateVertexBuffer(const VulkanContext& ctx) -> VulkanBuffer = 0;
 private:
@@ -51,6 +59,7 @@ private:
 	std::unique_ptr<VulkanBuffer> buffer;
 	std::unique_ptr<VulkanBuffer> indexBuffer;
 	std::vector<uint32_t> indices;
+	std::vector<Face> faces;
 };
 
 template<Vertex T>
@@ -59,9 +68,8 @@ class Mesh : public AMeshBase
 public:
 	Mesh() = default;
 	Mesh(Mesh&& other) noexcept :
-		AMeshBase(other),
-		verts(std::move(other.verts)),
-		indices(std::move(other.indices))
+		AMeshBase(std::move(other)),
+		verts(std::move(other.verts))
 	{}
 	Mesh(std::vector<T> verts, std::vector<uint32_t> indices) :
 		verts(std::move(verts)), indices(std::move(indices))
