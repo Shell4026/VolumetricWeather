@@ -3,6 +3,7 @@
 #include "render/FrameContext.h"
 #include "render/BarrierInfo.h"
 #include "render/GPUTimer.h"
+#include "render/SamplerManager.h"
 
 #include <filesystem>
 #include <vector>
@@ -11,7 +12,7 @@ class APass
 public:
 	virtual ~APass();
 
-	void Init(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout);
+	void Init(const VulkanContext& ctx, SamplerManager& samplerManager, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout);
 	virtual void Clear();
 	virtual void Update(double dt) {}
 
@@ -44,6 +45,8 @@ private:
 	void AllocateCommandBuffer(VkDevice device);
 protected:
 	const VulkanContext* ctx = nullptr;
+	const SamplerManager* samplerManager = nullptr;
+
 	VkDescriptorPool descPool = VK_NULL_HANDLE;
 	VkSubmitInfo submitInfo{};
 

@@ -21,8 +21,8 @@
 #include <queue>
 #include <string>
 #include <format>
-BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
-	AScene(ctx, imgui, window)
+BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, SamplerManager& samplerManager) :
+	AScene(ctx, imgui, window, samplerManager)
 {
 	const glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(0.f)) };
 	const glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
@@ -187,19 +187,19 @@ void BasisScene::PrepareResource()
 void BasisScene::SetupPass()
 {
 	shadowPass = std::make_unique<ShadowPass>();
-	shadowPass->Init(ctx, GetDescriptorPool(), VK_NULL_HANDLE);
+	shadowPass->Init(ctx, samplerManager, GetDescriptorPool(), VK_NULL_HANDLE);
 	mountain.material->UpdateBindingData(2, *shadowPass->GetShadowMap(), shadowPass->GetShadowSampler()->GetSampler());
 
 	opaquePass = std::make_unique<OpaquePass>();
 	opaquePass->SetShader(opaqueShader);
 	opaquePass->SetImageSize(window.GetWidth(), window.GetHeight());
-	opaquePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	opaquePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	lutPass = std::make_unique<LUTPass>();
 	lutPass->SetDepthTexture(*opaquePass->GetOutputImageDepth());
 	lutPass->SetShadowMap(*shadowPass->GetShadowMap());
 	lutPass->SetShadowSampler(*shadowPass->GetShadowSampler());
-	lutPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	lutPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 
 	atmospherePass = std::make_unique<AtmospherePass>();
@@ -208,7 +208,7 @@ void BasisScene::SetupPass()
 	atmospherePass->SetShadowMap(*shadowPass->GetShadowMap());
 	atmospherePass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	atmospherePass->SetImageSize(window.GetWidth(), window.GetHeight());
-	atmospherePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	atmospherePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	hillairePass = std::make_unique<HillairePass>(*lutPass);
 	hillairePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
@@ -216,15 +216,15 @@ void BasisScene::SetupPass()
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
 	hillairePass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	hillairePass->SetImageSize(window.GetWidth(), window.GetHeight());
-	hillairePass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	hillairePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	currentAtmospherePass = atmospherePass.get();
 
 	postProcessPass = std::make_unique<PostProcessPass>(*currentAtmospherePass->GetOutputImage());
-	postProcessPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	postProcessPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	blitPass = std::make_unique<BlitPass>();
-	blitPass->Init(ctx, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+	blitPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
 	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };

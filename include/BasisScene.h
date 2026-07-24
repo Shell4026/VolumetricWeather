@@ -27,7 +27,7 @@ class VulkanImage;
 class BasisScene : public AScene
 {
 public:
-	BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window);
+	BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, SamplerManager& samplerManager);
 	~BasisScene();
 
 	void Clear() override;

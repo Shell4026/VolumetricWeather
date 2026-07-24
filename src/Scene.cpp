@@ -22,8 +22,8 @@
 #ifdef max
 #undef max
 #endif
-AScene::AScene(VulkanContext& ctx, const ImGUI& imgui, Window& window) :
-	ctx(ctx), imgui(imgui), window(window)
+AScene::AScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, SamplerManager& samplerManager) :
+	ctx(ctx), imgui(imgui), window(window), samplerManager(samplerManager)
 {
 }
 AScene::~AScene()

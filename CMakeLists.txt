@@ -39,6 +39,7 @@ set(RENDER_HEADERS
 "include/render/VulkanBuffer.h"
 "include/render/VulkanContext.h"
 "include/render/VulkanImage.h"
+"include/render/SamplerManager.h"
 )
 set(RENDER_CPPS 
 "src/render/BarrierBuilder.cpp"
@@ -49,6 +50,7 @@ set(RENDER_CPPS
 "src/render/VulkanBuffer.cpp"
 "src/render/VulkanContext.cpp"
 "src/render/VulkanImage.cpp"
+"src/render/SamplerManager.cpp"
 )
 set(HEADERS 
 "include/Camera.h"

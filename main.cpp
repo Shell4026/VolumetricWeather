@@ -3,6 +3,7 @@
 #include "core/ImGUI.h"
 
 #include "render/VulkanContext.h"
+#include "render/SamplerManager.h"
 
 #include "BasisScene.h"
 
@@ -17,6 +18,8 @@ int main()
 
 	VulkanContext ctx{ win };
 	ctx.Init();
+
+	SamplerManager samplerManager{ ctx };
 	
 	ImGUI imgui{ win, ctx };
 	imgui.Init();
@@ -39,7 +42,7 @@ int main()
 			}
 		}
 	);
-	BasisScene scene{ ctx, imgui, win };
+	BasisScene scene{ ctx, imgui, win, samplerManager };
 	scene.Init();
 
 	double dt = 0.0;

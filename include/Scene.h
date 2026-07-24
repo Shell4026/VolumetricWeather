@@ -7,6 +7,7 @@
 #include "render/Mesh.h"
 #include "render/FrameContext.h"
 #include "render/BarrierBuilder.h"
+#include "render/SamplerManager.h"
 
 #include <glm/glm.hpp>
 
@@ -23,7 +24,7 @@ class Camera;
 class AScene
 {
 public:
-	AScene(VulkanContext& ctx, const ImGUI& imgui, Window& window);
+	AScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, SamplerManager& samplerManager);
 	virtual ~AScene();
 
 	void Init();
@@ -54,6 +55,7 @@ public:
 	VulkanContext& ctx;
 	const ImGUI& imgui;
 	Window& window;
+	SamplerManager& samplerManager;
 private:
 	std::array<FrameContext, VulkanContext::MAX_CONCURRENT_FRAMES> frames;
 	// 동기화 객체

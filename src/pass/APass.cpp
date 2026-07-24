@@ -8,9 +8,10 @@ APass::~APass()
 	Clear();
 }
 
-void APass::Init(const VulkanContext& ctx, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout)
+void APass::Init(const VulkanContext& ctx, SamplerManager& samplerManager, VkDescriptorPool descPool, VkDescriptorSetLayout cameraSetLayout)
 {
 	this->ctx = &ctx;
+	this->samplerManager = &samplerManager;
 	this->cmdPool = ctx.GetCommandPool();
 	this->descPool = descPool;
 
