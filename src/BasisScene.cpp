@@ -1,5 +1,6 @@
 ﻿#include "BasisScene.h"
 #include "FPSCamera.h"
+#include "TextureLoader.h"
 
 #include "core/Input.h"
 #include "core/Window.h"
@@ -182,6 +183,12 @@ void BasisScene::PrepareResource()
 	mountain.material->UpdateBindingData(0, mountain.data);
 
 	CreateDrawables();
+
+	// 텍스쳐
+	std::optional<VulkanImage> texOpt = TextureLoader::Load(ctx, "textures/BlueNoise.png");
+	if (!texOpt.has_value())
+		throw std::runtime_error{ "textures/BlueNoise.png is not loaded!" };
+	blueNoise = std::make_unique<VulkanImage>(std::move(texOpt.value()));
 }
 
 void BasisScene::SetupPass()
@@ -199,6 +206,7 @@ void BasisScene::SetupPass()
 	lutPass->SetDepthTexture(*opaquePass->GetOutputImageDepth());
 	lutPass->SetShadowMap(*shadowPass->GetShadowMap());
 	lutPass->SetShadowSampler(*shadowPass->GetShadowSampler());
+	lutPass->SetNoiseTexture(*blueNoise);
 	lutPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 

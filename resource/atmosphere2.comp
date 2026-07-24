@@ -88,6 +88,25 @@ vec3 SkyViewLUT(vec3 rayDir)
 	return texture(skyViewLUT, skyUV).xyz;
 }
 
+vec3 AerialShadow(vec2 uv)
+{
+	const int radius = 2;
+	vec3 visibility = vec3(0.0);
+    float sampleCount = 0.0;
+	vec2 texelSize = 1.0 / vec2(textureSize(aerialShadowLUT, 0));
+	for (int y = -radius; y <= radius; ++y)
+    {
+        for (int x = -radius; x <= radius; ++x)
+        {
+            vec2 offset = vec2(float(x), float(y)) * texelSize;
+
+            visibility += texture(aerialShadowLUT, vec2(uv + offset)).rgb;
+            sampleCount += 1.0;
+        }
+    }
+	return visibility / sampleCount;
+}
+
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -114,7 +133,7 @@ void main()
 	// 0001 AerialPerspective
 	// 0010 AerialShadow
 	if ((atmosphere.modeFlags & 2) == 2)
-		aerialShadow = texture(aerialShadowLUT, uv).rgb;
+		aerialShadow = AerialShadow(uv);
 	
 	vec3 result = vec3(0.0);
 	if (z < 1.0)

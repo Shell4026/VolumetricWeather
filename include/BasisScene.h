@@ -76,6 +76,7 @@ private:
 		} data;
 		std::unique_ptr<Material> material;
 	} mountain;
+	std::unique_ptr<VulkanImage> blueNoise;
 
 	std::vector<APass*> allPasses;
 	std::vector<APass*> activePasses;

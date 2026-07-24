@@ -43,6 +43,8 @@ public:
 	void SetShadowMap(const VulkanImage& shadowMap) { this->shadowMap = &shadowMap; }
 	void SetShadowSampler(const VulkanSampler& sampler) { shadowSampler = &sampler; }
 	void SetDepthTexture(const VulkanImage& depthTexture) { depthTex = &depthTexture; }
+	void SetNoiseTexture(const VulkanImage& noiseTexture) { noiseTex = &noiseTexture; }
+
 	void EnablePass(LUTTypeFlags flags) { enableLUTFlags |= flags; }
 	void DisablePass(LUTTypeFlags flags) { enableLUTFlags &= ~flags; }
 	void TogglePass(LUTTypeFlags flags) { enableLUTFlags ^= flags; }
@@ -131,6 +133,8 @@ private:
 	const VulkanImage* shadowMap = nullptr;
 	const VulkanSampler* shadowSampler = nullptr;
 	const VulkanImage* depthTex = nullptr;
+	const VulkanImage* noiseTex = nullptr;
+	const VulkanSampler* noiseSampler = nullptr;
 
 	uint32_t updateLUTFlags = 0;
 	uint32_t enableLUTFlags = LUTType::All;

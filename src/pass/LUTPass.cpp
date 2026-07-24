@@ -143,6 +143,7 @@ void LUTPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	//if (updateLUTFlags & LUTType::AerialPerspective)
 		AddUsage(aerialPerspective.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 		AddUsage(aerialShadow.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+		AddUsage(noiseTex->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void LUTPass::ReCreateSkyViewLUT(uint32_t width, uint32_t height)
@@ -318,6 +319,11 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 		binding4.descriptorCount = 1;
 		binding4.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		binding4.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+		VkDescriptorSetLayoutBinding& binding5 = set1Bindings.emplace_back();
+		binding5.binding = 5;
+		binding5.descriptorCount = 1;
+		binding5.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		binding5.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 
 		aerialShadow.shader = std::make_unique<Shader>();
 		aerialShadow.shader->
@@ -331,6 +337,7 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 		imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
 		aerialShadow.lut = std::make_unique<VulkanImage>(ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
+	noiseSampler = &samplerManager->GetLinearRepeat();
 }
 
 void LUTPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
@@ -363,6 +370,7 @@ void LUTPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPo
 		AddBinding(2, *transmittance.lut, transmittance.sampler->GetSampler()).
 		AddBinding(3, *shadowMap, shadowSampler->GetSampler()).
 		AddBinding(4, *depthTex, shadowSampler->GetSampler()).
+		AddBinding(5, *noiseTex, noiseSampler->GetSampler()).
 		Build(descPool);
 }
 
