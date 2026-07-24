@@ -58,18 +58,20 @@ set(HEADERS
 "include/Scene.h"
 "include/GLBLoader.h"
 "include/AtmosphereRMSEMeasurement.h"
- "include/BasisScene.h" "include/PresetManager.h")
 "include/BasisScene.h" 
 "include/PresetManager.h"
+"include/TextureLoader.h"
+)
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
 "src/GLBLoader.cpp"
 "src/AtmosphereRMSEMeasurement.cpp"
 "src/Scene.cpp"
- "src/BasisScene.cpp" "src/PresetManager.cpp")
 "src/BasisScene.cpp"
 "src/PresetManager.cpp"
+"src/TextureLoader.cpp"
+)
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -114,4 +116,6 @@ file(GLOB spvFiles "${CMAKE_SOURCE_DIR}/resource/*.spv")
 file(COPY ${spvFiles} DESTINATION ${CMAKE_BINARY_DIR}/shaders)
 file(GLOB glbFiles "${CMAKE_SOURCE_DIR}/resource/*.glb")
 file(COPY ${glbFiles} DESTINATION ${CMAKE_BINARY_DIR}/models)
+file(GLOB pngFiles "${CMAKE_SOURCE_DIR}/resource/*.png")
+file(COPY ${pngFiles} DESTINATION ${CMAKE_BINARY_DIR}/textures)
 add_subdirectory(external/imgui)
