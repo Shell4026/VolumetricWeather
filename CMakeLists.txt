@@ -6,8 +6,8 @@ project ("VolumetricWeather" LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
-set(CORE_HEADERS "include/core/Event.h" "include/core/ImGUI.h" "include/core/Input.h" "include/core/Logger.h" "include/core/Window.h" "include/core/CircularQueue.hpp")
-set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "src/core/Logger.cpp" "src/core/Window.cpp")
+set(CORE_HEADERS "include/core/Event.h" "include/core/ImGUI.h" "include/core/Input.h" "include/core/Logger.h" "include/core/Window.h" "include/core/CircularQueue.hpp" "include/core/Util.h")
+set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "src/core/Logger.cpp" "src/core/Window.cpp" "src/core/Implemntation.cpp" "src/core/Util.cpp")
 set(PASS_HEADERS 
 "include/pass/APass.h"
 "include/pass/AtmospherePass.h"
@@ -16,7 +16,8 @@ set(PASS_HEADERS
 "include/pass/ShadowPass.h"
 "include/pass/IDrawablePass.h"
 "include/pass/LUTPass.h"
- "include/pass/HillairePass.h" "include/pass/BlitPass.h")
+"include/pass/HillairePass.h" 
+"include/pass/BlitPass.h")
 set(PASS_CPPS 
 "src/pass/APass.cpp"
 "src/pass/AtmospherePass.cpp"
@@ -24,7 +25,8 @@ set(PASS_CPPS
 "src/pass/OpaquePass.cpp"
 "src/pass/ShadowPass.cpp"
 "src/pass/LUTPass.cpp"
- "src/pass/HillairePass.cpp" "src/pass/BlitPass.cpp")
+"src/pass/HillairePass.cpp" 
+"src/pass/BlitPass.cpp")
 set(RENDER_HEADERS 
 "include/render/BarrierBuilder.h"
 "include/render/BarrierInfo.h"
@@ -55,6 +57,8 @@ set(HEADERS
 "include/GLBLoader.h"
 "include/AtmosphereRMSEMeasurement.h"
  "include/BasisScene.h" "include/PresetManager.h")
+"include/BasisScene.h" 
+"include/PresetManager.h"
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
@@ -62,6 +66,8 @@ set(CPPS
 "src/AtmosphereRMSEMeasurement.cpp"
 "src/Scene.cpp"
  "src/BasisScene.cpp" "src/PresetManager.cpp")
+"src/BasisScene.cpp"
+"src/PresetManager.cpp"
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

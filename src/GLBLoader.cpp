@@ -1,12 +1,10 @@
 ﻿#include "GLBLoader.h"
 #include "core/Logger.h"
-#define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "core/Util.h"
+
 #include "tiny_gltf.h"
 #include "glm/gtc/type_ptr.hpp"
 
-#include <fstream>
 #include <string>
 #include <map>
 #include <queue>
@@ -40,17 +38,8 @@ auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& p
 {
 	static tinygltf::TinyGLTF gltfContext;
 	tinygltf::Model gltfModel;
-	std::ifstream file{ path, std::ios::ate | std::ios::binary };
-	if (!file.is_open())
-	{
-		SH_ERROR_FORMAT("Failed to read glb: {}", path.string());
-		return {};
-	}
-	const std::size_t fileSize = (size_t)file.tellg();
-	std::vector<uint8_t> binary(fileSize);
-	file.seekg(0);
-	file.read(reinterpret_cast<char*>(binary.data()), fileSize);
-	file.close();
+
+	std::vector<uint8_t> binary = util::LoadBinary(path);
 
 	std::string error, warning;
 	if (!gltfContext.LoadBinaryFromMemory(&gltfModel, &error, &warning, binary.data(), binary.size()))
