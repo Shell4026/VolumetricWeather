@@ -53,13 +53,13 @@ public:
 	void ReCreateSkyViewLUT(uint32_t width, uint32_t height);
 	void ReCreateShadowLUT(uint32_t width, uint32_t height);
 
-	auto GetTransmittanceLUTSampler() const -> VulkanSampler* { return transmittance.sampler.get(); }
+	auto GetTransmittanceLUTSampler() const -> const VulkanSampler* { return transmittance.sampler; }
 	auto GetTransmittanceLUT() const -> VulkanImage* { return transmittance.lut.get(); }
-	auto GetSkyViewLUTSampler() const -> VulkanSampler* { return skyView.sampler.get(); }
+	auto GetSkyViewLUTSampler() const -> const VulkanSampler* { return skyView.sampler; }
 	auto GetSkyViewLUT() const -> VulkanImage* { return skyView.lut.get(); }
-	auto GetAerialPerspectiveSampler() const -> VulkanSampler* { return aerialPerspective.sampler.get(); }
+	auto GetAerialPerspectiveSampler() const -> const VulkanSampler* { return aerialPerspective.sampler; }
 	auto GetAerialPerspectiveLUT() const -> VulkanImage* { return aerialPerspective.lut.get(); }
-	auto GetAerialShadowSampler() const -> VulkanSampler* { return aerialPerspective.sampler.get(); } // 같은 샘플러
+	auto GetAerialShadowSampler() const -> const VulkanSampler* { return aerialPerspective.sampler; } // 같은 샘플러
 	auto GetAerialShadowLUT() const -> VulkanImage* { return aerialShadow.lut.get(); }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
@@ -103,7 +103,7 @@ private:
 		std::unique_ptr<Shader> shader;
 		std::unique_ptr<Material> material;
 		std::unique_ptr<VulkanImage> lut;
-		std::unique_ptr<VulkanSampler> sampler;
+		const VulkanSampler* sampler = nullptr;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 	} transmittance;
 	struct SkyView
@@ -111,7 +111,7 @@ private:
 		std::unique_ptr<Shader> shader;
 		std::unique_ptr<Material> material;
 		std::unique_ptr<VulkanImage> lut;
-		std::unique_ptr<VulkanSampler> sampler;
+		const VulkanSampler* sampler = nullptr;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 	} skyView;
 	struct AerialPerspective
@@ -119,7 +119,7 @@ private:
 		std::unique_ptr<Shader> shader;
 		std::unique_ptr<Material> material;
 		std::unique_ptr<VulkanImage> lut;
-		std::unique_ptr<VulkanSampler> sampler;
+		const VulkanSampler* sampler = nullptr;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 	} aerialPerspective;
 	struct AerialShadow

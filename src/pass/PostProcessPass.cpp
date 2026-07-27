@@ -20,7 +20,7 @@ void PostProcessPass::Clear()
 	material.reset();
 	shader.Clear();
 
-	sampler.reset();
+	sampler = nullptr;
 
 	if (pipeline != VK_NULL_HANDLE)
 	{
@@ -103,8 +103,7 @@ void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetL
 {
 	const VkDevice device = ctx.GetDevice();
 
-	VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
-	sampler = std::make_unique<VulkanSampler>(ctx, samplerCI);
+	sampler = &samplerManager->GetLinearRepeat();
 
 	std::vector<VkDescriptorSetLayoutBinding> set1LayoutBindings;
 	VkDescriptorSetLayoutBinding& binding0 = set1LayoutBindings.emplace_back();

@@ -66,8 +66,8 @@ int main()
 		dt = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 		dt /= 1'000'000;
 	}
-
 	scene.Clear();
 	imgui.Clear();
+	samplerManager.Clear();
 	return 0;
 }

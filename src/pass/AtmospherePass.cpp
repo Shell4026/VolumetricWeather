@@ -22,10 +22,10 @@ void AtmospherePass::Clear()
 		vkDestroyPipeline(device, pipeline, nullptr);
 		pipeline = VK_NULL_HANDLE;
 	}
+	opaqueSampler = nullptr;
 	computeShader.reset();
 	material.reset();
 
-	opaqueSampler.Clear();
 	outputImage.reset();
 	APass::Clear();
 }
@@ -117,12 +117,7 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLa
 	imgCi.extent = { width, height, 1 };
 	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
-	samplerCI.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	samplerCI.addressModeV = samplerCI.addressModeU;
-	samplerCI.addressModeW = samplerCI.addressModeU;
-	samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	opaqueSampler.Create(ctx, samplerCI);
+	opaqueSampler = &samplerManager->GetLinearClampWhite();
 
 	computeShader = std::make_unique<Shader>(CreateShader(ctx.GetDevice(), cameraSetLayout));
 }
@@ -135,8 +130,8 @@ void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool
 	material->
 		AddBinding<Atmosphere>(0).
 		AddBinding(1, *outputImage).
-		AddBinding(2, *opaqueDepthTex, opaqueSampler.GetSampler()).
-		AddBinding(3, *opaqueTex, opaqueSampler.GetSampler()).
+		AddBinding(2, *opaqueDepthTex, opaqueSampler->GetSampler()).
+		AddBinding(3, *opaqueTex, opaqueSampler->GetSampler()).
 		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
 		Build(descPool);
 

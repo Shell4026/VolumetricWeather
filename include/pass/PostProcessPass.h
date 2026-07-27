@@ -35,7 +35,7 @@ private:
 	VkPipeline pipeline = VK_NULL_HANDLE;
 
 	const VulkanImage* outputImage;
-	std::unique_ptr<VulkanSampler> sampler;
+	const VulkanSampler* sampler = nullptr;
 
 	struct Data
 	{

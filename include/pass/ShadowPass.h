@@ -30,7 +30,7 @@ public:
 	void SetCamera(const Camera& camera) { cam = camera; }
 
 	auto GetShadowMap() const -> VulkanImage* { return sunShadowMap.get(); }
-	auto GetShadowSampler() const -> VulkanSampler* { return shadowSampler.get(); }
+	auto GetShadowSampler() const -> const VulkanSampler* { return shadowSampler; }
 	auto GetCamera() const -> const Camera& { return cam; }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
@@ -42,7 +42,7 @@ private:
 	VkDescriptorSet emptyDescSet = VK_NULL_HANDLE;
 
 	std::unique_ptr<VulkanImage> sunShadowMap;
-	std::unique_ptr<VulkanSampler> shadowSampler;
+	const VulkanSampler* shadowSampler = nullptr;
 
 	Shader shader;
 	std::unique_ptr<Material> material;

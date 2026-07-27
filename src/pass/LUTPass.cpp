@@ -30,7 +30,7 @@ void LUTPass::Clear()
 		vkDestroyPipeline(device, aerialPerspective.pipeline, nullptr);
 		aerialPerspective.pipeline = VK_NULL_HANDLE;
 	}
-	aerialPerspective.sampler.reset();
+	aerialPerspective.sampler = nullptr;
 
 	skyView.material.reset();
 	skyView.shader.reset();
@@ -40,7 +40,7 @@ void LUTPass::Clear()
 		vkDestroyPipeline(device, skyView.pipeline, nullptr);
 		skyView.pipeline = VK_NULL_HANDLE;
 	}
-	skyView.sampler.reset();
+	skyView.sampler = nullptr;
 
 	transmittance.material.reset();
 	transmittance.shader.reset();
@@ -50,7 +50,7 @@ void LUTPass::Clear()
 		vkDestroyPipeline(device, transmittance.pipeline, nullptr);
 		transmittance.pipeline = VK_NULL_HANDLE;
 	}
-	transmittance.sampler.reset();
+	transmittance.sampler = nullptr;
 
 	APass::Clear();
 }
@@ -198,13 +198,7 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 		imageCI.extent = { 256, 256, 1 };
 		imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
 		transmittance.lut = std::make_unique<VulkanImage>(ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
-		samplerCI.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-		samplerCI.addressModeV = samplerCI.addressModeU;
-		samplerCI.addressModeW = samplerCI.addressModeV;
-		samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		transmittance.sampler = std::make_unique<VulkanSampler>(ctx, samplerCI);
+		transmittance.sampler = &samplerManager->GetLinearClampWhite();
 	}
 	// Sky-View LUT
 	{
@@ -243,7 +237,7 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 		samplerCI.addressModeV = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 		samplerCI.addressModeW = samplerCI.addressModeU;
 		samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		skyView.sampler = std::make_unique<VulkanSampler>(ctx, samplerCI);
+		skyView.sampler = samplerManager->GetSamplerOrCreate(samplerCI);
 	}
 	// AerialPerspective LUT
 	{
@@ -282,13 +276,7 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 		imageCI.extent = { 32, 32, 32 };
 		imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
 		aerialPerspective.lut = std::make_unique<VulkanImage>(ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		VkSamplerCreateInfo samplerCI = VulkanSampler::GetCreateInfo();
-		samplerCI.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCI.addressModeV = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCI.addressModeW = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		aerialPerspective.sampler = std::make_unique<VulkanSampler>(ctx, samplerCI);
+		aerialPerspective.sampler = &samplerManager->GetLinearClmap();
 	}
 	// Aerial Shadow
 	{

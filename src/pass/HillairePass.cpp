@@ -105,8 +105,8 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 	material->
 		AddBinding<Atmosphere>(0).
 		AddBinding(1, *outputImage).
-		AddBinding(2, *opaqueDepthTex, opaqueSampler.GetSampler()).
-		AddBinding(3, *opaqueTex, opaqueSampler.GetSampler()).
+		AddBinding(2, *opaqueDepthTex, opaqueSampler->GetSampler()).
+		AddBinding(3, *opaqueTex, opaqueSampler->GetSampler()).
 		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
 		AddBinding(5, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler()).
 		AddBinding(6, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler()).

@@ -45,7 +45,7 @@ private:
 	void AllocateCommandBuffer(VkDevice device);
 protected:
 	const VulkanContext* ctx = nullptr;
-	const SamplerManager* samplerManager = nullptr;
+	SamplerManager* samplerManager = nullptr;
 
 	VkDescriptorPool descPool = VK_NULL_HANDLE;
 	VkSubmitInfo submitInfo{};

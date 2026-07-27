@@ -22,7 +22,7 @@ void ShadowPass::Clear()
 		return;
 	const VkDevice device = ctx->GetDevice();
 
-	shadowSampler.reset();
+	shadowSampler = nullptr;
 	sunShadowMap.reset();
 
 	if (pipeline != VK_NULL_HANDLE)
@@ -126,8 +126,7 @@ void ShadowPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout
 	samplerCI.compareEnable = VK_TRUE;
 	samplerCI.compareOp = VkCompareOp::VK_COMPARE_OP_LESS_OR_EQUAL;
 	samplerCI.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	shadowSampler = std::make_unique<VulkanSampler>();
-	shadowSampler->Create(ctx, samplerCI);
+	shadowSampler = samplerManager->GetSamplerOrCreate(samplerCI);
 
 	VkPushConstantRange pc{};
 	pc.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;

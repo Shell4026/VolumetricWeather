@@ -16,6 +16,7 @@ public:
 
     auto GetSamplerOrCreate(const VkSamplerCreateInfo& ci) -> VulkanSampler*;
     auto GetLinearRepeat() const -> VulkanSampler& { return *linearRepeat; }
+    auto GetLinearClmap() const -> VulkanSampler& { return *linearClamp; }
     auto GetLinearClampBlack() const -> VulkanSampler& { return *linearClampBlack; }
     auto GetLinearClampWhite() const -> VulkanSampler& { return *linearClampWhite; }
 private:
@@ -85,6 +86,7 @@ private:
 	std::unordered_map<SamplerInfo, std::unique_ptr<VulkanSampler>, CIHasher> samplers;
 
     VulkanSampler* linearRepeat = nullptr;
+    VulkanSampler* linearClamp = nullptr;
     VulkanSampler* linearClampBlack = nullptr;
     VulkanSampler* linearClampWhite = nullptr;
 };

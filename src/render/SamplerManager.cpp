@@ -8,6 +8,10 @@ SamplerManager::SamplerManager(const VulkanContext& ctx) :
     ci.addressModeV = ci.addressModeU;
     ci.addressModeW = ci.addressModeU;
     linearRepeat = GetSamplerOrCreate(ci);
+    ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    ci.addressModeV = ci.addressModeU;
+    ci.addressModeW = ci.addressModeU;
+    linearClamp = GetSamplerOrCreate(ci);
     ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     ci.addressModeV = ci.addressModeU;
     ci.addressModeW = ci.addressModeU;
