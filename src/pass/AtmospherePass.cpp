@@ -48,7 +48,7 @@ void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& fra
 	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	AddUsage(
 		opaqueDepthTex->GetImage(), 
-		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT | VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT, 
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, 
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(
 		opaqueTex->GetImage(),

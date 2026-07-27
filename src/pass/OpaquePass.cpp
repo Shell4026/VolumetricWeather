@@ -103,8 +103,8 @@ void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	AddUsage(
 		outputImageDepth->GetImage(), 
-		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT | VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT, 
-		VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, 
+		VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 	for (const Drawable* drawable : drawables)
 	{
 		if (drawable == nullptr || drawable->mat == nullptr)
@@ -141,7 +141,7 @@ void OpaquePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout
 	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
 	imgCi.extent = { width, height, 1 };
 	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	imgCi.format = VkFormat::VK_FORMAT_D24_UNORM_S8_UINT;
+	imgCi.format = VkFormat::VK_FORMAT_D32_SFLOAT;
 	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	outputImageDepth = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 }
@@ -260,8 +260,8 @@ void OpaquePass::BuildPipeline(const VulkanContext& ctx)
 	pipelineRenderingCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
 	pipelineRenderingCI.colorAttachmentCount = 1;
 	pipelineRenderingCI.pColorAttachmentFormats = formats;
-	pipelineRenderingCI.depthAttachmentFormat = VkFormat::VK_FORMAT_D24_UNORM_S8_UINT;
-	pipelineRenderingCI.stencilAttachmentFormat = pipelineRenderingCI.depthAttachmentFormat;
+	pipelineRenderingCI.depthAttachmentFormat = VkFormat::VK_FORMAT_D32_SFLOAT;
+	pipelineRenderingCI.stencilAttachmentFormat = VkFormat::VK_FORMAT_UNDEFINED;
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
