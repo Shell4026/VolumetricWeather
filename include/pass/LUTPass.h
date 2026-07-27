@@ -22,8 +22,8 @@ public:
 		float atmosphereRadius = 6'460'000.f;
 		uint32_t transmittanceLUTSteps = 40;
 		uint32_t skyViewLUTSteps = 40;
-		uint32_t aerialPerspectiveLUTSteps = 40;
-		uint32_t aerialShadowSteps = 20;
+		uint32_t aerialPerspectiveLUTSteps = 8;
+		uint32_t aerialShadowSteps = 40;
 	} globalSetting;
 	enum LUTType
 	{
@@ -61,6 +61,7 @@ public:
 	auto GetAerialPerspectiveLUT() const -> VulkanImage* { return aerialPerspective.lut.get(); }
 	auto GetAerialShadowSampler() const -> const VulkanSampler* { return aerialPerspective.sampler; } // 같은 샘플러
 	auto GetAerialShadowLUT() const -> VulkanImage* { return aerialShadow.lut.get(); }
+	auto GetAerialShadowDepth() const -> VulkanImage* { return aerialShadow.lowResDepth.get(); }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
@@ -127,6 +128,7 @@ private:
 		std::unique_ptr<Shader> shader;
 		std::unique_ptr<Material> material;
 		std::unique_ptr<VulkanImage> lut;
+		std::unique_ptr<VulkanImage> lowResDepth;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 	} aerialShadow;
 
