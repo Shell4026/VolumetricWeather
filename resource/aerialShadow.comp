@@ -220,9 +220,9 @@ void main()
 		rayEnd = min(rayEnd, nearGround); // 땅에 닿으면 땅까지만 raymarching
 	
 	const float z = texture(depth, uv).r;
+	const vec3 viewPos = PixelToViewPos(uv, z);
 	if (z < 1.0)
 	{
-		const vec3 viewPos = PixelToViewPos(uv, z);
         const vec3 worldPos = (camera.invView * vec4(viewPos, 1.0)).xyz;
         const float surfaceDistance = length(worldPos - camera.pos);
 		
@@ -243,7 +243,7 @@ void main()
     const vec3 start = camera.pos + rayDir * rayStart;
     const vec3 end = camera.pos + rayDir * rayEnd;
 	
-	const vec3 result = InScatteringInShadow(start, end, distance, sunDir, mu, setting.sun.w, noise);
+	const vec4 result = vec4(InScatteringInShadow(start, end, distance, sunDir, mu, setting.sun.w, noise), viewPos.z);
 	
-	imageStore(outImage, pixel, vec4(result, 1.0));
+	imageStore(outImage, pixel, result);
 }
