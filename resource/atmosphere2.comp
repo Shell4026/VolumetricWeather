@@ -165,6 +165,14 @@ void main()
 	{
 		const vec3 skyViewColor = SkyViewLUT(rayDir);
 		result = skyViewColor - aerialShadow;
+		
+		const vec3 sunViewDir = normalize(mat3(camera.view) * -atmosphere.sun.xyz);
+		const vec3 viewDir = normalize(viewPos);
+		float cosAngle = dot(viewDir, sunViewDir);
+		float sunMask = step(cos(radians(0.265)), cosAngle);
+		const vec3 sunColor = vec3(10.0, 8.0, 5.0) * sunMask;
+		result += sunColor;
 	}
+	
 	imageStore(outImage, pixel, vec4(result, 1.0));
 }
