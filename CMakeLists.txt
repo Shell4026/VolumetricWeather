@@ -6,8 +6,8 @@ project ("VolumetricWeather" LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
-set(CORE_HEADERS "include/core/Event.h" "include/core/ImGUI.h" "include/core/Input.h" "include/core/Logger.h" "include/core/Window.h" "include/core/CircularQueue.hpp" "include/core/Util.h")
-set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "src/core/Logger.cpp" "src/core/Window.cpp" "src/core/Implemntation.cpp" "src/core/Util.cpp")
+set(CORE_HEADERS "include/core/Event.h" "include/core/ImGUI.h" "include/core/Input.h" "include/core/Logger.h" "include/core/Window.h" "include/core/CircularQueue.hpp" "include/core/Util.h" "include/core/Noise.h")
+set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "src/core/Logger.cpp" "src/core/Window.cpp" "src/core/Implemntation.cpp" "src/core/Util.cpp" "src/core/Noise.cpp")
 set(PASS_HEADERS 
 "include/pass/APass.h"
 "include/pass/AtmospherePass.h"
@@ -26,7 +26,7 @@ set(PASS_CPPS
 "src/pass/ShadowPass.cpp"
 "src/pass/LUTPass.cpp"
 "src/pass/HillairePass.cpp" 
-"src/pass/BlitPass.cpp")
+"src/pass/BlitPass.cpp" "include/pass/CloudPass.h" "src/pass/CloudPass.cpp")
 set(RENDER_HEADERS 
 "include/render/BarrierBuilder.h"
 "include/render/BarrierInfo.h"

@@ -22,6 +22,8 @@ class AtmospherePass;
 class HillairePass;
 class PostProcessPass;
 class BlitPass;
+class CloudPass;
+
 class Material;
 class VulkanImage;
 class BasisScene : public AScene
@@ -45,6 +47,7 @@ protected:
 	void BeginBuildCommandBuffer() override;
 private:
 	void DrawDebugGUI();
+	void DrawOverlay();
 	void DrawPresetGUI();
 	void SetAtmosphereModel(bool useHillaire);
 	void CreateDrawables();
@@ -58,6 +61,7 @@ private:
 	std::unique_ptr<LUTPass> lutPass;
 	std::unique_ptr<AtmospherePass> atmospherePass;
 	std::unique_ptr<HillairePass> hillairePass;
+	std::unique_ptr<CloudPass> cloudPass;
 	std::unique_ptr<PostProcessPass> postProcessPass;
 	std::unique_ptr<BlitPass> blitPass;
 	AtmosphereRMSEMeasurement rmseMeasurement;
@@ -88,6 +92,7 @@ private:
 	CircularQueue<double, 10> opaquePassElapsed;
 	CircularQueue<double, 10> transmittanceLUTPassElapsed;
 	CircularQueue<double, 10> atmospherePassElapsed;
+	CircularQueue<double, 10> cloudPassElapsed;
 	CircularQueue<double, 10> postProcessPassElapsed;
 
 	uint64_t counter = 0;

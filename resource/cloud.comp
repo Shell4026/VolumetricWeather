@@ -1,0 +1,216 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform Camera
+{
+	vec3 pos;
+	mat4 view;
+	mat4 proj;
+	mat4 invView;
+	mat4 invProj;
+} camera;
+layout(set = 1, binding = 0) uniform Setting
+{
+	uint steps;
+	float groundRadius;
+	float atmosphereRadius;
+	float tiling;
+	float extinctionCoefficient;
+	float coverage;
+} setting;
+
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
+layout(set = 1, binding = 2) uniform sampler3D perlin;
+layout(set = 1, binding = 3) uniform sampler3D worley;
+layout(set = 1, binding = 4) uniform sampler2D sceneDepth;
+
+const float CLOUD_HEIGHT = 2000;
+
+vec3 PixelToViewPos(vec2 uv, float z)
+{
+	vec3 ndc = vec3(uv * 2.0 - 1.0, z);
+	ndc.y = -ndc.y;
+	vec4 viewPos = camera.invProj * vec4(ndc, 1.0);
+	viewPos /= viewPos.w;
+	return viewPos.xyz;
+}
+
+vec3 RayleighScattering(float y)
+{
+	const vec3 rayleigh = vec3(5.802, 13.558, 33.1) * 1e-6;
+	return rayleigh * exp(-y / 8000.0);
+}
+
+vec3 MieScattering(float y)
+{
+	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6;
+	return mie * exp(-y / 1200.0);
+}
+
+vec3 ScatteringCoefficient(float y)
+{
+	vec3 sigma = RayleighScattering(y) + MieScattering(y);
+	return sigma;
+}
+
+vec3 AbsorptionCoefficient(float y)
+{
+	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6;
+	const vec3 ozone = vec3(0.65, 1.881, 0.085) * 1e-6;
+	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
+}
+
+float RayleighPhase(float mu)
+{
+	return 3 * (1 + mu * mu) / (16 * 3.141592);
+}
+
+float MiePhase(float mu, float g)
+{
+	return 3 * (1 - g * g) * (1 + mu * mu) / (8 * 3.141592 * (2 + g * g) * pow(1 + g * g - 2 * g * mu, 3.0/2.0));
+}
+
+// 구 내부에서 쏜 경우 near은 음수가 나옴
+bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float radius, out float near, out float far)
+{
+	vec3 rs = sphereOrigin - rayOrigin;
+	float a2 = dot(rs, rs);
+	float b = dot(rs, rayDir);
+	float c2 = a2 - b * b;
+	float r2 = radius * radius;
+	if (c2 > r2)
+		return false;
+	
+	float d = sqrt(r2 - c2); // 구 내부 ray길이
+	near = b - d;
+	far = b + d;
+	
+	return far >= 0.0;
+}
+
+bool RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float innerRadius, float outerRadius, out float tStart, out float tEnd)
+{
+	float outerNear;
+	float outerFar;
+	// 구 내부에서 쏘면 near는 음수
+	if (!RaySphereIntersect(rayOrigin, rayDir, center, outerRadius, outerNear, outerFar))
+		return false;
+	
+	tStart = max(outerNear, 0.0);
+	tEnd = outerFar;
+	
+	if (tEnd <= tStart)
+		return false;
+	
+	float innerNear;
+	float innerFar;
+	// 내부구와 충돌x => 우주 or 구름 내부에서 밖을 봄
+	if (!RaySphereIntersect(rayOrigin, rayDir, center, innerRadius, innerNear, innerFar))
+		return true;
+	
+	// 구름층 밑
+	if (innerNear <= 0.0)
+		tStart = innerFar;
+	else // 우주 or 구름 내부에서 안을 봄
+		tEnd = min(tEnd, innerNear);
+	
+	return tEnd > tStart;
+}
+
+float Remap(float value, float originalMin, float originalMax, float newMin, float newMax)
+{
+	return newMin + ((value - originalMin) / (originalMax - originalMin)) * (newMax - newMin);
+}
+
+void main()
+{
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(outImage);
+	if (pixel.x >= size.x || pixel.y >= size.y)
+		return;
+	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+
+	float p = texture(perlin, vec3(uv, 0.0)).r;
+	// float w = texture(worley, vec3(uv, 0.0)).r;
+	// float remap = Remap(p, 0.0, 1.0, 1.0 - w, 1.0);
+	// if (uv.x < 0.3)
+		// imageStore(outImage, pixel, vec4(vec3(p), 1.0));
+	// else if (uv.x < 0.6)
+		// imageStore(outImage, pixel, vec4(vec3(w), 1.0));
+	// else
+		// imageStore(outImage, pixel, vec4(vec3(remap), 1.0));
+	// return;
+	
+	// imageStore(outImage, pixel, vec4(vec3(p), 1.0));
+	// return;
+	
+	const vec3 viewRay = PixelToViewPos(uv, 1.0);
+	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
+	
+	float rayStart;
+	float rayEnd;
+	
+	const float cloudThickness = 5000;
+	
+	float cloudInnerRadius = setting.groundRadius + CLOUD_HEIGHT;
+	float cloudOuterRadius = cloudInnerRadius + cloudThickness;
+	
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	
+	float groundNear;
+	float groundFar;
+	if (!RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, rayStart, rayEnd))
+	{
+		imageStore(outImage, pixel, vec4(1, 0, 0, 0));
+		return;
+	}
+	if (RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.groundRadius, groundNear, groundFar))
+	{
+		if (groundNear < rayStart)
+		{
+			imageStore(outImage, pixel, vec4(0, 0, 1, 0));
+			return;
+		}			
+	}
+	
+	const float z = texture(sceneDepth, uv).r;
+	const vec3 viewPos = PixelToViewPos(uv, z);
+	const float sceneDistance = length(viewPos);
+	if (z < 1.0)
+		rayEnd = min(rayEnd, sceneDistance);
+	if (rayEnd <= rayStart)
+	{
+		imageStore(outImage, pixel, vec4(sceneDistance, 1, rayStart, 0));
+		return;
+	}
+	
+	const vec3 startPos = camera.pos + rayDir * rayStart;
+	const float stepSize = (rayEnd - rayStart) / setting.steps;
+	vec3 color = vec3(0.0);
+	float transmittance = 1.0;
+	float sigma = 0.0;
+	for (uint i = 0; i < setting.steps; ++i)
+	{
+		vec3 samplePos = startPos + rayDir * stepSize * (i + 0.5);
+		float sampleRadius = length(samplePos - PLANET_CENTER);
+		float height = clamp((sampleRadius - cloudInnerRadius) / cloudThickness, 0.0, 1.0);
+		
+		float bottomFade = smoothstep(0.0, 0.15, height);
+		float topFade = 1.0 - smoothstep(0.75, 1.0, height);
+		float heightMask = bottomFade * topFade;
+		
+		vec3 uvw = samplePos / setting.tiling;
+		float noise = texture(perlin, uvw).r;
+		float cov = 1.0 - setting.coverage;
+		noise *= smoothstep(cov, cov + 0.05, noise);
+		noise = clamp(noise, 0.0, 1.0);
+		float density = noise * heightMask;
+		sigma += density * stepSize * setting.extinctionCoefficient;
+	}
+	transmittance = exp(-sigma);
+	
+	color = vec3(0.7);
+	
+	imageStore(outImage, pixel, vec4(color, 1.0 - transmittance));
+}

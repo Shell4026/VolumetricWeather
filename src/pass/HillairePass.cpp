@@ -49,7 +49,7 @@ void HillairePass::UpdateMaterial()
 auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
 {
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-	set1Bindings.reserve(5);
+	set1Bindings.reserve(9);
 	VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
 	binding0.binding = 0;
 	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;

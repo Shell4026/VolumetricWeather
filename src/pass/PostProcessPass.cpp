@@ -87,6 +87,7 @@ void PostProcessPass::SetUsages(const VulkanContext& ctx, const FrameContext& fr
 	APass::SetUsages(ctx, frame);
 	AddUsage(ctx.GetSwapChainImages()[frame.imgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(cloudImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 void PostProcessPass::SetExposure(float exposure)
 {
@@ -106,16 +107,27 @@ void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetL
 	sampler = &samplerManager->GetLinearRepeat();
 
 	std::vector<VkDescriptorSetLayoutBinding> set1LayoutBindings;
-	VkDescriptorSetLayoutBinding& binding0 = set1LayoutBindings.emplace_back();
-	binding0.binding = 0;
-	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
-	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	binding0.descriptorCount = 1;
-	VkDescriptorSetLayoutBinding& binding2 = set1LayoutBindings.emplace_back();
-	binding2.binding = 1;
-	binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
-	binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	binding2.descriptorCount = 1;
+	{
+		VkDescriptorSetLayoutBinding& binding = set1LayoutBindings.emplace_back();
+		binding.binding = 0;
+		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		binding.descriptorCount = 1;
+	}
+	{
+		VkDescriptorSetLayoutBinding& binding = set1LayoutBindings.emplace_back();
+		binding.binding = 1;
+		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		binding.descriptorCount = 1;
+	}
+	{
+		VkDescriptorSetLayoutBinding& binding = set1LayoutBindings.emplace_back();
+		binding.binding = 2;
+		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		binding.descriptorCount = 1;
+	}
 
 	shader.
 		AddSet(0, cameraSetLayout).
@@ -126,6 +138,7 @@ void PostProcessPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetL
 	material->
 		AddBinding(0, *outputImage, sampler->GetSampler()).
 		AddBinding<Data>(DATA_BINDING).
+		AddBinding(2, *cloudImage, sampler->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(DATA_BINDING, data);

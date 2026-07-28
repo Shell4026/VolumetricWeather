@@ -12,6 +12,7 @@
 #include "pass/LUTPass.h"
 #include "pass/AtmospherePass.h"
 #include "pass/HillairePass.h"
+#include "pass/CloudPass.h"
 #include "pass/PostProcessPass.h"
 #include "pass/BlitPass.h"
 
@@ -109,6 +110,7 @@ void BasisScene::BeginRender(double dt)
 		if (currentAtmospherePass == hillairePass.get())
 			transmittanceLUTPassElapsed.Push(lutPass->GetElapsedTimeMs());
 		atmospherePassElapsed.Push(currentAtmospherePass->GetElapsedTimeMs());
+		cloudPassElapsed.Push(cloudPass->GetElapsedTimeMs());
 		postProcessPassElapsed.Push(postProcessPass->GetElapsedTimeMs());
 	}
 }
@@ -226,16 +228,21 @@ void BasisScene::SetupPass()
 	hillairePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	hillairePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
+	cloudPass = std::make_unique<CloudPass>();
+	cloudPass->SetSceneDepthTexture(*opaquePass->GetOutputImageDepth());
+	cloudPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+
 	currentAtmospherePass = atmospherePass.get();
 
 	postProcessPass = std::make_unique<PostProcessPass>(*currentAtmospherePass->GetOutputImage());
+	postProcessPass->SetCloudImage(*cloudPass->GetOutputImage());
 	postProcessPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	blitPass = std::make_unique<BlitPass>();
 	blitPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
-	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
+	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
+	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
 
 	UpdateSun();
 }
@@ -253,54 +260,9 @@ void BasisScene::DrawDebugGUI()
 {
 	FPSCamera& camera = static_cast<FPSCamera&>(*GetCamera());
 
-	ImGuiWindowFlags windowFlags =
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoDecoration |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoSavedSettings |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoFocusOnAppearing |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoNav |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_::ImGuiWindowFlags_NoInputs;
-	ImGui::SetNextWindowPos({ 0, 0 });
-	ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
-	ImGui::SetNextWindowSize(ImVec2{ 300.f, 0.f }, ImGuiCond_::ImGuiCond_Always);
-	if (ImGui::Begin("Overlay", nullptr, windowFlags))
-	{
-		const glm::vec3& pos = camera.GetPos();
-		const glm::vec3& to = camera.GetTo();
-		const bool hillaire = currentAtmospherePass == hillairePass.get();
-		if (!hillaire)
-			ImGui::Text("Atmosphere model: default");
-		else
-			ImGui::Text("Atmosphere model: hillaire");
-		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
-		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
-		double sum = 0;
-		for (int i = 0; i < shadowPassElapsed.Size(); ++i)
-			sum += shadowPassElapsed[i];
-		ImGui::Text(std::format("ShadowPass: {:.2}ms", sum / shadowPassElapsed.MaxSize()).c_str());
-		sum = 0;
-		for (int i = 0; i < opaquePassElapsed.Size(); ++i)
-			sum += opaquePassElapsed[i];
-		ImGui::Text(std::format("OpaquePass: {:.2}ms", sum / opaquePassElapsed.MaxSize()).c_str());
-		if (hillaire)
-		{
-			sum = 0;
-			for (int i = 0; i < transmittanceLUTPassElapsed.Size(); ++i)
-				sum += transmittanceLUTPassElapsed[i];
-			ImGui::Text(std::format("LUTPass: {:.2}ms", sum / transmittanceLUTPassElapsed.MaxSize()).c_str());
-		}
-		sum = 0;
-		for (int i = 0; i < atmospherePassElapsed.Size(); ++i)
-			sum += atmospherePassElapsed[i];
-		ImGui::Text(std::format("AtmospherePass: {:.2}ms", sum / atmospherePassElapsed.MaxSize()).c_str());
-		sum = 0;
-		for (int i = 0; i < postProcessPassElapsed.Size(); ++i)
-			sum += postProcessPassElapsed[i];
-		ImGui::Text(std::format("PostProcessPass: {:.2}ms", sum / postProcessPassElapsed.MaxSize()).c_str());
-	}
-	ImGui::End();
+	DrawOverlay();
 
-	ImGui::SetNextWindowSize(ImVec2{ 300.f, 300.f }, ImGuiCond_::ImGuiCond_Appearing);
+	ImGui::SetNextWindowSize(ImVec2{ 500.f, 500.f }, ImGuiCond_::ImGuiCond_Appearing);
 	if (ImGui::Begin("Debug", nullptr, ImGuiWindowFlags_::ImGuiWindowFlags_MenuBar))
 	{
 		if (ImGui::BeginMenuBar())
@@ -311,8 +273,10 @@ void BasisScene::DrawDebugGUI()
 				menu = 1;
 			if (ImGui::Button("Quality"))
 				menu = 2;
-			if (ImGui::Button("Preset"))
+			if (ImGui::Button("Cloud"))
 				menu = 3;
+			if (ImGui::Button("Preset"))
+				menu = 4;
 			ImGui::EndMenuBar();
 		}
 
@@ -474,11 +438,82 @@ void BasisScene::DrawDebugGUI()
 		}
 		if (menu == 3)
 		{
+			CloudPass::Setting setting = cloudPass->GetSetting();
+			if (ImGui::SliderInt("Steps", reinterpret_cast<int*>(&setting.steps), 1, 60))
+			{
+				setting.steps = std::max(static_cast<int>(setting.steps), 1);
+				cloudPass->SetSetting(setting);
+			}
+			if (ImGui::SliderFloat("Tiling", &setting.tiling, 10000.0f, 100000.f))
+				cloudPass->SetSetting(setting);
+			if (ImGui::SliderFloat("Extinction Coefficient", &setting.extinctionCoefficient, 0.00001f, 0.01f, "%.5f"))
+				cloudPass->SetSetting(setting);
+			if (ImGui::SliderFloat("Coverage", &setting.coverage, 0.0f, 1.0f, "%.2f"))
+				cloudPass->SetSetting(setting);
+		}
+		if (menu == 4)
+		{
 			DrawPresetGUI();
 		}
 		ImGui::EndDisabled();
 		ImGui::End();
 	}
+}
+
+void BasisScene::DrawOverlay()
+{
+	FPSCamera& camera = static_cast<FPSCamera&>(*GetCamera());
+
+	ImGuiWindowFlags windowFlags =
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoDecoration |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoFocusOnAppearing |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoNav |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_::ImGuiWindowFlags_NoInputs;
+	ImGui::SetNextWindowPos({ 0, 0 });
+	ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
+	ImGui::SetNextWindowSize(ImVec2{ 300.f, 0.f }, ImGuiCond_::ImGuiCond_Always);
+	if (ImGui::Begin("Overlay", nullptr, windowFlags))
+	{
+		const glm::vec3& pos = camera.GetPos();
+		const glm::vec3& to = camera.GetTo();
+		const bool hillaire = currentAtmospherePass == hillairePass.get();
+		if (!hillaire)
+			ImGui::Text("Atmosphere model: default");
+		else
+			ImGui::Text("Atmosphere model: hillaire");
+		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
+		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
+		double sum = 0;
+		for (int i = 0; i < shadowPassElapsed.Size(); ++i)
+			sum += shadowPassElapsed[i];
+		ImGui::Text(std::format("ShadowPass: {:.3}ms", sum / shadowPassElapsed.MaxSize()).c_str());
+		sum = 0;
+		for (int i = 0; i < opaquePassElapsed.Size(); ++i)
+			sum += opaquePassElapsed[i];
+		ImGui::Text(std::format("OpaquePass: {:.3}ms", sum / opaquePassElapsed.MaxSize()).c_str());
+		if (hillaire)
+		{
+			sum = 0;
+			for (int i = 0; i < transmittanceLUTPassElapsed.Size(); ++i)
+				sum += transmittanceLUTPassElapsed[i];
+			ImGui::Text(std::format("LUTPass: {:.3}ms", sum / transmittanceLUTPassElapsed.MaxSize()).c_str());
+		}
+		sum = 0;
+		for (int i = 0; i < atmospherePassElapsed.Size(); ++i)
+			sum += atmospherePassElapsed[i];
+		ImGui::Text(std::format("AtmospherePass: {:.3}ms", sum / atmospherePassElapsed.MaxSize()).c_str());
+		sum = 0;
+		for (int i = 0; i < cloudPassElapsed.Size(); ++i)
+			sum += cloudPassElapsed[i];
+		ImGui::Text(std::format("CloudPass: {:.3}ms", sum / cloudPassElapsed.MaxSize()).c_str());
+		sum = 0;
+		for (int i = 0; i < postProcessPassElapsed.Size(); ++i)
+			sum += postProcessPassElapsed[i];
+		ImGui::Text(std::format("PostProcessPass: {:.3}ms", sum / postProcessPassElapsed.MaxSize()).c_str());
+	}
+	ImGui::End();
 }
 
 void BasisScene::DrawPresetGUI()
@@ -538,13 +573,13 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 	if (useHillaire)
 	{
 		SH_INFO("Change to Hillaire");
-		activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+		activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
 	}
 	else
 	{
 		SH_INFO("Change to default");
-		activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
+		activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*atmospherePass->GetOutputImage());
 	}
 	UpdateSun();
