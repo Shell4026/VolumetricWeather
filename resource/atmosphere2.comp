@@ -26,8 +26,11 @@ layout(set = 1, binding = 6) uniform sampler2D skyViewLUT;
 layout(set = 1, binding = 7) uniform sampler3D aerialPerspectiveLUT;
 layout(set = 1, binding = 8) uniform sampler2D aerialShadowLUT;
 layout(set = 1, binding = 9) uniform sampler2D aerialShadowDepth;
+layout(set = 1, binding = 10) uniform sampler2D cloudTex;
 const float GROUND_RADIUS = 6360 * 1000.0;
 const vec3 PLANET_CENTER = vec3(0.0, -GROUND_RADIUS, 0.0);
+const float CLOUD_HEIGHT = 2000;
+const float CLOUD_THICKNESS = 5000;
 
 vec3 PixelToViewPos(vec2 uv, float z)
 {
@@ -117,6 +120,35 @@ vec3 AerialShadow(vec2 uv, float viewZ)
 	return shadowSum / weightSum;
 }
 
+bool RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float innerRadius, float outerRadius, out float tStart, out float tEnd)
+{
+	float outerNear;
+	float outerFar;
+	// 구 내부에서 쏘면 near는 음수
+	if (!RaySphereIntersect(rayOrigin, rayDir, center, outerRadius, outerNear, outerFar))
+		return false;
+	
+	tStart = max(outerNear, 0.0);
+	tEnd = outerFar;
+	
+	if (tEnd <= tStart)
+		return false;
+	
+	float innerNear;
+	float innerFar;
+	// 내부구와 충돌x => 우주 or 구름 내부에서 밖을 봄
+	if (!RaySphereIntersect(rayOrigin, rayDir, center, innerRadius, innerNear, innerFar))
+		return true;
+	
+	// 구름층 밑
+	if (innerNear <= 0.0)
+		tStart = innerFar;
+	else // 우주 or 구름 내부에서 안을 봄
+		tEnd = min(tEnd, innerNear);
+	
+	return tEnd > tStart;
+}
+
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -148,8 +180,8 @@ void main()
 
 	//imageStore(outImage, pixel, vec4(aerialShadow, 1.0));
 	//return;
-
-	vec3 result = vec3(0.0);
+	
+	vec3 background = vec3(0.0);
 	if (z < 1.0)
 	{
 		const float opaqueZ = length(viewPos);
@@ -159,19 +191,71 @@ void main()
 		
 		const vec4 opaqueColor = texture(opaque, uv);
 		
-		result = opaqueColor.rgb * aerialPerspective.a + (aerialPerspective.rgb - aerialShadow);
+		background = opaqueColor.rgb * aerialPerspective.a + (aerialPerspective.rgb - aerialShadow);
 	}
 	else
 	{
 		const vec3 skyViewColor = SkyViewLUT(rayDir);
-		result = skyViewColor - aerialShadow;
+		background = skyViewColor - aerialShadow;
 		
 		const vec3 sunViewDir = normalize(mat3(camera.view) * -atmosphere.sun.xyz);
 		const vec3 viewDir = normalize(viewPos);
 		float cosAngle = dot(viewDir, sunViewDir);
 		float sunMask = step(cos(radians(0.265)), cosAngle);
 		const vec3 sunColor = vec3(10.0, 8.0, 5.0) * sunMask;
-		result += sunColor;
+		background += sunColor;
+	}
+	
+	const float cloudInnerRadius = GROUND_RADIUS + CLOUD_HEIGHT;
+	const float cloudOuterRadius = cloudInnerRadius + CLOUD_THICKNESS;
+	vec3 result = background;
+
+	float cloudNear;
+	float cloudFar;
+
+	if (RayCloudShellIntersect(
+		camera.pos,
+		rayDir,
+		PLANET_CENTER,
+		cloudInnerRadius,
+		cloudOuterRadius,
+		cloudNear,
+		cloudFar))
+	{
+		const float backgroundDistance =
+			z < 1.0 ? length(viewPos) : farAtmo;
+
+		// 오브젝트가 구름보다 앞에 있으면 구름 합성 안 함
+		if (cloudNear < backgroundDistance)
+		{
+			const vec4 cloud = texture(cloudTex, uv);
+
+			vec4 atmosphereToCloud =
+				vec4(0.0, 0.0, 0.0, 1.0);
+
+			if ((atmosphere.modeFlags & 1) == 1)
+			{
+				const float cloudLutZ =
+					clamp(cloudNear / 32000.0, 0.0, 1.0);
+
+				atmosphereToCloud = texture(
+					aerialPerspectiveLUT,
+					vec3(uv, cloudLutZ)
+				);
+			}
+
+			const vec3 atmosphericScatteringBeforeCloud =
+				atmosphereToCloud.rgb;
+
+			const float atmosphericTransmittanceToCloud =
+				atmosphereToCloud.a;
+
+			result =
+				atmosphericScatteringBeforeCloud
+				+ atmosphericTransmittanceToCloud * cloud.rgb
+				+ cloud.a *
+				  (background - atmosphericScatteringBeforeCloud);
+		}
 	}
 	
 	imageStore(outImage, pixel, vec4(result, 1.0));

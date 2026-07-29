@@ -9,7 +9,6 @@ layout(set = 1, binding = 1) uniform Data
 {
 	float exposure;
 } data;
-layout(set = 1, binding = 2) uniform sampler2D cloudTex;
 
 vec3 ACESFilm(vec3 x)
 {
@@ -24,8 +23,7 @@ vec3 ACESFilm(vec3 x)
 
 void main() 
 {
-	vec4 cloud = texture(cloudTex, fragUV);
-	vec3 hdrColor = texture(inputTex, fragUV).xyz * (1.0 - cloud.a) + cloud.rgb * cloud.a;
+	vec3 hdrColor = texture(inputTex, fragUV).xyz;
 	hdrColor *= data.exposure;
 	
     outColor = vec4(ACESFilm(hdrColor), 1.0);

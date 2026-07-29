@@ -136,6 +136,14 @@ auto APass::GetElapsedTimeMs() const -> double
 
 void APass::AddUsage(VkImage image, VkImageAspectFlags apsect, VkImageLayout usage)
 {
+	auto it = std::find_if(imageUsages.begin(), imageUsages.end(),
+		[&](const ImageUsage& usage)
+		{
+			return usage.image == image;
+		}
+	);
+	if (it != imageUsages.end())
+		return;
 	ImageUsage imgUsage{};
 	imgUsage.image = image;
 	imgUsage.layout = usage;

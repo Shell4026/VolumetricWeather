@@ -108,9 +108,11 @@ void BasisScene::BeginRender(double dt)
 		shadowPassElapsed.Push(shadowPass->GetElapsedTimeMs());
 		opaquePassElapsed.Push(opaquePass->GetElapsedTimeMs());
 		if (currentAtmospherePass == hillairePass.get())
+		{
 			transmittanceLUTPassElapsed.Push(lutPass->GetElapsedTimeMs());
+			cloudPassElapsed.Push(cloudPass->GetElapsedTimeMs());
+		}
 		atmospherePassElapsed.Push(currentAtmospherePass->GetElapsedTimeMs());
-		cloudPassElapsed.Push(cloudPass->GetElapsedTimeMs());
 		postProcessPassElapsed.Push(postProcessPass->GetElapsedTimeMs());
 	}
 }
@@ -220,7 +222,12 @@ void BasisScene::SetupPass()
 	atmospherePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	atmospherePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	hillairePass = std::make_unique<HillairePass>(*lutPass);
+	cloudPass = std::make_unique<CloudPass>();
+	cloudPass->SetSceneDepthTexture(*opaquePass->GetOutputImageDepth());
+	cloudPass->SetTransmittanceLUT(*lutPass->GetTransmittanceLUT(), *lutPass->GetTransmittanceLUTSampler());
+	cloudPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+
+	hillairePass = std::make_unique<HillairePass>(*lutPass, *cloudPass);
 	hillairePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
 	hillairePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
@@ -228,21 +235,16 @@ void BasisScene::SetupPass()
 	hillairePass->SetImageSize(window.GetWidth(), window.GetHeight());
 	hillairePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	cloudPass = std::make_unique<CloudPass>();
-	cloudPass->SetSceneDepthTexture(*opaquePass->GetOutputImageDepth());
-	cloudPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
-
 	currentAtmospherePass = atmospherePass.get();
 
 	postProcessPass = std::make_unique<PostProcessPass>(*currentAtmospherePass->GetOutputImage());
-	postProcessPass->SetCloudImage(*cloudPass->GetOutputImage());
 	postProcessPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	blitPass = std::make_unique<BlitPass>();
 	blitPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
-	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
+	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
 
 	UpdateSun();
 }
@@ -439,16 +441,20 @@ void BasisScene::DrawDebugGUI()
 		if (menu == 3)
 		{
 			CloudPass::Setting setting = cloudPass->GetSetting();
-			if (ImGui::SliderInt("Steps", reinterpret_cast<int*>(&setting.steps), 1, 60))
+			if (ImGui::SliderInt("Steps", reinterpret_cast<int*>(&setting.steps), 1, 128))
 			{
 				setting.steps = std::max(static_cast<int>(setting.steps), 1);
 				cloudPass->SetSetting(setting);
 			}
 			if (ImGui::SliderFloat("Tiling", &setting.tiling, 10000.0f, 100000.f))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("Extinction Coefficient", &setting.extinctionCoefficient, 0.00001f, 0.01f, "%.5f"))
+			if (ImGui::SliderFloat("Extinction Coefficient", &setting.extinctionCoefficient, 0.0001f, 0.01f, "%.5f"))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Coverage", &setting.coverage, 0.0f, 1.0f, "%.2f"))
+				cloudPass->SetSetting(setting);
+			if (ImGui::SliderFloat("OffsetX", &setting.offset.x, 0.f, 1.f))
+				cloudPass->SetSetting(setting);
+			if (ImGui::SliderFloat("OffsetY", &setting.offset.y, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
 		}
 		if (menu == 4)
@@ -573,13 +579,13 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 	if (useHillaire)
 	{
 		SH_INFO("Change to Hillaire");
-		activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
+		activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), cloudPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
 	}
 	else
 	{
 		SH_INFO("Change to default");
-		activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
+		activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*atmospherePass->GetOutputImage());
 	}
 	UpdateSun();
@@ -717,6 +723,10 @@ void BasisScene::UpdateSun()
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView | LUTPass::LUTType::AerialPerspective);
 
 	shadowPass->SetCamera(sunCamera);
+
+	CloudPass::Setting cloudPassSetting = cloudPass->GetSetting();
+	cloudPassSetting.sun = sun;
+	cloudPass->SetSetting(cloudPassSetting);
 }
 
 auto BasisScene::Preset::Serialize() const -> Json

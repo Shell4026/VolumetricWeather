@@ -21,7 +21,7 @@ auto Noise::GeneratePerlinNoiseTexture(uint32_t width, uint32_t height, uint32_t
 	return result;
 }
 
-auto Noise::GenerateWorleyNoiseTexture(uint32_t width, uint32_t height, uint32_t depth) -> Texel
+auto Noise::GenerateWorleyNoiseTexture(uint32_t width, uint32_t height, uint32_t depth, float f0, float f1, float f2) -> Texel
 {
 	Texel result(depth * height * width, 0);
 	for (int z = 0; z < depth; ++z)
@@ -32,7 +32,7 @@ auto Noise::GenerateWorleyNoiseTexture(uint32_t width, uint32_t height, uint32_t
 			{
 				const glm::vec3 pIn = glm::vec3(x, y, z) / glm::vec3(width, height, depth);
 				const uint32_t wh = width * height;
-				result[x + width * y + wh * z] = static_cast<uint8_t>(std::floor(WorleyNoiseFBM(pIn) * 255.f));
+				result[x + width * y + wh * z] = static_cast<uint8_t>(std::floor(WorleyNoiseFBM(pIn, f0, f1, f2) * 255.f));
 			}
 		}
 	}
@@ -52,7 +52,7 @@ auto Noise::GeneratePerlinWorleyNoiseTexture(uint32_t width, uint32_t height, ui
 				const glm::vec3 pIn = glm::vec3(x, y, z) / glm::vec3(width, height, depth);
 				const uint32_t wh = width * height;
 				const float perlin = PerlinNoise(pIn, frequency, 3);
-				const float worley = 1.0 - WorleyNoiseFBM(pIn);
+				const float worley = 1.0 - WorleyNoiseFBM(pIn, 2.f, 8.f, 14.f);
 				const float perlinWorley = Remap(perlin, 0.0f, 1.0f, worley, 1.0f);
 				result[x + width * y + wh * z] = static_cast<uint8_t>(std::floor(perlinWorley * 255.f));
 			}
@@ -120,13 +120,13 @@ auto Noise::WorleyNoise(const glm::vec3& pIn, float frequency) -> float
 	return d;
 }
 
-auto Noise::WorleyNoiseFBM(const glm::vec3& pIn) -> float
+auto Noise::WorleyNoiseFBM(const glm::vec3& pIn, float f0, float f1, float f2) -> float
 {
 	const float cellCount = 4;
 	return
-		WorleyNoise(pIn, cellCount * 2.f) * 0.625f +
-		WorleyNoise(pIn, cellCount * 8.f) * 0.25f +
-		WorleyNoise(pIn, cellCount * 14.f) * 0.125f;
+		WorleyNoise(pIn, cellCount * f0) * 0.625f +
+		WorleyNoise(pIn, cellCount * f1) * 0.25f +
+		WorleyNoise(pIn, cellCount * f2) * 0.125f;
 }
 
 auto Noise::Hash(float n) -> float

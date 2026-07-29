@@ -1,5 +1,6 @@
 ﻿#include "pass/HillairePass.h"
 #include "pass/LUTPass.h"
+#include "pass/CloudPass.h"
 
 #include "core/Logger.h"
 
@@ -7,8 +8,8 @@
 #include "render/VulkanImage.h"
 #include "render/Material.h"
 
-HillairePass::HillairePass(const LUTPass& lutPass) :
-	lutPass(lutPass)
+HillairePass::HillairePass(const LUTPass& lutPass, const CloudPass& cloudPass) :
+	lutPass(lutPass), cloudPass(cloudPass)
 {
 }
 
@@ -35,6 +36,10 @@ void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame
 		lutPass.GetAerialShadowDepth()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(
+		cloudPass.GetOutputImage()->GetImage(),
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void HillairePass::UpdateMaterial()
@@ -44,6 +49,7 @@ void HillairePass::UpdateMaterial()
 	material->UpdateBindingData(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler());
 	material->UpdateBindingData(8, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler());
 	material->UpdateBindingData(9, *lutPass.GetAerialShadowDepth(), lutPass.GetAerialShadowSampler()->GetSampler());
+	material->UpdateBindingData(10, *cloudPass.GetOutputImage(), cloudPass.GetSampler()->GetSampler());
 }
 
 auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
@@ -100,6 +106,13 @@ auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSet
 	binding9.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 	binding9.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding9.descriptorCount = 1;
+	{
+		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
+		binding.binding = 10;
+		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		binding.descriptorCount = 1;
+	}
 
 	Shader shader{};
 	shader.
@@ -123,6 +136,7 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 		AddBinding(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler()).
 		AddBinding(8, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler()).
 		AddBinding(9, *lutPass.GetAerialShadowDepth(), lutPass.GetAerialShadowSampler()->GetSampler()).
+		AddBinding(10, *cloudPass.GetOutputImage(), cloudPass.GetSampler()->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, atmosphere);

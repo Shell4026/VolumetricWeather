@@ -42,8 +42,8 @@ void CloudPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	APass::SetUsages(ctx, frame);
 	AddUsage(output->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	AddUsage(perlin->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	AddUsage(worley->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(sceneDepth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(transmittanceLUT->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void CloudPass::SetSetting(const Setting& setting)
@@ -117,8 +117,8 @@ void CloudPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool desc
 		AddBinding<Setting>(0).
 		AddBinding(1, *output).
 		AddBinding(2, *perlin, sampler->GetSampler()).
-		AddBinding(3, *worley, sampler->GetSampler()).
-		AddBinding(4, *sceneDepth, depthSampler->GetSampler()).
+		AddBinding(3, *sceneDepth, depthSampler->GetSampler()).
+		AddBinding(4, *transmittanceLUT, transmittanceLUTSampler->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, setting);
@@ -137,44 +137,66 @@ void CloudPass::LoadNoises()
 {
 	VkImageCreateInfo ci = VulkanImage::GetCreateInfo();
 	ci.extent = { 128, 128, 128 };
-	ci.format = VkFormat::VK_FORMAT_R8_UNORM;
+	ci.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
 	ci.imageType = VkImageType::VK_IMAGE_TYPE_3D;
 	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	perlin = std::make_unique<VulkanImage>(*ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	worley = std::make_unique<VulkanImage>(*ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	
+	const std::size_t size = 128 * 128 * 128;
+	Noise::Texel noiseTexel(size * 4, 0);
+
 	Noise::Texel perlinNoise;
-	const std::filesystem::path perlinPath = "textures/perlinWorley.bin";
-	if (std::filesystem::exists(perlinPath))
+	perlinNoise.reserve(size);
+	const std::filesystem::path perlinWorleyPath = "textures/perlinWorley.bin";
+	if (std::filesystem::exists(perlinWorleyPath))
 	{
-		perlinNoise = util::LoadBinary(perlinPath);
+		perlinNoise = util::LoadBinary(perlinWorleyPath);
 		if (perlinNoise.size() != 128 * 128 * 128)
 		{
-			SH_ERROR_FORMAT("Data size is wrong!: {} / {}", perlinNoise.size(), 128 * 128 * 128);
+			SH_ERROR_FORMAT("Data size is wrong!: {} / {}", perlinNoise.size(), size);
 			throw std::runtime_error{ "Data size is wrong!" };
 		}
 	}
 	else
 	{
 		perlinNoise = Noise::GeneratePerlinWorleyNoiseTexture(128, 128, 128, 8);
-		util::SaveBinary(perlinNoise, perlinPath);
+		util::SaveBinary(perlinNoise, perlinWorleyPath);
 	}
-	perlin->SetData(perlinNoise.data());
 
-	Noise::Texel worleyNoise;
-	const std::filesystem::path worleyPath = "textures/worley.bin";
-	if (std::filesystem::exists(worleyPath))
+	std::array<Noise::Texel, 3> worleyNoises;
+	float f0 = 1;
+	float f1 = 2;
+	float f2 = 4;
+	for (int i = 0; i < 3; ++i)
 	{
-		worleyNoise = util::LoadBinary(worleyPath);
-		if (worleyNoise.size() != 128 * 128 * 128)
+		worleyNoises[i].reserve(size);
+
+		const std::filesystem::path worleyPath = std::format("textures/worley{}.bin", i);
+		if (std::filesystem::exists(worleyPath))
 		{
-			SH_ERROR_FORMAT("Data size is wrong!: {} / {}", worleyNoise.size(), 128 * 128 * 128);
-			throw std::runtime_error{ "Data size is wrong!" };
+			worleyNoises[i] = util::LoadBinary(worleyPath);
+			if (worleyNoises[i].size() != size)
+			{
+				SH_ERROR_FORMAT("Data size is wrong!: {} / {}", worleyNoises[i].size(), size);
+				throw std::runtime_error{ "Data size is wrong!" };
+			}
 		}
+		else
+		{
+			worleyNoises[i] = Noise::GenerateWorleyNoiseTexture(128, 128, 128, f0, f1, f2);
+			util::SaveBinary(worleyNoises[i], worleyPath);
+		}
+		f0 *= 2;
+		f1 *= 2;
+		f2 *= 2;
 	}
-	else
+
+	for (std::size_t i = 0; i < size; ++i)
 	{
-		worleyNoise = Noise::GenerateWorleyNoiseTexture(128, 128, 128);
-		util::SaveBinary(worleyNoise, worleyPath);
+		noiseTexel[i * 4 + 0] = perlinNoise[i];
+		noiseTexel[i * 4 + 1] = worleyNoises[0][i];
+		noiseTexel[i * 4 + 2] = worleyNoises[1][i];
+		noiseTexel[i * 4 + 3] = worleyNoises[2][i];
 	}
-	worley->SetData(worleyNoise.data());
+	perlin->SetData(noiseTexel.data());
 }

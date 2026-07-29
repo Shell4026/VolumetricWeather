@@ -10,10 +10,11 @@
 
 class Material;
 class LUTPass;
+class CloudPass;
 class HillairePass : public AtmospherePass
 {
 public:
-	HillairePass(const LUTPass& lutPass);
+	HillairePass(const LUTPass& lutPass, const CloudPass& cloudPass);
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 	void UpdateMaterial();
 protected:
@@ -21,4 +22,5 @@ protected:
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 private:
 	const LUTPass& lutPass;
+	const CloudPass& cloudPass;
 };

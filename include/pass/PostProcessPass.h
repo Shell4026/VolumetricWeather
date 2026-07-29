@@ -22,7 +22,6 @@ public:
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetExposure(float exposure);
 	void SetOutputImage(const VulkanImage& outputImage);
-	void SetCloudImage(const VulkanImage& image) { cloudImage = &image; }
 
 	auto GetShader() const -> const Shader& { return shader; }
 	auto GetExposure() const -> float { return data.exposure; }
@@ -36,7 +35,6 @@ private:
 	VkPipeline pipeline = VK_NULL_HANDLE;
 
 	const VulkanImage* outputImage = nullptr;
-	const VulkanImage* cloudImage = nullptr;
 	const VulkanSampler* sampler = nullptr;
 
 	struct Data
