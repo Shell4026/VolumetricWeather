@@ -62,33 +62,52 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 	return far >= 0.0;
 }
 
-bool RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float innerRadius, float outerRadius, out float tStart, out float tEnd)
+// 구름층을 통과하는 구간 갯수를 반환
+// 지상에서 밖 [innerFar, outerFar]
+// 구름층 내부에서 밖 [0, outerFar]
+// 구름층 내부에서 안 [0, innerNear] [innerFar, outerFar] 
+// 우주에서 행성 관통X [outerNear, outerFar]
+// 우주에서 행성 관통O [outerNear, innerNear]
+int RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float innerRadius, float outerRadius, out vec2 segment0, out vec2 segment1)
 {
+	segment0 = vec2(0.0);
+	segment1 = vec2(0.0);
+
 	float outerNear;
 	float outerFar;
-	// 구 내부에서 쏘면 near는 음수
 	if (!RaySphereIntersect(rayOrigin, rayDir, center, outerRadius, outerNear, outerFar))
-		return false;
-	
-	tStart = max(outerNear, 0.0);
-	tEnd = outerFar;
-	
-	if (tEnd <= tStart)
-		return false;
+		return 0; // 우주에서 우주
+	outerNear = max(outerNear, 0.0);
+	if (outerFar <= outerNear)
+		return 0;
 	
 	float innerNear;
 	float innerFar;
-	// 내부구와 충돌x => 우주 or 구름 내부에서 밖을 봄
+	// 내부층과 충돌x => 우주에서 구름 외부층만 보거나, 구름 내부에서 밖을 봄
 	if (!RaySphereIntersect(rayOrigin, rayDir, center, innerRadius, innerNear, innerFar))
-		return true;
+	{
+		segment0 = vec2(outerNear, outerFar);
+		return 1;
+	}
 	
-	// 구름층 밑
-	if (innerNear <= 0.0)
-		tStart = innerFar;
-	else // 우주 or 구름 내부에서 안을 봄
-		tEnd = min(tEnd, innerNear);
+	// 여기서부터 내부구를 볼 수 있는 상태
+	float groundNear;
+	float groundFar;
+	const bool bGroundHit = RaySphereIntersect(rayOrigin, rayDir, center, setting.groundRadius, groundNear, groundFar);
+	if (innerNear > 0.0)
+	{
+		segment0 = vec2(outerNear, innerNear);
+		if (bGroundHit && groundNear > 0.0) // 구름층/우주에서 땅을 보는 상태
+			return 1;
+		segment1 = vec2(innerFar, outerFar);
+		return 2;
+	}
 	
-	return tEnd > tStart;
+	if (bGroundHit && groundNear >= 0.0) // 지상에서 땅
+		return 0;
+	
+	segment0 = vec2(innerFar, outerFar); // 지상에서 밖
+	return 1;
 }
 
 float Remap(float value, float originalMin, float originalMax, float newMin, float newMax)
@@ -166,6 +185,60 @@ vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
 	return texture(transmittanceLUT, uv).xyz;
 }
 
+void SegmentTransmittance(
+	vec3 rayOrigin, 
+	vec3 rayDir, 
+	vec2 segment, 
+	float steps, 
+	float cloudInner, 
+	float cloudOuter, 
+	vec3 sunDir, 
+	float phase,
+	inout vec3 inScattering,
+	inout float transmittance)
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	
+	const float segmentLength = segment.y - segment.x;
+	const uint segmentSteps = max(1u, uint(ceil(segmentLength  / steps)));
+	
+	const float stepSize = segmentLength / float(segmentSteps);
+	
+	for (uint i = 0; i < segmentSteps; ++i)
+	{
+		if (transmittance <= 0.01)
+            break;
+		
+		const float t = segment.x + stepSize * (i + 0.5);
+		const vec3 samplePos = rayOrigin + rayDir * t;
+		const float density = GetDensity(cloudInner, cloudOuter, samplePos);
+		if (density <= 0.0001)
+			continue;
+		
+		vec3 lightViewT = vec3(1.0);
+		float groundNear;
+		float groundFar;
+		
+		if (RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, setting.groundRadius, groundNear, groundFar))
+			lightViewT = vec3(0.0);
+		else
+		{
+			float lightNear;
+			float lightFar;
+			if (RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, cloudOuter, lightNear, lightFar))
+			{
+				lightViewT = CloudToSunTransmittance(samplePos, samplePos - sunDir * lightFar, lightFar, 10, cloudInner, cloudOuter);
+				lightViewT *= TransmittanceUsingLUT(samplePos - sunDir * lightFar, -sunDir);
+			}
+		}
+		
+		const float sigma = density * stepSize * setting.extinctionCoefficient;
+		const float stepTransmittance = exp(-sigma);
+		inScattering += (1.0 - stepTransmittance) * transmittance * (lightViewT * phase * setting.sun.w);
+		transmittance *= stepTransmittance;
+	}
+}	
+
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -192,78 +265,52 @@ void main()
 	
 	const vec3 viewRay = PixelToViewPos(uv, 1.0);
 	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
-	
-	float rayStart;
-	float rayEnd;
-	
 	const float cloudInnerRadius = setting.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuterRadius = cloudInnerRadius + CLOUD_THICKNESS;
-	
 	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
 	
-	float groundNear;
-	float groundFar;
-	if (!RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, rayStart, rayEnd))
+	vec2 cloudSegment0;
+	vec2 cloudSegment1;
+	const int cloudSegmentCount = 
+		RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, cloudSegment0, cloudSegment1);
+	if (cloudSegmentCount == 0)
 	{
-		imageStore(outImage, pixel, vec4(0, 0, 0, 1));
+		imageStore(outImage, pixel, vec4(0.0, 0.0, 0.0, 1.0));
 		return;
 	}
-	if (RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.groundRadius, groundNear, groundFar))
-	{
-		if (groundNear < rayStart)
-		{
-			imageStore(outImage, pixel, vec4(0, 0, 0, 1));
-			return;
-		}			
-	}
-	
+
 	const float z = texture(sceneDepth, uv).r;
 	const vec3 viewPos = PixelToViewPos(uv, z);
 	const float sceneDistance = length(viewPos);
 	if (z < 1.0)
-		rayEnd = min(rayEnd, sceneDistance);
-	if (rayEnd <= rayStart)
 	{
-		imageStore(outImage, pixel, vec4(0, 0, 0, 1));
+		imageStore(outImage, pixel, vec4(0.0, 0.0, 0.0, 1.0));
 		return;
 	}
 	
 	const vec3 sunDir = setting.sun.xyz;
 	const float mu = dot(rayDir, -sunDir);
-	const float phase = mix(MiePhase(mu, 0.8), 1.0 / (4.0 * PI),0.3);
-	const vec3 startPos = camera.pos + rayDir * rayStart;
-	const float stepSize = (rayEnd - rayStart) / setting.steps;
-	vec3 color = vec3(0.0);
+	const float phase = mix(MiePhase(mu, 0.8), 1.0 / (4.0 * PI), 0.3);
+
 	vec3 inScattering = vec3(0.0);
 	float transmittance = 1.0;
-	for (uint i = 0; i < setting.steps; ++i)
+	if (cloudSegmentCount == 1)
 	{
-		const vec3 samplePos = startPos + rayDir * stepSize * (i + 0.5);
-		float density = GetDensity(cloudInnerRadius, cloudOuterRadius, samplePos);
-		vec3 lightViewT = vec3(1.0);
-		
-		float near;
-		float far;
-		const bool groundHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, setting.groundRadius, near, far);
-		if (groundHit)
-			lightViewT = vec3(0.0);
-		else
-		{
-			const bool atmosphereHit = RayCloudShellIntersect(samplePos, -sunDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, near, far);
-			if (atmosphereHit)
-			{
-				lightViewT = CloudToSunTransmittance(samplePos, samplePos - sunDir * far, far, 10, cloudInnerRadius, cloudOuterRadius);
-				lightViewT *= TransmittanceUsingLUT(samplePos, -sunDir);
-			}
-		}
-		float sigma = density * stepSize * setting.extinctionCoefficient;
-		if (transmittance <= 0.01) // 총 투과율이 0.1이하
-			break;
-			
-		float stepT = exp(-sigma);
-		
-		inScattering += (1 - stepT) * transmittance * lightViewT * phase * vec3(setting.sun.w);
-		transmittance *= stepT;
+		SegmentTransmittance(
+			camera.pos, rayDir, cloudSegment0, setting.steps, 
+			cloudInnerRadius, cloudOuterRadius, sunDir, phase, 
+			inScattering, transmittance);
+	}
+	else if (cloudSegmentCount == 2)
+	{
+		SegmentTransmittance(
+			camera.pos, rayDir, cloudSegment0, setting.steps / 2, 
+			cloudInnerRadius, cloudOuterRadius, sunDir, phase, 
+			inScattering, transmittance);
+		SegmentTransmittance(
+			camera.pos, rayDir, cloudSegment1, setting.steps / 2, 
+			cloudInnerRadius, cloudOuterRadius, sunDir, phase, 
+			inScattering, transmittance);
 	}
 	
 	imageStore(outImage, pixel, vec4(inScattering, transmittance));

@@ -197,13 +197,15 @@ void BasisScene::PrepareResource()
 
 void BasisScene::SetupPass()
 {
+	const uint32_t width = ctx.GetSwapChainExtent().width;
+	const uint32_t height = ctx.GetSwapChainExtent().height;
 	shadowPass = std::make_unique<ShadowPass>();
 	shadowPass->Init(ctx, samplerManager, GetDescriptorPool(), VK_NULL_HANDLE);
 	mountain.material->UpdateBindingData(2, *shadowPass->GetShadowMap(), shadowPass->GetShadowSampler()->GetSampler());
 
 	opaquePass = std::make_unique<OpaquePass>();
 	opaquePass->SetShader(opaqueShader);
-	opaquePass->SetImageSize(window.GetWidth(), window.GetHeight());
+	opaquePass->SetImageSize(width, height);
 	opaquePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	lutPass = std::make_unique<LUTPass>();
@@ -219,7 +221,7 @@ void BasisScene::SetupPass()
 	atmospherePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	atmospherePass->SetShadowMap(*shadowPass->GetShadowMap());
 	atmospherePass->SetShadowSampler(*shadowPass->GetShadowSampler());
-	atmospherePass->SetImageSize(window.GetWidth(), window.GetHeight());
+	atmospherePass->SetImageSize(width, height);
 	atmospherePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	cloudPass = std::make_unique<CloudPass>();
@@ -232,7 +234,7 @@ void BasisScene::SetupPass()
 	hillairePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
 	hillairePass->SetShadowSampler(*shadowPass->GetShadowSampler());
-	hillairePass->SetImageSize(window.GetWidth(), window.GetHeight());
+	hillairePass->SetImageSize(width, height);
 	hillairePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	currentAtmospherePass = atmospherePass.get();

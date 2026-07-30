@@ -200,8 +200,8 @@ void main()
 		
 		const vec3 sunViewDir = normalize(mat3(camera.view) * -atmosphere.sun.xyz);
 		const vec3 viewDir = normalize(viewPos);
-		float cosAngle = dot(viewDir, sunViewDir);
-		float sunMask = step(cos(radians(0.265)), cosAngle);
+		const float cosAngle = dot(viewDir, sunViewDir);
+		const float sunMask = step(cos(radians(0.265)), cosAngle);
 		const vec3 sunColor = vec3(10.0, 8.0, 5.0) * sunMask;
 		background += sunColor;
 	}
@@ -212,50 +212,21 @@ void main()
 
 	float cloudNear;
 	float cloudFar;
-
-	if (RayCloudShellIntersect(
-		camera.pos,
-		rayDir,
-		PLANET_CENTER,
-		cloudInnerRadius,
-		cloudOuterRadius,
-		cloudNear,
-		cloudFar))
+	vec3 cloudColor = vec3(0.0);
+	if (RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, cloudNear, cloudFar))
 	{
-		const float backgroundDistance =
-			z < 1.0 ? length(viewPos) : farAtmo;
+		const vec4 cloud = texture(cloudTex, uv);
 
-		// 오브젝트가 구름보다 앞에 있으면 구름 합성 안 함
-		if (cloudNear < backgroundDistance)
+		vec4 atmosphereToCloud = vec4(0.0, 0.0, 0.0, 1.0);
+
+		if ((atmosphere.modeFlags & 1) == 1)
 		{
-			const vec4 cloud = texture(cloudTex, uv);
-
-			vec4 atmosphereToCloud =
-				vec4(0.0, 0.0, 0.0, 1.0);
-
-			if ((atmosphere.modeFlags & 1) == 1)
-			{
-				const float cloudLutZ =
-					clamp(cloudNear / 32000.0, 0.0, 1.0);
-
-				atmosphereToCloud = texture(
-					aerialPerspectiveLUT,
-					vec3(uv, cloudLutZ)
-				);
-			}
-
-			const vec3 atmosphericScatteringBeforeCloud =
-				atmosphereToCloud.rgb;
-
-			const float atmosphericTransmittanceToCloud =
-				atmosphereToCloud.a;
-
-			result =
-				atmosphericScatteringBeforeCloud
-				+ atmosphericTransmittanceToCloud * cloud.rgb
-				+ cloud.a *
-				  (background - atmosphericScatteringBeforeCloud);
+			const float cloudLutZ = clamp(cloudNear / 32000.0, 0.0, 1.0);
+			atmosphereToCloud = texture(aerialPerspectiveLUT, vec3(uv, cloudLutZ));
 		}
+		// 구름까지 대기의 산란 + (구름까지 대기의 투과율 * 구름의 산란) + 구름의 투과율 * (구름 뒤 산란)
+		result = atmosphereToCloud.rgb + (atmosphereToCloud.a * cloud.rgb) +
+			cloud.a * (background - atmosphereToCloud.rgb);
 	}
 	
 	imageStore(outImage, pixel, vec4(result, 1.0));
