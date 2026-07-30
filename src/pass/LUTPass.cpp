@@ -95,7 +95,7 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 			VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT, VkAccessFlagBits::VK_ACCESS_NONE);
 	}
 	// AerialPerspective LUT
-	if ((enableLUTFlags & LUTType::AerialPerspective) || (updateLUTFlags & LUTType::AerialShadow))
+	if ((enableLUTFlags & LUTType::AerialPerspective) || (updateLUTFlags & LUTType::AerialPerspective) || (updateLUTFlags & LUTType::AerialShadow))
 	{
 		VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 			VkImageLayout::VK_IMAGE_LAYOUT_GENERAL, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -173,8 +173,11 @@ void LUTPass::ReCreateShadowLUT(uint32_t width, uint32_t height)
 	imageCI.extent = { width, height, 1 };
 	imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
 	aerialShadow.lut = std::make_unique<VulkanImage>(*ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	imageCI.format = VkFormat::VK_FORMAT_R32_SFLOAT;
+	aerialShadow.lowResDepth = std::make_unique<VulkanImage>(*ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	aerialShadow.material->UpdateBindingData(1, *aerialShadow.lut, VK_NULL_HANDLE);
+	aerialShadow.material->UpdateBindingData(6, *aerialShadow.lowResDepth, VK_NULL_HANDLE);
 }
 
 void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
