@@ -49,7 +49,7 @@ private:
 	void DrawDebugGUI();
 	void DrawOverlay();
 	void DrawPresetGUI();
-	void SetAtmosphereModel(bool useHillaire);
+	void SetAtmosphereModel(bool bHillare);
 	void CreateDrawables();
 	void ControlCamera(double dt);
 	void UpdateSun();
@@ -115,6 +115,11 @@ private:
 		uint32_t width;
 		uint32_t height;
 	};
+	struct ChangeAtmosphereRequest
+	{
+		bool bValid = false;
+		bool bHillaire = false;
+	} changeAtmosphereReq;
 	std::map<const VulkanImage*, ImageReCreateRequest> imgRecreateRequests;
-	bool bChangeAtmosphereModelRequest = false;
+	bool bCloudEnable = true;
 };

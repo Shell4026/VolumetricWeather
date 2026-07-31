@@ -18,7 +18,7 @@ public:
 		glm::mat4 sunViewProj{ 1.f };
 		glm::ivec2 steps = { 64, 20 };
 		float radius = 6'460'000.f;
-		int modeFlags = 0b11;
+		int modeFlags = 0b0111;
 	};
 public:
 	AtmospherePass() { bUseSwapchainImage = false; }

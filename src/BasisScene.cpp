@@ -71,10 +71,10 @@ void BasisScene::Update(double dt)
 void BasisScene::BeginRender(double dt)
 {
 	AScene::BeginRender(dt);
-	if (bChangeAtmosphereModelRequest)
+	if (changeAtmosphereReq.bValid)
 	{
-		SetAtmosphereModel(currentAtmospherePass == atmospherePass.get());
-		bChangeAtmosphereModelRequest = false;
+		SetAtmosphereModel(changeAtmosphereReq.bHillaire);
+		changeAtmosphereReq.bValid = false;
 	}
 	const bool bImgRecreate = !imgRecreateRequests.empty();
 	for (const auto& [img, req] : imgRecreateRequests)
@@ -110,7 +110,8 @@ void BasisScene::BeginRender(double dt)
 		if (currentAtmospherePass == hillairePass.get())
 		{
 			transmittanceLUTPassElapsed.Push(lutPass->GetElapsedTimeMs());
-			cloudPassElapsed.Push(cloudPass->GetElapsedTimeMs());
+			if (bCloudEnable)
+				cloudPassElapsed.Push(cloudPass->GetElapsedTimeMs());
 		}
 		atmospherePassElapsed.Push(currentAtmospherePass->GetElapsedTimeMs());
 		postProcessPassElapsed.Push(postProcessPass->GetElapsedTimeMs());
@@ -289,7 +290,10 @@ void BasisScene::DrawDebugGUI()
 		if (menu == 0) // Atmosphere
 		{
 			if (!rmseMeasurement.IsRunning() && ImGui::Button("Change Atmosphere model"))
-				bChangeAtmosphereModelRequest = true;
+			{
+				changeAtmosphereReq.bValid = true;
+				changeAtmosphereReq.bHillaire = currentAtmospherePass == atmospherePass.get();
+			}
 
 			ImGui::Text("Atmosphere radius(km)");
 			int atmoRadiusKM = static_cast<int>(atmosphere.radius / 1000.f);
@@ -442,6 +446,18 @@ void BasisScene::DrawDebugGUI()
 		}
 		if (menu == 3)
 		{
+			if (ImGui::Checkbox("Enable", &bCloudEnable))
+			{
+				changeAtmosphereReq.bValid = true;
+				changeAtmosphereReq.bHillaire = currentAtmospherePass == hillairePass.get();
+				AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
+				if (bCloudEnable)
+					atmosphere.modeFlags |= 0b0100;
+				else
+					atmosphere.modeFlags &= 0b1011;
+				atmospherePass->SetAtmosphere(atmosphere);
+				hillairePass->SetAtmosphere(atmosphere);
+			}
 			CloudPass::Setting setting = cloudPass->GetSetting();
 			if (ImGui::SliderInt("Steps", reinterpret_cast<int*>(&setting.steps), 1, 128))
 			{
@@ -512,10 +528,13 @@ void BasisScene::DrawOverlay()
 		for (int i = 0; i < atmospherePassElapsed.Size(); ++i)
 			sum += atmospherePassElapsed[i];
 		ImGui::Text(std::format("AtmospherePass: {:.3}ms", sum / atmospherePassElapsed.MaxSize()).c_str());
-		sum = 0;
-		for (int i = 0; i < cloudPassElapsed.Size(); ++i)
-			sum += cloudPassElapsed[i];
-		ImGui::Text(std::format("CloudPass: {:.3}ms", sum / cloudPassElapsed.MaxSize()).c_str());
+		if (bCloudEnable)
+		{
+			sum = 0;
+			for (int i = 0; i < cloudPassElapsed.Size(); ++i)
+				sum += cloudPassElapsed[i];
+			ImGui::Text(std::format("CloudPass: {:.3}ms", sum / cloudPassElapsed.MaxSize()).c_str());
+		}
 		sum = 0;
 		for (int i = 0; i < postProcessPassElapsed.Size(); ++i)
 			sum += postProcessPassElapsed[i];
@@ -568,11 +587,8 @@ void BasisScene::DrawPresetGUI()
 
 void BasisScene::SetAtmosphereModel(bool useHillaire)
 {
-	AtmospherePass* requestedPass = useHillaire
-		? static_cast<AtmospherePass*>(hillairePass.get())
-		: atmospherePass.get();
-	if (currentAtmospherePass == requestedPass)
-		return;
+	AtmospherePass* requestedPass = useHillaire ? 
+		static_cast<AtmospherePass*>(hillairePass.get()) : atmospherePass.get();
 
 	counter = 0;
 	atmospherePassElapsed.Clear();
@@ -581,7 +597,10 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 	if (useHillaire)
 	{
 		SH_INFO("Change to Hillaire");
-		activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), cloudPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+		if (bCloudEnable)
+			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), cloudPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+		else
+			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
 	}
 	else

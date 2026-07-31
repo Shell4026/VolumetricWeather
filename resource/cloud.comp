@@ -103,7 +103,7 @@ int RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float inner
 		return 2;
 	}
 	
-	if (bGroundHit && groundNear >= 0.0) // 지상에서 땅
+	if (bGroundHit) // 지상에서 땅
 		return 0;
 	
 	segment0 = vec2(innerFar, outerFar); // 지상에서 밖
@@ -271,7 +271,7 @@ void main()
 	
 	vec2 cloudSegment0;
 	vec2 cloudSegment1;
-	const int cloudSegmentCount = 
+	int cloudSegmentCount = 
 		RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, cloudSegment0, cloudSegment1);
 	if (cloudSegmentCount == 0)
 	{
@@ -284,8 +284,8 @@ void main()
 	const float sceneDistance = length(viewPos);
 	if (z < 1.0)
 	{
-		imageStore(outImage, pixel, vec4(0.0, 0.0, 0.0, 1.0));
-		return;
+		cloudSegmentCount = 1;
+		cloudSegment0.y = min(cloudSegment0.y, sceneDistance);
 	}
 	
 	const vec3 sunDir = setting.sun.xyz;

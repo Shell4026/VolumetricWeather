@@ -175,6 +175,7 @@ void main()
 	
 	// 0001 AerialPerspective
 	// 0010 AerialShadow
+	// 0100 Cloud
 	if ((atmosphere.modeFlags & 2) == 2)
 		aerialShadow = AerialShadow(uv, viewPos.z);
 
@@ -210,24 +211,26 @@ void main()
 	const float cloudOuterRadius = cloudInnerRadius + CLOUD_THICKNESS;
 	vec3 result = background;
 
-	float cloudNear;
-	float cloudFar;
-	vec3 cloudColor = vec3(0.0);
-	if (RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, cloudNear, cloudFar))
+	if ((atmosphere.modeFlags & 4) == 4)
 	{
-		const vec4 cloud = texture(cloudTex, uv);
-
-		vec4 atmosphereToCloud = vec4(0.0, 0.0, 0.0, 1.0);
-
-		if ((atmosphere.modeFlags & 1) == 1)
+		float cloudNear;
+		float cloudFar;
+		vec3 cloudColor = vec3(0.0);
+		if (RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, cloudNear, cloudFar))
 		{
-			const float cloudLutZ = clamp(cloudNear / 32000.0, 0.0, 1.0);
-			atmosphereToCloud = texture(aerialPerspectiveLUT, vec3(uv, cloudLutZ));
+			const vec4 cloud = texture(cloudTex, uv);
+
+			vec4 atmosphereToCloud = vec4(0.0, 0.0, 0.0, 1.0);
+
+			if ((atmosphere.modeFlags & 1) == 1)
+			{
+				const float cloudLutZ = clamp(cloudNear / 32000.0, 0.0, 1.0);
+				atmosphereToCloud = texture(aerialPerspectiveLUT, vec3(uv, cloudLutZ));
+			}
+			// 구름까지 대기의 산란 + (구름까지 대기의 투과율 * 구름의 산란) + 구름의 투과율 * (구름 뒤 산란)
+			result = atmosphereToCloud.rgb + (atmosphereToCloud.a * cloud.rgb) +
+				cloud.a * (background - atmosphereToCloud.rgb);
 		}
-		// 구름까지 대기의 산란 + (구름까지 대기의 투과율 * 구름의 산란) + 구름의 투과율 * (구름 뒤 산란)
-		result = atmosphereToCloud.rgb + (atmosphereToCloud.a * cloud.rgb) +
-			cloud.a * (background - atmosphereToCloud.rgb);
 	}
-	
 	imageStore(outImage, pixel, vec4(result, 1.0));
 }
