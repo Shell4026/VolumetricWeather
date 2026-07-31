@@ -3,22 +3,33 @@
 SamplerManager::SamplerManager(const VulkanContext& ctx) :
     ctx(ctx)
 {
-    VkSamplerCreateInfo ci = VulkanSampler::GetCreateInfo();
-    ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    ci.addressModeV = ci.addressModeU;
-    ci.addressModeW = ci.addressModeU;
-    linearRepeat = GetSamplerOrCreate(ci);
-    ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    ci.addressModeV = ci.addressModeU;
-    ci.addressModeW = ci.addressModeU;
-    linearClamp = GetSamplerOrCreate(ci);
-    ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    ci.addressModeV = ci.addressModeU;
-    ci.addressModeW = ci.addressModeU;
-    ci.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-    linearClampBlack = GetSamplerOrCreate(ci);
-    ci.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    linearClampWhite = GetSamplerOrCreate(ci);
+    {
+        VkSamplerCreateInfo ci = VulkanSampler::GetCreateInfo();
+        ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        ci.addressModeV = ci.addressModeU;
+        ci.addressModeW = ci.addressModeU;
+        linearRepeat = GetSamplerOrCreate(ci);
+        ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        ci.addressModeV = ci.addressModeU;
+        ci.addressModeW = ci.addressModeU;
+        linearClamp = GetSamplerOrCreate(ci);
+        ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        ci.addressModeV = ci.addressModeU;
+        ci.addressModeW = ci.addressModeU;
+        ci.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+        linearClampBlack = GetSamplerOrCreate(ci);
+        ci.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        linearClampWhite = GetSamplerOrCreate(ci);
+    }
+    {
+        VkSamplerCreateInfo ci = VulkanSampler::GetCreateInfo();
+        ci.minFilter = VkFilter::VK_FILTER_NEAREST;
+        ci.magFilter = VkFilter::VK_FILTER_NEAREST;
+        ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        ci.addressModeV = ci.addressModeU;
+        ci.addressModeW = ci.addressModeU;
+        pointRepeat = GetSamplerOrCreate(ci);
+    }
 }
 
 SamplerManager::~SamplerManager()

@@ -90,7 +90,12 @@ private:
 
 	CircularQueue<double, 10> shadowPassElapsed;
 	CircularQueue<double, 10> opaquePassElapsed;
+
 	CircularQueue<double, 10> transmittanceLUTPassElapsed;
+	CircularQueue<double, 10> skyViewLUTPassElapsed;
+	CircularQueue<double, 10> aerialPerspectiveLUTPassElapsed;
+	CircularQueue<double, 10> aerialShadowLUTPassElapsed;
+
 	CircularQueue<double, 10> atmospherePassElapsed;
 	CircularQueue<double, 10> cloudPassElapsed;
 	CircularQueue<double, 10> postProcessPassElapsed;

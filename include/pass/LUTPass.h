@@ -48,6 +48,7 @@ public:
 	void EnablePass(LUTTypeFlags flags) { enableLUTFlags |= flags; }
 	void DisablePass(LUTTypeFlags flags) { enableLUTFlags &= ~flags; }
 	void TogglePass(LUTTypeFlags flags) { enableLUTFlags ^= flags; }
+	void UseLightShadow(bool b) { bUseLightShadow = b; }
 
 	void UpdateLUTFlags(LUTTypeFlags types) { updateLUTFlags |= types; }
 	void ReCreateSkyViewLUT(uint32_t width, uint32_t height);
@@ -62,6 +63,8 @@ public:
 	auto GetAerialShadowSampler() const -> const VulkanSampler* { return aerialPerspective.sampler; } // 같은 샘플러
 	auto GetAerialShadowLUT() const -> VulkanImage* { return aerialShadow.lut.get(); }
 	auto GetAerialShadowDepth() const -> VulkanImage* { return aerialShadow.lowResDepth.get(); }
+	auto IsUseLightShadow() const -> bool { return bUseLightShadow; }
+	auto GetLUTElpasedTimeMs(LUTType type) const -> double;
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
@@ -106,6 +109,7 @@ private:
 		std::unique_ptr<VulkanImage> lut;
 		const VulkanSampler* sampler = nullptr;
 		VkPipeline pipeline = VK_NULL_HANDLE;
+		GPUTimer timer;
 	} transmittance;
 	struct SkyView
 	{
@@ -114,6 +118,7 @@ private:
 		std::unique_ptr<VulkanImage> lut;
 		const VulkanSampler* sampler = nullptr;
 		VkPipeline pipeline = VK_NULL_HANDLE;
+		GPUTimer timer;
 	} skyView;
 	struct AerialPerspective
 	{
@@ -122,14 +127,19 @@ private:
 		std::unique_ptr<VulkanImage> lut;
 		const VulkanSampler* sampler = nullptr;
 		VkPipeline pipeline = VK_NULL_HANDLE;
+		GPUTimer timer;
 	} aerialPerspective;
 	struct AerialShadow
 	{
 		std::unique_ptr<Shader> shader;
+		std::unique_ptr<Shader> shader2;
 		std::unique_ptr<Material> material;
+		std::unique_ptr<Material> material2;
 		std::unique_ptr<VulkanImage> lut;
 		std::unique_ptr<VulkanImage> lowResDepth;
 		VkPipeline pipeline = VK_NULL_HANDLE;
+		VkPipeline pipeline2 = VK_NULL_HANDLE;
+		GPUTimer timer;
 	} aerialShadow;
 
 	const VulkanImage* shadowMap = nullptr;
@@ -140,4 +150,6 @@ private:
 
 	uint32_t updateLUTFlags = 0;
 	uint32_t enableLUTFlags = LUTType::All;
+	
+	bool bUseLightShadow = false;
 };

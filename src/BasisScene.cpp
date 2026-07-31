@@ -109,7 +109,10 @@ void BasisScene::BeginRender(double dt)
 		opaquePassElapsed.Push(opaquePass->GetElapsedTimeMs());
 		if (currentAtmospherePass == hillairePass.get())
 		{
-			transmittanceLUTPassElapsed.Push(lutPass->GetElapsedTimeMs());
+			transmittanceLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::Transmittance));
+			skyViewLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::SkyView));
+			aerialPerspectiveLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::AerialPerspective));
+			aerialShadowLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::AerialShadow));
 			if (bCloudEnable)
 				cloudPassElapsed.Push(cloudPass->GetElapsedTimeMs());
 		}
@@ -404,6 +407,10 @@ void BasisScene::DrawDebugGUI()
 						lutPass->TogglePass(LUTPass::LUTType::AerialShadow);
 						currentAtmospherePass->SetAtmosphere(atmosphere);
 					}
+					bool IsUseLightShadow = lutPass->IsUseLightShadow();
+					if (ImGui::Checkbox("Light", &IsUseLightShadow))
+						lutPass->UseLightShadow(IsUseLightShadow);
+
 					ImGui::Text("Steps");
 					if (ImGui::SliderInt("##AerialShadowStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialShadowSteps), 1, 64))
 						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
@@ -480,8 +487,8 @@ void BasisScene::DrawDebugGUI()
 			DrawPresetGUI();
 		}
 		ImGui::EndDisabled();
-		ImGui::End();
 	}
+	ImGui::End();
 }
 
 void BasisScene::DrawOverlay()
@@ -519,10 +526,30 @@ void BasisScene::DrawOverlay()
 		ImGui::Text(std::format("OpaquePass: {:.3}ms", sum / opaquePassElapsed.MaxSize()).c_str());
 		if (hillaire)
 		{
+			ImGui::Separator();
 			sum = 0;
 			for (int i = 0; i < transmittanceLUTPassElapsed.Size(); ++i)
 				sum += transmittanceLUTPassElapsed[i];
-			ImGui::Text(std::format("LUTPass: {:.3}ms", sum / transmittanceLUTPassElapsed.MaxSize()).c_str());
+			const double transmittance = sum / transmittanceLUTPassElapsed.MaxSize();
+			ImGui::Text(std::format("Transmittance: {:.3}ms", transmittance).c_str());
+			sum = 0;
+			for (int i = 0; i < skyViewLUTPassElapsed.Size(); ++i)
+				sum += skyViewLUTPassElapsed[i];
+			const double skyView = sum / skyViewLUTPassElapsed.MaxSize();
+			ImGui::Text(std::format("SkyView: {:.3}ms", skyView).c_str());
+			sum = 0;
+			for (int i = 0; i < aerialPerspectiveLUTPassElapsed.Size(); ++i)
+				sum += aerialPerspectiveLUTPassElapsed[i];
+			const double aerialPerspective = sum / aerialPerspectiveLUTPassElapsed.MaxSize();
+			ImGui::Text(std::format("AerialPerspective: {:.3}ms", aerialPerspective).c_str());
+			sum = 0;
+			for (int i = 0; i < aerialShadowLUTPassElapsed.Size(); ++i)
+				sum += aerialShadowLUTPassElapsed[i];
+			const double aerialShadow = sum / aerialShadowLUTPassElapsed.MaxSize();
+			ImGui::Text(std::format("AerialShadow: {:.3}ms", aerialShadow).c_str());
+
+			ImGui::Text(std::format("LUTPass Sum: {:.3}ms", transmittance + skyView + aerialPerspective + aerialShadow).c_str());
+			ImGui::Separator();
 		}
 		sum = 0;
 		for (int i = 0; i < atmospherePassElapsed.Size(); ++i)
@@ -539,8 +566,8 @@ void BasisScene::DrawOverlay()
 		for (int i = 0; i < postProcessPassElapsed.Size(); ++i)
 			sum += postProcessPassElapsed[i];
 		ImGui::Text(std::format("PostProcessPass: {:.3}ms", sum / postProcessPassElapsed.MaxSize()).c_str());
+		ImGui::End();
 	}
-	ImGui::End();
 }
 
 void BasisScene::DrawPresetGUI()

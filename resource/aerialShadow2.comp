@@ -1,0 +1,189 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(set = 0, binding = 0) uniform Camera
+{
+	vec3 pos;
+	mat4 view;
+	mat4 proj;
+	mat4 invView;
+	mat4 invProj;
+} camera;
+layout(set = 1, binding = 0) uniform Setting
+{
+	vec4 sun; // dir, illuminance
+	mat4 sunViewProj;
+	uint steps;
+	float groundRadius;
+	float atmosphereRadius;
+} setting;
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
+layout(set = 1, binding = 2) uniform sampler3D aerialPerspectiveLUT;
+layout(set = 1, binding = 3) uniform sampler2DShadow shadowMap;
+layout(set = 1, binding = 4) uniform sampler2D depth;
+layout(set = 1, binding = 5) uniform sampler2D noiseTex;
+layout(set = 1, binding = 6, r32f) uniform writeonly image2D lowResDepth;
+const float PI = 3.141592;
+
+vec3 PixelToViewPos(vec2 uv, float z)
+{
+	vec3 ndc = vec3(uv * 2.0 - 1.0, z);
+	ndc.y = -ndc.y;
+	vec4 viewPos = camera.invProj * vec4(ndc, 1.0);
+	viewPos /= viewPos.w;
+	return viewPos.xyz;
+}
+
+float Visible(vec3 worldPos)
+{
+	const vec4 sunProjCoord = setting.sunViewProj * vec4(worldPos, 1.0);
+	vec2 uv = (sunProjCoord.xy / sunProjCoord.w + 1.0) * 0.5;
+	uv.y = 1.0 - uv.y;
+	const float z = sunProjCoord.z / sunProjCoord.w;
+    if (uv.x < 0.0 || uv.x > 1.0 ||
+        uv.y < 0.0 || uv.y > 1.0 ||
+        z < 0.0 || z > 1.0)
+        return 1.0;
+	
+    const float bias = 0.0005;
+	return texture(shadowMap, vec3(uv, z - bias));
+}
+
+bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float radius, out float near, out float far)
+{
+	vec3 rs = sphereOrigin - rayOrigin;
+	float a2 = dot(rs, rs);
+	float b = dot(rs, rayDir);
+	float c2 = a2 - b * b;
+	float r2 = radius * radius;
+	if (c2 > r2)
+		return false;
+	
+	float d = sqrt(r2 - c2); // 구 내부 ray길이
+	near = b - d;
+	far = b + d;
+	
+	return far >= 0.0;
+}
+
+void main()
+{
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 size = imageSize(outImage);
+	if (pixel.x >= size.x || pixel.y >= size.y)
+		return;
+	
+	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+	
+	const vec3 viewRay = PixelToViewPos(uv, 1.0);
+	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
+	
+	float rayStart;
+	float rayEnd;
+	
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.atmosphereRadius, rayStart, rayEnd))
+	{
+		imageStore(outImage, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
+		return;
+	}
+	rayStart = max(rayStart, 0.0);
+	rayEnd = 32000;
+	
+    float nearGround = 0.0;
+    float farGround = 0.0;
+	if (RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.groundRadius, nearGround, farGround))
+		rayEnd = min(rayEnd, nearGround); // 땅에 닿으면 땅까지만 raymarching
+	
+	const float z = texture(depth, uv).r;
+	if (z < 1.0)
+	{
+		const vec3 viewPos = PixelToViewPos(uv, z);
+        //const vec3 worldPos = (camera.invView * vec4(viewPos, 1.0)).xyz;
+        const float surfaceDistance = length(viewPos);
+		
+		rayEnd = min(rayEnd, surfaceDistance);
+	}
+	
+    if (rayEnd <= rayStart)
+    {
+        imageStore(outImage, pixel, vec4(0, 0, 0, 1));
+        return;
+    }
+	
+	const vec3 sunDir = setting.sun.xyz;
+	const float distance = rayEnd - rayStart;
+	const float noise = texture(noiseTex, uv).r;
+	const uint steps = setting.steps;
+	const float stepSize = distance / steps;
+	const vec3 stepVec = rayDir * stepSize;
+	
+	vec3 inScattering = vec3(0.0, 0.0, 0.0);
+	
+	float t0 = rayStart;
+	float z0 = clamp(t0 / 32000.0, 0.0, 1.0);
+	vec3 scattering0 = texture(aerialPerspectiveLUT, vec3(uv, z0)).rgb;
+	// for (uint i = 0; i < steps; ++i)
+	// {
+		// const float t1 = rayStart + float(i + 1) * stepSize;
+		
+		// const float sampleT = mix(t0, t1, noise);
+		// const vec3 samplePos = camera.pos + rayDir * sampleT;
+		// const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
+		// if (sampleHeight < 0.0)
+			// break;
+		
+		// const float z1 = clamp(t1 / 32000.0, 0.0, 1.0);
+
+		// const vec3 scattering1 = texture(aerialPerspectiveLUT, vec3(uv, z1)).rgb;
+		// const vec3 segmentScattering = scattering1 - scattering0;
+
+		// const float shadowing = 1.0 - Visible(samplePos);
+
+		// inScattering += shadowing * segmentScattering;
+		// t0 = t1;
+		// scattering0 = scattering1;
+	// }
+	
+	bool wasShadowed = false;
+	//scattering0 그림자 시작 부분
+	//scattering1 그림자 끝 부분
+	for (uint i = 0; i < steps; ++i)
+	{
+		const float segmentT0 = rayStart + float(i) * stepSize;
+		const float segmentT1 = min(rayStart + float(i + 1) * stepSize, rayEnd);
+		const float sampleT = mix(segmentT0, segmentT1, noise);
+		
+		const vec3 samplePos = camera.pos + rayDir * sampleT;
+		const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
+		if (sampleHeight < 0.0)
+		{
+			t0 = segmentT0;
+			break;
+		}
+		const bool isShadowed = Visible(samplePos) < 0.5;
+		if (isShadowed && !wasShadowed) // 밝음 -> 그림자
+		{
+			const float startZ = clamp(segmentT0 / 32000.0, 0.0, 1.0);
+			scattering0 = texture(aerialPerspectiveLUT, vec3(uv, startZ)).rgb; 
+		}
+		else if (!isShadowed && wasShadowed) // 그림자 -> 밝음
+		{
+			const float endZ = clamp(segmentT0 / 32000.0, 0.0, 1.0);
+			const vec3 scattering1 = texture(aerialPerspectiveLUT, vec3(uv, endZ)).rgb;
+			inScattering += scattering1 - scattering0;
+		}
+		wasShadowed = isShadowed;
+		t0 = segmentT1;
+	}
+	// 레이끝까지 그림자 상태임
+	if (wasShadowed)
+	{
+		const float endZ = clamp(t0 / 32000.0, 0.0, 1.0);
+		const vec3 scattering1 = texture(aerialPerspectiveLUT, vec3(uv, endZ)).rgb;
+		inScattering += scattering1 - scattering0;
+	}
+
+	imageStore(outImage, pixel, vec4(inScattering, 1.0));
+	imageStore(lowResDepth, pixel, vec4(z));
+}

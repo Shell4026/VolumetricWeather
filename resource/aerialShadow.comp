@@ -146,13 +146,12 @@ vec3 InScatteringInShadow(vec3 a, vec3 b, float distance, vec3 sunDir, float mu,
 	
 	const float rayleighPhase = RayleighPhase(mu);
 	const float miePhase = MiePhase(mu, 0.8);
-	const vec3 offset = noise * stepVec;
 	
 	vec3 inScattering = vec3(0.0, 0.0, 0.0);
 	vec3 sigmaSum = vec3(0.0, 0.0, 0.0);
 	for (uint i = 0; i < steps; ++i)
 	{
-		const vec3 samplePos = a + offset + stepVec * (i + 0.5);
+		const vec3 samplePos = a + stepVec * (i + noise);
 		const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
 		if (sampleHeight < 0.0)
 			break;
