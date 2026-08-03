@@ -176,6 +176,7 @@ void AScene::InitFrameContext()
 	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	for (FrameContext& frame : frames)
 	{
+		frame.cameraPtr = camera.get();
 		frame.cameraSetLayout = cameraDescSetLayout;
 		frame.cameraSet = cameraDescSet;
 		VK_RESULT_CHECK(vkCreateSemaphore(ctx.GetDevice(), &ci, nullptr, &frame.imageAvailableSemaphore));

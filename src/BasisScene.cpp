@@ -231,6 +231,7 @@ void BasisScene::SetupPass()
 	cloudPass = std::make_unique<CloudPass>();
 	cloudPass->SetSceneDepthTexture(*opaquePass->GetOutputImageDepth());
 	cloudPass->SetTransmittanceLUT(*lutPass->GetTransmittanceLUT(), *lutPass->GetTransmittanceLUTSampler());
+	cloudPass->SetNoise(*blueNoise);
 	cloudPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	hillairePass = std::make_unique<HillairePass>(*lutPass, *cloudPass);
@@ -471,11 +472,18 @@ void BasisScene::DrawDebugGUI()
 				setting.steps = std::max(static_cast<int>(setting.steps), 1);
 				cloudPass->SetSetting(setting);
 			}
+			if (ImGui::SliderInt("LightView Steps", reinterpret_cast<int*>(&setting.lightViewSteps), 1, 128))
+			{
+				setting.lightViewSteps = std::max(static_cast<int>(setting.lightViewSteps), 1);
+				cloudPass->SetSetting(setting);
+			}
 			if (ImGui::SliderFloat("Tiling", &setting.tiling, 10000.0f, 100000.f))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("Extinction Coefficient", &setting.extinctionCoefficient, 0.0001f, 0.01f, "%.5f"))
+			if (ImGui::SliderFloat("Extinction Coefficient", &setting.extinctionCoefficient, 1.f, 500.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Coverage", &setting.coverage, 0.0f, 1.0f, "%.2f"))
+				cloudPass->SetSetting(setting);
+			if (ImGui::SliderFloat("History Weight", &setting.historyWeight, 0.0f, 1.0f, "%.2f"))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("OffsetX", &setting.offset.x, 0.f, 1.f))
 				cloudPass->SetSetting(setting);

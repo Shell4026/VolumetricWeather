@@ -42,6 +42,12 @@ void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
+void HillairePass::Record(const VulkanContext& ctx, const FrameContext& frame)
+{
+	material->UpdateBindingData(10, *cloudPass.GetOutputImage(), cloudPass.GetSampler()->GetSampler());
+	AtmospherePass::Record(ctx, frame);
+}
+
 void HillairePass::UpdateMaterial()
 {
 	material->UpdateBindingData(5, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler());

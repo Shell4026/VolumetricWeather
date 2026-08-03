@@ -1,7 +1,9 @@
 ﻿#pragma once
 #include "vulkan/vulkan.h"
+class Camera;
 struct FrameContext
 {
+	const Camera* cameraPtr = nullptr;
 	VkDescriptorSetLayout cameraSetLayout = VK_NULL_HANDLE;
 	VkDescriptorSet cameraSet = VK_NULL_HANDLE;
 	VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;

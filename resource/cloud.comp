@@ -13,19 +13,31 @@ layout(set = 0, binding = 0) uniform Camera
 layout(set = 1, binding = 0) uniform Setting
 {
 	uint steps;
+	uint lightViewSteps;
 	float groundRadius;
 	float atmosphereRadius;
 	float tiling;
 	float extinctionCoefficient;
 	float coverage;
+	float historyWeight;
 	vec2 offset;
 	vec4 sun;
 } setting;
 
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
-layout(set = 1, binding = 2) uniform sampler3D perlin;
-layout(set = 1, binding = 3) uniform sampler2D sceneDepth;
-layout(set = 1, binding = 4) uniform sampler2D transmittanceLUT;
+layout(set = 1, binding = 2, r16f) uniform writeonly image2D outCloudDepth;
+layout(set = 1, binding = 3) uniform sampler2D prevOutput;
+layout(set = 1, binding = 4) uniform sampler2D prevCloudDepthTex;
+layout(set = 1, binding = 5) uniform sampler3D perlin;
+layout(set = 1, binding = 6) uniform sampler2D noiseTex;
+layout(set = 1, binding = 7) uniform sampler2D sceneDepth;
+layout(set = 1, binding = 8) uniform sampler2D transmittanceLUT;
+layout(set = 1, binding = 9) uniform TRP
+{
+	vec3 pos;
+	uint time;
+	mat4 viewProj;
+} trp;
 const float CLOUD_HEIGHT = 2000;
 const float CLOUD_THICKNESS = 5000;
 const float PI = 3.14159265;
@@ -110,6 +122,11 @@ int RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float inner
 	return 1;
 }
 
+float Hash(float x)
+{
+    return fract(sin(x) * 43758.5453123);
+}
+
 float Remap(float value, float originalMin, float originalMax, float newMin, float newMax)
 {
 	return newMin + ((value - originalMin) / (originalMax - originalMin)) * (newMax - newMin);
@@ -134,7 +151,7 @@ float GetDensity(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
 	return cloud * heightMask;
 }
 
-vec3 CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float cloudInnerRadius, float cloudOuterRadius)
+vec3 CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float cloudInnerRadius, float cloudOuterRadius, float noise)
 {
 	const float stepSize = distance / steps;
 	const vec3 dir = (b - a) / distance;
@@ -142,10 +159,10 @@ vec3 CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float c
 	vec3 sigmaSum = vec3(0.0, 0.0, 0.0);
 	for (uint i = 0; i < steps; ++i)
 	{
-		const vec3 samplePos = a + dir * stepSize * (i + 0.5);
+		const vec3 samplePos = a + dir * stepSize * (i + noise);
 		const float density = GetDensity(cloudInnerRadius, cloudOuterRadius, samplePos);
-		
-		sigmaSum += density * setting.extinctionCoefficient * stepSize;
+		const float sigmaA = 4.4 * 1e-6 * setting.extinctionCoefficient;
+		sigmaSum += density * sigmaA * stepSize;
 	}
 	return exp(-sigmaSum);
 }
@@ -190,26 +207,28 @@ void SegmentTransmittance(
 	vec3 rayDir, 
 	vec2 segment, 
 	float steps, 
+	float noise,
 	float cloudInner, 
 	float cloudOuter, 
 	vec3 sunDir, 
 	float phase,
 	inout vec3 inScattering,
-	inout float transmittance)
+	inout float transmittance,
+	inout float depthSum,
+	inout float weightSum)
 {
 	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
 	
 	const float segmentLength = segment.y - segment.x;
-	const uint segmentSteps = max(1u, uint(ceil(segmentLength  / steps)));
 	
-	const float stepSize = segmentLength / float(segmentSteps);
+	const float stepSize = segmentLength / steps;
 	
-	for (uint i = 0; i < segmentSteps; ++i)
+	for (uint i = 0; i < steps; ++i)
 	{
 		if (transmittance <= 0.01)
             break;
 		
-		const float t = segment.x + stepSize * (i + 0.5);
+		const float t = segment.x + stepSize * (i + noise);
 		const vec3 samplePos = rayOrigin + rayDir * t;
 		const float density = GetDensity(cloudInner, cloudOuter, samplePos);
 		if (density <= 0.0001)
@@ -227,17 +246,36 @@ void SegmentTransmittance(
 			float lightFar;
 			if (RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, cloudOuter, lightNear, lightFar))
 			{
-				lightViewT = CloudToSunTransmittance(samplePos, samplePos - sunDir * lightFar, lightFar, 10, cloudInner, cloudOuter);
+				lightFar = min(32000, lightFar);
+				float lightNoise = fract(noise + Hash(i));
+				lightViewT = CloudToSunTransmittance(samplePos, samplePos - sunDir * lightFar, lightFar, setting.lightViewSteps, cloudInner, cloudOuter, lightNoise);
 				lightViewT *= TransmittanceUsingLUT(samplePos - sunDir * lightFar, -sunDir);
 			}
 		}
 		
-		const float sigma = density * stepSize * setting.extinctionCoefficient;
+		const float sigmaA = 4.4 * 1e-6 * setting.extinctionCoefficient;
+		const float sigma = density * stepSize * sigmaA;
 		const float stepTransmittance = exp(-sigma);
-		inScattering += (1.0 - stepTransmittance) * transmittance * (lightViewT * phase * setting.sun.w);
+		const float stepTransmittanceAlpha = 1.0 - stepTransmittance;
+		const float depthWeight = transmittance * stepTransmittanceAlpha;
+		depthSum += t * depthWeight;
+		weightSum += depthWeight;
+		inScattering += stepTransmittanceAlpha * transmittance * (lightViewT * phase * setting.sun.w);
 		transmittance *= stepTransmittance;
 	}
-}	
+}
+
+vec2 PreviousCloudUV(vec3 rayDir, float cloudDepth)
+{
+	const vec3 curCloudPos = camera.pos + rayDir * cloudDepth;
+	const vec4 prevClip = trp.viewProj * vec4(curCloudPos, 1.0);
+	if (prevClip.w <= 0.0)
+		return vec2(-1.0);
+	const vec2 prevNDC = prevClip.xy / prevClip.w;
+	vec2 prevUV = prevNDC * 0.5 + 0.5;
+	prevUV.y = 1.0 - prevUV.y;
+	return prevUV;
+}
 
 void main()
 {
@@ -247,7 +285,7 @@ void main()
 		return;
 	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
 
-	vec4 p = texture(perlin, vec3(uv, 0.0));
+	//vec4 p = texture(perlin, vec3(uv, 0.0));
 	// if (uv.x < 0.25)
 		// imageStore(outImage, pixel, vec4(vec3(p.r), 1.0));
 	// else if (uv.x < 0.5)
@@ -268,6 +306,8 @@ void main()
 	const float cloudInnerRadius = setting.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuterRadius = cloudInnerRadius + CLOUD_THICKNESS;
 	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const ivec2 noisePixel = pixel % textureSize(noiseTex, 0);
+	const float noise = fract(texelFetch(noiseTex, noisePixel, 0).r + trp.time * 0.61803398875); // 0.61803398875 = 황금비의 역수
 	
 	vec2 cloudSegment0;
 	vec2 cloudSegment1;
@@ -276,6 +316,7 @@ void main()
 	if (cloudSegmentCount == 0)
 	{
 		imageStore(outImage, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+		imageStore(outCloudDepth, pixel, vec4(-1.0));
 		return;
 	}
 
@@ -290,28 +331,51 @@ void main()
 	
 	const vec3 sunDir = setting.sun.xyz;
 	const float mu = dot(rayDir, -sunDir);
-	const float phase = mix(MiePhase(mu, 0.8), 1.0 / (4.0 * PI), 0.3);
+	const float phase = mix(MiePhase(mu, 0.8), 1.0 / (4.0 * PI), 0.5);
 
 	vec3 inScattering = vec3(0.0);
 	float transmittance = 1.0;
+	float depthSum = 0.0;
+	float weightSum = 0.0;
 	if (cloudSegmentCount == 1)
 	{
 		SegmentTransmittance(
-			camera.pos, rayDir, cloudSegment0, setting.steps, 
+			camera.pos, rayDir, cloudSegment0, setting.steps, noise, 
 			cloudInnerRadius, cloudOuterRadius, sunDir, phase, 
-			inScattering, transmittance);
+			inScattering, transmittance, depthSum, weightSum);
 	}
 	else if (cloudSegmentCount == 2)
 	{
 		SegmentTransmittance(
-			camera.pos, rayDir, cloudSegment0, setting.steps / 2, 
+			camera.pos, rayDir, cloudSegment0, setting.steps / 2, noise,
 			cloudInnerRadius, cloudOuterRadius, sunDir, phase, 
-			inScattering, transmittance);
+			inScattering, transmittance, depthSum, weightSum);
 		SegmentTransmittance(
-			camera.pos, rayDir, cloudSegment1, setting.steps / 2, 
+			camera.pos, rayDir, cloudSegment1, setting.steps / 2, noise, 
 			cloudInnerRadius, cloudOuterRadius, sunDir, phase, 
-			inScattering, transmittance);
+			inScattering, transmittance, depthSum, weightSum);
 	}
+	const float depth = weightSum > 1e-5 ? depthSum / weightSum : (cloudSegment0.y - cloudSegment0.x) * 0.5;
+	const vec2 historyUV = PreviousCloudUV(rayDir, depth);
+	const float historyDepth = texture(prevCloudDepthTex, historyUV).r;
+	
+	float historyWeight = setting.historyWeight;
+	if (historyUV.x < 0.0 || historyUV.x >= 1.0 || historyUV.y < 0.0 || historyUV.y >= 1.0)
+		historyWeight = 0.0;
+	// const vec3 curCloudPos = camera.pos + rayDir * depth;
+	// const float expectedPreviousDepth = length(curCloudPos - trp.pos);
+	
+	// const float depthDif = abs(expectedPreviousDepth - historyDepth);
+
+	// const float depthThreshold =
+		// max(200.0, expectedPreviousDepth * 0.05);
+	// if (depthDif > depthThreshold)
+		// historyWeight = 0.0;
+	
+	const vec4 historyCloud = texture(prevOutput, historyUV);
+	inScattering = mix(inScattering, historyCloud.rgb, historyWeight);
+	transmittance = mix(transmittance, historyCloud.a, historyWeight);
 	
 	imageStore(outImage, pixel, vec4(inScattering, transmittance));
+	imageStore(outCloudDepth, pixel, vec4(depth));
 }

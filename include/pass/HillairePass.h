@@ -16,6 +16,7 @@ class HillairePass : public AtmospherePass
 public:
 	HillairePass(const LUTPass& lutPass, const CloudPass& cloudPass);
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 	void UpdateMaterial();
 protected:
 	auto CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader override;
