@@ -578,10 +578,16 @@ void BasisScene::DrawPresetGUI()
 	ImGui::InputText("name", &presetName);
 	if (ImGui::Button("Make Preset"))
 	{
+		const CloudPass::Setting& cloudSetting = cloudPass->GetSetting();
+
 		Preset preset{};
 		preset.camPos = camera.GetPos();
 		preset.camQuat = camera.GetQuat();
 		preset.sun = sun;
+		preset.cloudTile = cloudSetting.tiling;
+		preset.cloudEC = cloudSetting.extinctionCoefficient;
+		preset.cloudCoverage = cloudSetting.coverage;
+		preset.cloudOffset = cloudSetting.offset;
 		presetManager.AddPreset(presetName, preset);
 		presetName.clear();
 	}
@@ -596,7 +602,15 @@ void BasisScene::DrawPresetGUI()
 			camera.SetPos(presetInfo.preset.camPos);
 			camera.SetQuat(presetInfo.preset.camQuat);
 			camera.UpdateMatrix();
+
 			sun = presetInfo.preset.sun;
+			CloudPass::Setting cloudSetting = cloudPass->GetSetting();
+			cloudSetting.tiling = presetInfo.preset.cloudTile;
+			cloudSetting.extinctionCoefficient = presetInfo.preset.cloudEC;
+			cloudSetting.coverage = presetInfo.preset.cloudCoverage;
+			cloudSetting.offset = presetInfo.preset.cloudOffset;
+			cloudPass->SetSetting(cloudSetting);
+
 			UpdateSun();
 			UpdateCameraData();
 		}
@@ -783,6 +797,7 @@ auto BasisScene::Preset::Serialize() const -> Json
 	json["camPos"] = { camPos.x, camPos.y, camPos.z };
 	json["camQuat"] = { camQuat.x, camQuat.y, camQuat.z, camQuat.w };
 	json["sun"] = { sun.x, sun.y, sun.z, sun.w };
+	json["cloud"] = { cloudTile, cloudEC, cloudCoverage, cloudOffset.x, cloudOffset.y };
 	return json;
 }
 
@@ -799,5 +814,13 @@ void BasisScene::Preset::Deserialize(const Json& json)
 	if (auto it = json.find("sun"); it != json.end())
 	{
 		sun.x = it.value()[0]; sun.y = it.value()[1]; sun.z = it.value()[2]; sun.w = it.value()[3];
+	}
+	if (auto it = json.find("cloud"); it != json.end())
+	{
+		cloudTile = it.value()[0];
+		cloudEC = it.value()[1];
+		cloudCoverage = it.value()[2];
+		cloudOffset.x = it.value()[3];
+		cloudOffset.y = it.value()[4];
 	}
 }
