@@ -113,7 +113,8 @@ void main()
 	
 	const vec3 sunDir = setting.sun.xyz;
 	const float distance = rayEnd - rayStart;
-	const float noise = texture(noiseTex, uv).r;
+	const ivec2 noisePixel = pixel % textureSize(noiseTex, 0);
+	const float noise = texelFetch(noiseTex, noisePixel, 0).r;
 	const uint steps = setting.steps;
 	const float stepSize = distance / steps;
 	const vec3 stepVec = rayDir * stepSize;

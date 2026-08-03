@@ -239,7 +239,8 @@ void main()
 	const float mu = dot(-rayDir, sunDir); // cos, 태양빛이 카메라로 산란될 확률 계산에 쓰임
 	
 	const float distance = rayEnd - rayStart;
-	const float noise = texture(noiseTex, uv).r;
+	const ivec2 noisePixel = pixel % textureSize(noiseTex, 0);
+	const float noise = texelFetch(noiseTex, noisePixel, 0).r;
     const vec3 start = camera.pos + rayDir * rayStart;
     const vec3 end = camera.pos + rayDir * rayEnd;
 	
