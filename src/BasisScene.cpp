@@ -477,11 +477,25 @@ void BasisScene::DrawDebugGUI()
 				setting.lightViewSteps = std::max(static_cast<int>(setting.lightViewSteps), 1);
 				cloudPass->SetSetting(setting);
 			}
+			bool bLightViewLimit = setting.modeFlags & CloudPass::ModeFlag::LightViewDistanceLimit;
+			if (ImGui::Checkbox("LightViewDistance Limit", &bLightViewLimit))
+			{
+				if (bLightViewLimit)
+					setting.modeFlags |= CloudPass::ModeFlag::LightViewDistanceLimit;
+				else
+					setting.modeFlags ^= CloudPass::ModeFlag::LightViewDistanceLimit;
+				cloudPass->SetSetting(setting);
+			}
+
 			if (ImGui::SliderFloat("Tiling", &setting.tiling, 10000.0f, 100000.f))
+				cloudPass->SetSetting(setting);
+			if (ImGui::SliderFloat("Tiling2", &setting.tiling2, 1.f, 100000.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Extinction Coefficient", &setting.extinctionCoefficient, 1.f, 500.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Coverage", &setting.coverage, 0.0f, 1.0f, "%.2f"))
+				cloudPass->SetSetting(setting);
+			if (ImGui::SliderFloat("Powder Strength", &setting.powderStrength, 0.f, 5.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("History Weight", &setting.historyWeight, 0.0f, 1.0f, "%.2f"))
 				cloudPass->SetSetting(setting);

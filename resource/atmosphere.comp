@@ -186,7 +186,7 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 			MieScattering(sampleHeight) * miePhase
 		) * stepSize;
 		
-		inScattering += transmittance * visibility * lightViewTransmittance * phase * illuminance;
+		inScattering += transmittance * visibility * (lightViewTransmittance * phase * illuminance);
 	}
 	return inScattering;
 }

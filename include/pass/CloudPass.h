@@ -13,16 +13,23 @@ class CloudPass : public APass
 public:
 	struct alignas(16) Setting
 	{
-		uint32_t steps = 80;
-		uint32_t lightViewSteps = 60;
+		uint32_t steps = 60;
+		uint32_t lightViewSteps = 30;
+		uint32_t modeFlags = 0;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
 		float tiling = 96'000.f;
-		float extinctionCoefficient = 100.f;
-		float coverage = 0.1f;
+		float tiling2 = 3'000.f;
+		float extinctionCoefficient = 200.f;
+		float coverage = 0.05f;
+		float powderStrength = 10.0f;
 		float historyWeight = 0.9f;
 		alignas(16) glm::vec2 offset{ 0.f };
 		alignas(16) glm::vec4 sun{ 0.f };
+	};
+	enum ModeFlag
+	{
+		LightViewDistanceLimit = 1
 	};
 public:
 	void Clear() override;
