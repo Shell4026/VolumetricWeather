@@ -72,7 +72,9 @@ inline auto Material::AddBinding(uint32_t binding) -> Material&
 
 	bindingInfo.info = bufferInfo;
 
+	constexpr uint32_t ALIGNENT = 64;
 	nextBufferOffset += sizeof(T);
+	nextBufferOffset = (nextBufferOffset + ALIGNENT - 1) & ~(ALIGNENT - 1);
 	return *this;
 }
 
