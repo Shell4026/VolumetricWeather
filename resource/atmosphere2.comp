@@ -149,6 +149,15 @@ bool RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float inne
 	return tEnd > tStart;
 }
 
+vec3 RenderSun(vec3 viewDir)
+{
+	const vec3 sunViewDir = normalize(mat3(camera.view) * -atmosphere.sun.xyz);
+	const float cosAngle = dot(viewDir, sunViewDir);
+	const float sunMask = step(cos(radians(0.52)), cosAngle);
+	const vec3 sunColor = vec3(atmosphere.sun.w) * sunMask;
+	return sunColor;
+}
+
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -199,12 +208,7 @@ void main()
 		const vec3 skyViewColor = SkyViewLUT(rayDir);
 		background = skyViewColor - aerialShadow;
 		
-		const vec3 sunViewDir = normalize(mat3(camera.view) * -atmosphere.sun.xyz);
-		const vec3 viewDir = normalize(viewPos);
-		const float cosAngle = dot(viewDir, sunViewDir);
-		const float sunMask = step(cos(radians(0.265)), cosAngle);
-		const vec3 sunColor = vec3(10.0, 8.0, 5.0) * sunMask;
-		background += sunColor;
+		background += RenderSun(normalize(viewPos));
 	}
 	
 	const float cloudInnerRadius = GROUND_RADIUS + CLOUD_HEIGHT;
