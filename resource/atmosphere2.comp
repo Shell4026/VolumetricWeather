@@ -41,21 +41,19 @@ vec3 PixelToViewPos(vec2 uv, float z)
 	return viewPos.xyz;
 }
 
-float Visible(vec3 worldPos)
+bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float radius)
 {
-	vec4 sunProjCoord = atmosphere.sunViewProj * vec4(worldPos, 1.0);
-	vec2 uv = (sunProjCoord.xy / sunProjCoord.w + 1.0) * 0.5;
-	uv.y = 1.0 - uv.y;
-	const float z = sunProjCoord.z / sunProjCoord.w;
-    if (uv.x < 0.0 || uv.x > 1.0 ||
-        uv.y < 0.0 || uv.y > 1.0 ||
-        z < 0.0 || z > 1.0)
-        return 1.0;
+	vec3 rs = sphereOrigin - rayOrigin;
+	float a2 = dot(rs, rs);
+	float b = dot(rs, rayDir);
+	float c2 = a2 - b * b;
+	float r2 = radius * radius;
+	if (c2 > r2)
+		return false;
 	
-	const float shadowing = texture(shadowMap, vec3(uv, z - 0.0005));
-	return shadowing;
+	float d = sqrt(r2 - c2); // 구 내부 ray길이
+	return b + d >= 0.0;
 }
-
 bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float radius, out float near, out float far)
 {
 	vec3 rs = sphereOrigin - rayOrigin;
@@ -158,10 +156,14 @@ bool RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float inne
 	return tEnd > tStart;
 }
 
-vec3 RenderSun(vec3 viewDir)
+vec3 RenderSun(vec3 worldRayDir, vec3 viewRayDir)
 {
-	const vec3 sunViewDir = normalize(mat3(camera.view) * -atmosphere.sun.xyz);
-	const float cosAngle = dot(viewDir, sunViewDir);
+	const vec3 toSunDir = -atmosphere.sun.xyz;
+	const vec3 sunViewDir = normalize(mat3(camera.view) * toSunDir);
+	if (RaySphereIntersect(camera.pos, worldRayDir, PLANET_CENTER, GROUND_RADIUS))
+		return vec3(0.0);
+	
+	const float cosAngle = dot(viewRayDir, sunViewDir);
 	const float sunMask = step(cos(radians(0.52)), cosAngle);
 	const vec3 sunColor = vec3(atmosphere.sun.w) * sunMask;
 	return sunColor;
@@ -217,7 +219,7 @@ void main()
 		const vec3 skyViewColor = SkyViewLUT(rayDir);
 		background = skyViewColor - aerialShadow;
 		
-		background += RenderSun(normalize(viewPos));
+		background += RenderSun(rayDir, normalize(viewPos));
 	}
 	
 	const float cloudInnerRadius = GROUND_RADIUS + CLOUD_HEIGHT;
