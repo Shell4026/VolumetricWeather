@@ -95,7 +95,9 @@ vec3 SkyViewLUT(vec3 rayDir)
 vec3 AerialShadow(vec2 uv, float viewZ)
 {
 	const ivec2 lutSize = textureSize(aerialShadowLUT, 0);
-	const ivec2 base = ivec2(floor(lutSize * uv - 0.5));
+	const vec2 texelPos = lutSize * uv - 0.5;
+	const ivec2 base = ivec2(floor(texelPos));
+	const vec2 fraction = fract(texelPos);
 	
 	float weightSum = 0.0;
 	vec3 shadowSum = vec3(0.0);
@@ -103,15 +105,22 @@ vec3 AerialShadow(vec2 uv, float viewZ)
 	{
 		for (int x = 0; x <= 1; ++x)
 		{
-			const ivec2 coord = clamp(base + ivec2(x, y), ivec2(0), lutSize - ivec2(1));
-			const vec4 shadow = texelFetch(aerialShadowLUT, coord, 0);
-			const float shadowZ = PixelToViewPos(uv, texelFetch(aerialShadowDepth, coord, 0).r).z;
+			const ivec2 offset = ivec2(x, y);
+			const ivec2 coord = clamp(base + offset, ivec2(0), lutSize - ivec2(1));
+			const vec2 sampleUV = (vec2(coord) + 0.5) / lutSize;
 			
-			float diff = abs(viewZ - shadowZ);
-			//return vec3(viewZ, shadowZ, diff);
-			float weight = exp(-diff * 0.01);
+			const vec3 shadow = texelFetch(aerialShadowLUT, coord, 0).rgb;
+			const float shadowZ = PixelToViewPos(sampleUV, texelFetch(aerialShadowDepth, coord, 0).r).z;
+			
+			const float weightX = (x == 0) ? 1.0 - fraction.x : fraction.x;
+			const float weightY = (y == 0) ? 1.0 - fraction.y : fraction.y;
+			const float spatialWeight = weightX * weightY;
+			
+			float depthDiff = abs(viewZ - shadowZ);
+			//return vec3(viewZ, shadowZ, depthDiff);
+			float weight = exp(-depthDiff * 0.01) * spatialWeight;
 			weightSum += weight;
-			shadowSum += shadow.rgb * weight;
+			shadowSum += shadow * weight;
 		}
 	}
 
