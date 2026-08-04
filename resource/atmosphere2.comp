@@ -90,7 +90,7 @@ vec3 SkyViewLUT(vec3 rayDir)
 	return texture(skyViewLUT, skyUV).xyz;
 }
 
-vec3 AerialShadow(vec2 uv, float viewZ)
+vec3 UpsampledAerialShadow(vec2 uv, float viewZ)
 {
 	const ivec2 lutSize = textureSize(aerialShadowLUT, 0);
 	const vec2 texelPos = lutSize * uv - 0.5;
@@ -169,6 +169,42 @@ vec3 RenderSun(vec3 worldRayDir, vec3 viewRayDir)
 	return sunColor;
 }
 
+vec4 UpsampledCloud(vec2 uv, float viewZ)
+{
+	const ivec2 texSize = textureSize(cloudTex, 0);
+	const vec2 texelPos = texSize * uv - 0.5;
+	const ivec2 base = ivec2(floor(texelPos));
+	const vec2 fraction = fract(texelPos);
+	
+	float weightSum = 0.0;
+	vec4 cloudSum = vec4(0.0);
+	for (int y = 0; y <= 1; ++y)
+	{
+		for (int x = 0; x <= 1; ++x)
+		{
+			const ivec2 offset = ivec2(x, y);
+			const ivec2 coord = clamp(base + offset, ivec2(0), texSize - ivec2(1));
+			const vec2 sampleUV = (vec2(coord) + 0.5) / texSize;
+			
+			const vec4 cloud = texelFetch(cloudTex, coord, 0);
+			const float lowResZ = PixelToViewPos(sampleUV, texelFetch(aerialShadowDepth, coord, 0).r).z;
+			
+			const float weightX = (x == 0) ? 1.0 - fraction.x : fraction.x;
+			const float weightY = (y == 0) ? 1.0 - fraction.y : fraction.y;
+			const float spatialWeight = weightX * weightY;
+			
+			float depthDiff = abs(viewZ - lowResZ);
+			float weight = exp(-depthDiff * 0.01) * spatialWeight;
+			weightSum += weight;
+			cloudSum += cloud * weight;
+		}
+	}
+
+	if (weightSum < 1e-6)
+		return vec4(0.0);
+	return cloudSum / weightSum;
+}
+
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -197,7 +233,7 @@ void main()
 	// 0010 AerialShadow
 	// 0100 Cloud
 	if ((atmosphere.modeFlags & 2) == 2)
-		aerialShadow = AerialShadow(uv, viewPos.z);
+		aerialShadow = UpsampledAerialShadow(uv, viewPos.z);
 
 	//imageStore(outImage, pixel, vec4(aerialShadow, 1.0));
 	//return;
@@ -233,7 +269,7 @@ void main()
 		vec3 cloudColor = vec3(0.0);
 		if (RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, cloudNear, cloudFar))
 		{
-			const vec4 cloud = texture(cloudTex, uv);
+			const vec4 cloud = UpsampledCloud(uv, viewPos.z);
 
 			vec4 atmosphereToCloud = vec4(0.0, 0.0, 0.0, 1.0);
 
