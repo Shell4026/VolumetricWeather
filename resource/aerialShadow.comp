@@ -223,8 +223,7 @@ void main()
 	if (z < 1.0)
 	{
 		const vec3 viewPos = PixelToViewPos(uv, z);
-        const vec3 worldPos = (camera.invView * vec4(viewPos, 1.0)).xyz;
-        const float surfaceDistance = length(worldPos - camera.pos);
+        const float surfaceDistance = length(viewPos);
 		
 		rayEnd = min(rayEnd, surfaceDistance);
 	}

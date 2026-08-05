@@ -65,7 +65,6 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 	
 	return far >= 0.0;
 }
-
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);

@@ -17,7 +17,7 @@ layout(set = 1, binding = 0) uniform Atmosphere
 	float radius;
 	int modeFlags;
 } atmosphere;
-layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D atmosphereResult;
 layout(set = 1, binding = 2) uniform sampler2D depth;
 layout(set = 1, binding = 3) uniform sampler2D opaque;
 layout(set = 1, binding = 4) uniform sampler2DShadow shadowMap;
@@ -92,6 +92,7 @@ vec3 SkyViewLUT(vec3 rayDir)
 
 vec3 UpsampledAerialShadow(vec2 uv, float viewZ)
 {
+	//return texture(aerialShadowLUT, uv).rgb;
 	const ivec2 lutSize = textureSize(aerialShadowLUT, 0);
 	const vec2 texelPos = lutSize * uv - 0.5;
 	const ivec2 base = ivec2(floor(texelPos));
@@ -115,7 +116,6 @@ vec3 UpsampledAerialShadow(vec2 uv, float viewZ)
 			const float spatialWeight = weightX * weightY;
 			
 			float depthDiff = abs(viewZ - shadowZ);
-			//return vec3(viewZ, shadowZ, depthDiff);
 			float weight = exp(-depthDiff * 0.01) * spatialWeight;
 			weightSum += weight;
 			shadowSum += shadow * weight;
@@ -208,7 +208,7 @@ vec4 UpsampledCloud(vec2 uv, float viewZ)
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-	ivec2 size = imageSize(outImage);
+	ivec2 size = imageSize(atmosphereResult);
 	if (pixel.x >= size.x || pixel.y >= size.y)
 		return;
 	
@@ -220,11 +220,12 @@ void main()
 	float farAtmo = 1.0;
 	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, atmosphere.radius, nearAtmo, farAtmo))
 	{
-		imageStore(outImage, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
+		imageStore(atmosphereResult, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
 		return;
 	}
 	const float z = texture(depth, uv).r;
 	const vec3 viewPos = PixelToViewPos(uv, z);
+	const float surfaceLength = length(viewPos);
 	
 	vec3 aerialShadow = vec3(0.0);
 	vec4 aerialPerspective = vec4(0.0, 0.0, 0.0, 1.0);
@@ -235,14 +236,10 @@ void main()
 	if ((atmosphere.modeFlags & 2) == 2)
 		aerialShadow = UpsampledAerialShadow(uv, viewPos.z);
 
-	//imageStore(outImage, pixel, vec4(aerialShadow, 1.0));
-	//return;
-	
 	vec3 background = vec3(0.0);
 	if (z < 1.0)
 	{
-		const float opaqueZ = length(viewPos);
-		const float lutZ = clamp(opaqueZ / 32000.0, 0.0, 1.0);
+		const float lutZ = clamp(surfaceLength / 32000.0, 0.0, 1.0);
 		if ((atmosphere.modeFlags & 1) == 1)
 			aerialPerspective = texture(aerialPerspectiveLUT, vec3(uv, lutZ));
 		
@@ -283,5 +280,5 @@ void main()
 				cloud.a * (background - atmosphereToCloud.rgb);
 		}
 	}
-	imageStore(outImage, pixel, vec4(result, 1.0));
+	imageStore(atmosphereResult, pixel, vec4(result, 1.0));
 }

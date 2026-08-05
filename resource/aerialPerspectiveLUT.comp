@@ -153,10 +153,11 @@ void main()
 	
 	vec3 sigmaSum = vec3(0.0); // 소멸률
 	vec3 inScattering = vec3(0.0);
-	for (int z = 0; z < size.z; ++z)
+	imageStore(outImage, ivec3(pixel, 0), vec4(inScattering, 1.0));
+	for (int z = 1; z < size.z; ++z)
 	{
-		const float sliceBegin = z * sliceLength;
-		const float sliceEnd = (z + 1) * sliceLength;
+		const float sliceBegin = (z - 1) * sliceLength;
+		const float sliceEnd = z * sliceLength;
 		const float stepSize = (sliceEnd - sliceBegin) / setting.steps;
 		
 		for (int i = 0; i < setting.steps; ++i)
