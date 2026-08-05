@@ -395,7 +395,7 @@ void BasisScene::DrawDebugGUI()
 						currentAtmospherePass->SetAtmosphere(atmosphere);
 					}
 					ImGui::Text("Steps");
-					if (ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 64))
+					if (ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 16))
 						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
 				}
 
@@ -413,7 +413,7 @@ void BasisScene::DrawDebugGUI()
 						lutPass->UseLightShadow(IsUseLightShadow);
 
 					ImGui::Text("Steps");
-					if (ImGui::SliderInt("##AerialShadowStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialShadowSteps), 1, 64))
+					if (ImGui::SliderInt("##AerialShadowStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialShadowSteps), 1, 128))
 						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
 					ImGui::Text("Width / Height");
 					int size[2] = { lutPass->GetAerialShadowLUT()->GetInfo().extent.width, lutPass->GetAerialShadowLUT()->GetInfo().extent.height };
@@ -489,13 +489,13 @@ void BasisScene::DrawDebugGUI()
 
 			if (ImGui::SliderFloat("Tiling", &setting.tiling, 10000.0f, 100000.f))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("Tiling2", &setting.tiling2, 1.f, 100000.f))
+			if (ImGui::SliderFloat("Tiling2", &setting.tiling2, 1000.f, 100000.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Extinction Coefficient", &setting.extinctionCoefficient, 1.f, 500.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Coverage", &setting.coverage, 0.0f, 1.0f, "%.2f"))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("Powder Strength", &setting.powderStrength, 0.f, 5.f))
+			if (ImGui::SliderFloat("Powder Strength", &setting.powderStrength, 0.f, 10.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("History Weight", &setting.historyWeight, 0.0f, 1.0f, "%.2f"))
 				cloudPass->SetSetting(setting);
@@ -767,6 +767,7 @@ void BasisScene::ControlCamera(double dt)
 		pos.y += 1000.0 * dt;
 		camera.SetPos(pos);
 		camera.UpdateMatrix();
+		lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
 	}
 	if (Input::IsKeyDown(Event::KeyType::LCtrl))
 	{
@@ -774,6 +775,7 @@ void BasisScene::ControlCamera(double dt)
 		pos.y -= 1000.0 * dt;
 		camera.SetPos(pos);
 		camera.UpdateMatrix();
+		lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
 	}
 	UpdateCameraData();
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective); // 카메라 때문에 매번 업데이트 해야함

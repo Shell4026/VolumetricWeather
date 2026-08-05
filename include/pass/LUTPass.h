@@ -20,10 +20,10 @@ public:
 		glm::mat4 sunViewProj;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
-		uint32_t transmittanceLUTSteps = 40;
-		uint32_t skyViewLUTSteps = 40;
-		uint32_t aerialPerspectiveLUTSteps = 8;
-		uint32_t aerialShadowSteps = 40;
+		uint32_t transmittanceLUTSteps = 64;
+		uint32_t skyViewLUTSteps = 64;
+		uint32_t aerialPerspectiveLUTSteps = 5;
+		uint32_t aerialShadowSteps = 64;
 	} globalSetting;
 	enum LUTType
 	{
