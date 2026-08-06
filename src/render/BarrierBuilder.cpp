@@ -31,6 +31,8 @@ auto BarrierBuilder::BuildBarrier(const std::vector<APass*>& passes) -> std::vec
 	for (auto& [img, usages] : imageUsages)
 	{
 		const ImageUsage* lastUsagePtr = nullptr;
+		if (auto it = lastImageUsages.find(img); it != lastImageUsages.end())
+			lastUsagePtr = &it->second;
 		for (int passIdx = 0; passIdx < usages.size(); ++passIdx)
 		{
 			const ImageUsage* usagePtr = usages[passIdx];
@@ -45,7 +47,7 @@ auto BarrierBuilder::BuildBarrier(const std::vector<APass*>& passes) -> std::vec
 			barrier.dstLayout = usagePtr->layout;
 			if (lastUsagePtr == nullptr)
 			{
-				barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;;
 				barrier.srcAccess = 0;
 				barrier.srcLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
 			}
@@ -58,6 +60,8 @@ auto BarrierBuilder::BuildBarrier(const std::vector<APass*>& passes) -> std::vec
 			barriers[passIdx].push_back(barrier);
 			lastUsagePtr = usagePtr;
 		}
+		if (lastUsagePtr != nullptr)
+			lastImageUsages.insert_or_assign(img, *lastUsagePtr);
 	}
 	return barriers;
 }
@@ -93,6 +97,8 @@ auto BarrierBuilder::BuildBarrier(std::initializer_list<const APass*> passes) ->
 	for (auto& [img, usages] : imageUsages)
 	{
 		const ImageUsage* lastUsagePtr = nullptr;
+		if (auto it = lastImageUsages.find(img); it != lastImageUsages.end())
+			lastUsagePtr = &it->second;
 		for (int passIdx = 0; passIdx < usages.size(); ++passIdx)
 		{
 			const ImageUsage* usagePtr = usages[passIdx];
@@ -107,7 +113,7 @@ auto BarrierBuilder::BuildBarrier(std::initializer_list<const APass*> passes) ->
 			barrier.dstLayout = usagePtr->layout;
 			if (lastUsagePtr == nullptr)
 			{
-				barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+				barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;;
 				barrier.srcAccess = 0;
 				barrier.srcLayout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED;
 			}
@@ -120,6 +126,24 @@ auto BarrierBuilder::BuildBarrier(std::initializer_list<const APass*> passes) ->
 			barriers[passIdx].push_back(barrier);
 			lastUsagePtr = usagePtr;
 		}
+		if (lastUsagePtr != nullptr)
+			lastImageUsages.insert_or_assign(img, *lastUsagePtr);
 	}
 	return barriers;
+}
+
+void BarrierBuilder::SetImageUsage(VkImage image, VkImageAspectFlags aspect, VkImageLayout layout, VkPipelineStageFlags stage, VkAccessFlags access)
+{
+	ImageUsage usage{};
+	usage.image = image;
+	usage.aspect = aspect;
+	usage.layout = layout;
+	usage.stage = stage;
+	usage.access = access;
+	lastImageUsages.insert_or_assign(image, usage);
+}
+
+void BarrierBuilder::InvalidateImage(VkImage image)
+{
+	lastImageUsages.erase(image);
 }

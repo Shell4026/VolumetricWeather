@@ -219,6 +219,12 @@ void AScene::BuildCommandBuffer()
 	barrier.dstAccess = VkAccessFlagBits::VK_ACCESS_NONE;
 	barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	barrier.dstStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	barrierBuilder.SetImageUsage(
+		barrier.image,
+		barrier.aspect,
+		barrier.dstLayout,
+		barrier.dstStage,
+		barrier.dstAccess);
 
 	int idx = 0;
 	for (APass* pass : activePassList)
