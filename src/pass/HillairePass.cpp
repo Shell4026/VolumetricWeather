@@ -1,6 +1,6 @@
 ﻿#include "pass/HillairePass.h"
 #include "pass/LUTPass.h"
-#include "pass/CloudPass.h"
+#include "pass/cloudTRPass.h"
 
 #include "core/Logger.h"
 
@@ -8,8 +8,8 @@
 #include "render/VulkanImage.h"
 #include "render/Material.h"
 
-HillairePass::HillairePass(const LUTPass& lutPass, const CloudPass& cloudPass) :
-	lutPass(lutPass), cloudPass(cloudPass)
+HillairePass::HillairePass(const LUTPass& lutPass, const CloudTRPass& cloudTRPass) :
+	lutPass(lutPass), cloudTRPass(cloudTRPass)
 {
 }
 
@@ -37,14 +37,14 @@ void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(
-		cloudPass.GetOutputImage()->GetImage(),
+		cloudTRPass.GetOutputImage()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void HillairePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
-	material->UpdateBindingData(10, *cloudPass.GetOutputImage(), cloudPass.GetSampler()->GetSampler());
+	material->UpdateBindingData(10, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
 	AtmospherePass::Record(ctx, frame);
 }
 
@@ -55,7 +55,7 @@ void HillairePass::UpdateMaterial()
 	material->UpdateBindingData(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler());
 	material->UpdateBindingData(8, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler());
 	material->UpdateBindingData(9, *lutPass.GetAerialShadowDepth(), lutPass.GetAerialShadowSampler()->GetSampler());
-	material->UpdateBindingData(10, *cloudPass.GetOutputImage(), cloudPass.GetSampler()->GetSampler());
+	material->UpdateBindingData(10, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
 }
 
 auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
@@ -142,7 +142,7 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 		AddBinding(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler()).
 		AddBinding(8, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler()).
 		AddBinding(9, *lutPass.GetAerialShadowDepth(), lutPass.GetAerialShadowSampler()->GetSampler()).
-		AddBinding(10, *cloudPass.GetOutputImage(), cloudPass.GetSampler()->GetSampler()).
+		AddBinding(10, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, atmosphere);

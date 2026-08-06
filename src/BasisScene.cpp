@@ -13,6 +13,7 @@
 #include "pass/AtmospherePass.h"
 #include "pass/HillairePass.h"
 #include "pass/CloudPass.h"
+#include "pass/CloudTRPass.h"
 #include "pass/PostProcessPass.h"
 #include "pass/BlitPass.h"
 
@@ -80,9 +81,16 @@ void BasisScene::BeginRender(double dt)
 	for (const auto& [img, req] : imgRecreateRequests)
 	{
 		if (img == lutPass->GetSkyViewLUT())
+		{
+			InvalidateImageUsage(img->GetImage());
 			lutPass->ReCreateSkyViewLUT(req.width, req.height);
+		}
 		else if (img == lutPass->GetAerialShadowLUT())
+		{
+			InvalidateImageUsage(img->GetImage());
+			InvalidateImageUsage(lutPass->GetAerialShadowDepth()->GetImage());
 			lutPass->ReCreateShadowLUT(req.width, req.height);
+		}
 	}
 	imgRecreateRequests.clear();
 	if (bImgRecreate)
@@ -234,7 +242,10 @@ void BasisScene::SetupPass()
 	cloudPass->SetNoise(*blueNoise);
 	cloudPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	hillairePass = std::make_unique<HillairePass>(*lutPass, *cloudPass);
+	cloudTRPass = std::make_unique<CloudTRPass>(*cloudPass);
+	cloudTRPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+
+	hillairePass = std::make_unique<HillairePass>(*lutPass, *cloudTRPass);
 	hillairePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
 	hillairePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
@@ -250,7 +261,7 @@ void BasisScene::SetupPass()
 	blitPass = std::make_unique<BlitPass>();
 	blitPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), postProcessPass.get(), blitPass.get() };
+	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), cloudTRPass.get(), postProcessPass.get(), blitPass.get() };
 	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
 
 	UpdateSun();
@@ -497,12 +508,16 @@ void BasisScene::DrawDebugGUI()
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Powder Strength", &setting.powderStrength, 0.f, 10.f))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("History Weight", &setting.historyWeight, 0.0f, 1.0f, "%.2f"))
+			if (ImGui::SliderFloat("Anvil bias", &setting.anvilBias, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("OffsetX", &setting.offset.x, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("OffsetY", &setting.offset.y, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
+
+			CloudTRPass::Setting trSetting = cloudTRPass->GetSetting();
+			if (ImGui::SliderFloat("History Weight", &trSetting.historyWeight, 0.0f, 1.0f, "%.2f"))
+				cloudTRPass->SetSetting(trSetting);
 		}
 		if (menu == 4)
 		{
@@ -650,6 +665,7 @@ void BasisScene::DrawPresetGUI()
 
 void BasisScene::SetAtmosphereModel(bool useHillaire)
 {
+	cloudTRPass->InvalidateHistory();
 	AtmospherePass* requestedPass = useHillaire ? 
 		static_cast<AtmospherePass*>(hillairePass.get()) : atmospherePass.get();
 
@@ -661,7 +677,7 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 	{
 		SH_INFO("Change to Hillaire");
 		if (bCloudEnable)
-			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), cloudPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), cloudPass.get(), cloudTRPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
 		else
 			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());

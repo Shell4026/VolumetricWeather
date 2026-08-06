@@ -23,6 +23,7 @@ class HillairePass;
 class PostProcessPass;
 class BlitPass;
 class CloudPass;
+class CloudTRPass;
 
 class Material;
 class VulkanImage;
@@ -62,6 +63,7 @@ private:
 	std::unique_ptr<AtmospherePass> atmospherePass;
 	std::unique_ptr<HillairePass> hillairePass;
 	std::unique_ptr<CloudPass> cloudPass;
+	std::unique_ptr<CloudTRPass> cloudTRPass;
 	std::unique_ptr<PostProcessPass> postProcessPass;
 	std::unique_ptr<BlitPass> blitPass;
 	AtmosphereRMSEMeasurement rmseMeasurement;

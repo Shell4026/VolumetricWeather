@@ -51,6 +51,7 @@ protected:
 	virtual void SubmitCommandBuffer();
 
 	void UpdateCameraData();
+	void InvalidateImageUsage(VkImage image) { barrierBuilder.InvalidateImage(image); }
 public:
 	VulkanContext& ctx;
 	const ImGUI& imgui;

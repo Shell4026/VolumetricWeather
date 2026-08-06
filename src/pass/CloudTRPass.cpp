@@ -1,61 +1,102 @@
-﻿#include "pass/CloudPass.h"
+﻿#include "pass/CloudTRPass.h"
+#include "pass/CloudPass.h"
 #include "Camera.h"
 
 #include "core/Logger.h"
-#include "core/Noise.h"
 #include "core/Util.h"
 
 #include "render/Shader.h"
 #include "render/Material.h"
 
+#include <algorithm>
 #include <filesystem>
-void CloudPass::Clear()
+
+CloudTRPass::CloudTRPass(const CloudPass& cloudPass) :
+	cloudPass(cloudPass)
+{
+}
+
+void CloudTRPass::Clear()
 {
 	material.reset();
 	shader.reset();
 	output.reset();
+	output2.reset();
 	depth.reset();
+	depth2.reset();
+	InvalidateHistory();
+
 	if (pipeline != VK_NULL_HANDLE)
 	{
 		vkDestroyPipeline(ctx->GetDevice(), pipeline, nullptr);
 		pipeline = VK_NULL_HANDLE;
 	}
 }
-void CloudPass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void CloudTRPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
+	Setting uploadedSetting = setting;
+	uploadedSetting.historyValid = historyValid ? 1u : 0u;
+	if (historyValid)
+	{
+		// Converge quickly after a reset instead of letting the first noisy frame dominate.
+		const float rampWeight = static_cast<float>(historyFrameCount) / static_cast<float>(historyFrameCount + 1u);
+		uploadedSetting.historyWeight = std::min(uploadedSetting.historyWeight, rampWeight);
+	}
+	material->UpdateBindingData(0, uploadedSetting);
+	setting.pos = frame.cameraPtr->GetPos();
+	setting.viewProj = frame.cameraPtr->GetMatrixProj() * frame.cameraPtr->GetMatrixView();
+	historyValid = true;
+	historyFrameCount = std::min(historyFrameCount + 1u, 1000u);
+
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-	const uint32_t width = output->GetInfo().extent.width;
-	const uint32_t height = output->GetInfo().extent.height;
+	const uint32_t width = curOutput->GetInfo().extent.width;
+	const uint32_t height = curOutput->GetInfo().extent.height;
 	const std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, material->GetVkDescriptorSet() };
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, shader->GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
 	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1.f);
 }
 
-void CloudPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void CloudTRPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	APass::SetUsages(ctx, frame);
+	if (cloudSettingRevision != cloudPass.GetSettingRevision())
+	{
+		InvalidateHistory();
+		cloudSettingRevision = cloudPass.GetSettingRevision();
+	}
+	const VulkanImage* temp = curOutput;
+	curOutput = prevOutput;
+	prevOutput = temp;
+	temp = curDepth;
+	curDepth = prevDepth;
+	prevDepth = temp;
 
-	timer = (timer + 1) % 0xFFFF;
-	setting.frame = timer;
-	material->UpdateBindingData(0, setting);
+	material->UpdateBindingData(1, *curOutput, nullptr);
+	material->UpdateBindingData(2, *curDepth, nullptr);
+	material->UpdateBindingData(5, *prevOutput, sampler->GetSampler());
+	material->UpdateBindingData(6, *prevDepth, sampler->GetSampler());
 
-	AddUsage(output->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	AddUsage(depth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	AddUsage(perlin->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	AddUsage(noiseTex->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	AddUsage(sceneDepth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	AddUsage(transmittanceLUT->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(curOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	AddUsage(curDepth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	AddUsage(cloudPass.GetOutputImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(cloudPass.GetDepthImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(prevOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(prevDepth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
-void CloudPass::SetSetting(const Setting& setting)
+void CloudTRPass::SetSetting(const Setting& setting)
 {
 	this->setting = setting;
-	++settingRevision;
 }
 
-void CloudPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
+void CloudTRPass::InvalidateHistory()
+{
+	historyValid = false;
+	historyFrameCount = 0;
+}
+
+void CloudTRPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
 	VkImageCreateInfo ci = VulkanImage::GetCreateInfo();
 	ci.extent = { ctx.GetSwapChainExtent().width / 4, ctx.GetSwapChainExtent().height / 4, 1};
@@ -63,34 +104,38 @@ void CloudPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout 
 	ci.imageType = VkImageType::VK_IMAGE_TYPE_2D;
 	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
 	output = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	output2 = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	ci.format = VkFormat::VK_FORMAT_R32_SFLOAT;
 	depth = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	depth2 = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	LoadNoises();
+	CreateTRShader(cameraSetLayout);
 
-	CreateCloudShader(cameraSetLayout);
-
-	sampler = &samplerManager->GetLinearRepeat();
-	depthSampler = &samplerManager->GetLinearClampWhite();
-	pointSampler = &samplerManager->GetPointRepeat();
+	curOutput = output.get();
+	curDepth = depth.get();
+	prevOutput = output2.get();
+	prevDepth = depth2.get();
+	cloudSettingRevision = cloudPass.GetSettingRevision();
+	
+	sampler = &samplerManager->GetLinearClmap();
 }
 
-void CloudPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
+void CloudTRPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
 {
 	material = std::make_unique<Material>(ctx, *shader);
 	material->
 		AddBinding<Setting>(0).
-		AddBinding(1, *output).
-		AddBinding(2, *depth).
-		AddBinding(3, *perlin, sampler->GetSampler()).
-		AddBinding(4, *noiseTex, pointSampler->GetSampler()).
-		AddBinding(5, *sceneDepth, depthSampler->GetSampler()).
-		AddBinding(6, *transmittanceLUT, transmittanceLUTSampler->GetSampler()).
+		AddBinding(1, *curOutput).
+		AddBinding(2, *curDepth).
+		AddBinding(3, *cloudPass.GetOutputImage(), sampler->GetSampler()).
+		AddBinding(4, *cloudPass.GetDepthImage(), sampler->GetSampler()).
+		AddBinding(5, *prevOutput, sampler->GetSampler()).
+		AddBinding(6, *prevDepth, sampler->GetSampler()).
 		Build(descPool);
 	material->UpdateBindingData(0, setting);
 }
 
-void CloudPass::BuildPipeline(const VulkanContext& ctx)
+void CloudTRPass::BuildPipeline(const VulkanContext& ctx)
 {
 	VkComputePipelineCreateInfo ci{};
 	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
@@ -99,10 +144,10 @@ void CloudPass::BuildPipeline(const VulkanContext& ctx)
 	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &pipeline));
 }
 
-void CloudPass::CreateCloudShader(VkDescriptorSetLayout cameraSetLayout)
+void CloudTRPass::CreateTRShader(VkDescriptorSetLayout cameraSetLayout)
 {
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-	set1Bindings.reserve(3);
+	set1Bindings.reserve(7);
 	{
 		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
 		binding.binding = 0;
@@ -156,73 +201,5 @@ void CloudPass::CreateCloudShader(VkDescriptorSetLayout cameraSetLayout)
 	shader->
 		AddSet(0, cameraSetLayout).
 		AddSet(1, std::move(set1Bindings)).
-		Build(ctx->GetDevice(), "shaders/cloud.comp.spv");
-}
-
-void CloudPass::LoadNoises()
-{
-	VkImageCreateInfo ci = VulkanImage::GetCreateInfo();
-	ci.extent = { 128, 128, 128 };
-	ci.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
-	ci.imageType = VkImageType::VK_IMAGE_TYPE_3D;
-	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	perlin = std::make_unique<VulkanImage>(*ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	
-	const std::size_t size = 128 * 128 * 128;
-	Noise::Texel noiseTexel(size * 4, 0);
-
-	Noise::Texel perlinNoise;
-	perlinNoise.reserve(size);
-	const std::filesystem::path perlinWorleyPath = "textures/perlinWorley.bin";
-	if (std::filesystem::exists(perlinWorleyPath))
-	{
-		perlinNoise = util::LoadBinary(perlinWorleyPath);
-		if (perlinNoise.size() != 128 * 128 * 128)
-		{
-			SH_ERROR_FORMAT("Data size is wrong!: {} / {}", perlinNoise.size(), size);
-			throw std::runtime_error{ "Data size is wrong!" };
-		}
-	}
-	else
-	{
-		perlinNoise = Noise::GeneratePerlinWorleyNoiseTexture(128, 128, 128, 8);
-		util::SaveBinary(perlinNoise, perlinWorleyPath);
-	}
-
-	std::array<Noise::Texel, 3> worleyNoises;
-	float f0 = 1;
-	float f1 = 2;
-	float f2 = 4;
-	for (int i = 0; i < 3; ++i)
-	{
-		worleyNoises[i].reserve(size);
-
-		const std::filesystem::path worleyPath = std::format("textures/worley{}.bin", i);
-		if (std::filesystem::exists(worleyPath))
-		{
-			worleyNoises[i] = util::LoadBinary(worleyPath);
-			if (worleyNoises[i].size() != size)
-			{
-				SH_ERROR_FORMAT("Data size is wrong!: {} / {}", worleyNoises[i].size(), size);
-				throw std::runtime_error{ "Data size is wrong!" };
-			}
-		}
-		else
-		{
-			worleyNoises[i] = Noise::GenerateWorleyNoiseTexture(128, 128, 128, f0, f1, f2);
-			util::SaveBinary(worleyNoises[i], worleyPath);
-		}
-		f0 *= 2;
-		f1 *= 2;
-		f2 *= 2;
-	}
-
-	for (std::size_t i = 0; i < size; ++i)
-	{
-		noiseTexel[i * 4 + 0] = perlinNoise[i];
-		noiseTexel[i * 4 + 1] = worleyNoises[0][i];
-		noiseTexel[i * 4 + 2] = worleyNoises[1][i];
-		noiseTexel[i * 4 + 3] = worleyNoises[2][i];
-	}
-	perlin->SetData(noiseTexel.data());
+		Build(ctx->GetDevice(), "shaders/cloudTR.comp.spv");
 }

@@ -164,7 +164,7 @@ void APass::AddUsage(VkImage image, VkImageAspectFlags apsect, VkImageLayout usa
 		imgUsage.access = 0;
 		break;
 	case VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-		imgUsage.stage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		imgUsage.stage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 		imgUsage.access = VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
 		break;
 	case VkImageLayout::VK_IMAGE_LAYOUT_GENERAL:

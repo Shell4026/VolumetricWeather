@@ -237,6 +237,7 @@ auto LUTPass::GetLUTElpasedTimeMs(LUTType type) const -> double
 		return aerialPerspective.timer.GetElapsedMs();
 	if (type == LUTType::AerialShadow)
 		return aerialShadow.timer.GetElapsedMs();
+	return 0.0;
 }
 
 void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)

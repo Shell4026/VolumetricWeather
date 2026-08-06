@@ -171,6 +171,7 @@ vec3 RenderSun(vec3 worldRayDir, vec3 viewRayDir)
 
 vec4 UpsampledCloud(vec2 uv, float viewZ)
 {
+	//return texture(cloudTex, uv).;
 	const ivec2 texSize = textureSize(cloudTex, 0);
 	const vec2 texelPos = texSize * uv - 0.5;
 	const ivec2 base = ivec2(floor(texelPos));
