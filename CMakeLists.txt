@@ -10,6 +10,8 @@ file(GLOB glbFiles "${CMAKE_SOURCE_DIR}/resource/*.glb")
 file(COPY ${glbFiles} DESTINATION ${CMAKE_BINARY_DIR}/models)
 file(GLOB pngFiles "${CMAKE_SOURCE_DIR}/resource/*.png")
 file(COPY ${pngFiles} DESTINATION ${CMAKE_BINARY_DIR}/textures)
+file(GLOB binFiles "${CMAKE_SOURCE_DIR}/resource/*.bin")
+file(COPY ${binFiles} DESTINATION ${CMAKE_BINARY_DIR}/textures)
 message("Asset copy is completed")
 
 set(CMAKE_CXX_STANDARD 20)
