@@ -20,6 +20,7 @@ public:
     auto GetLinearClampBlack() const -> VulkanSampler& { return *linearClampBlack; }
     auto GetLinearClampWhite() const -> VulkanSampler& { return *linearClampWhite; }
     auto GetPointRepeat() const -> VulkanSampler& { return *pointRepeat; }
+    auto GetPointClampWhite() const -> VulkanSampler& { return *pointClampWhite; }
 private:
     struct SamplerInfo
     {
@@ -91,4 +92,5 @@ private:
     VulkanSampler* linearClampBlack = nullptr;
     VulkanSampler* linearClampWhite = nullptr;
     VulkanSampler* pointRepeat = nullptr;
+    VulkanSampler* pointClampWhite = nullptr;
 };

@@ -29,6 +29,11 @@ SamplerManager::SamplerManager(const VulkanContext& ctx) :
         ci.addressModeV = ci.addressModeU;
         ci.addressModeW = ci.addressModeU;
         pointRepeat = GetSamplerOrCreate(ci);
+        ci.addressModeU = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+        ci.addressModeV = ci.addressModeU;
+        ci.addressModeW = ci.addressModeU;
+        ci.borderColor = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        pointClampWhite = GetSamplerOrCreate(ci);
     }
 }
 
