@@ -140,6 +140,7 @@ void OpaquePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout
 {
 	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
 	imgCi.extent = { width, height, 1 };
+	imgCi.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
 	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	imgCi.format = VkFormat::VK_FORMAT_D32_SFLOAT;
 	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
@@ -255,7 +256,7 @@ void OpaquePass::BuildPipeline(const VulkanContext& ctx)
 	depthStencil.front = stencilState;
 	depthStencil.back = stencilState;
 
-	const VkFormat formats[] = { VkFormat::VK_FORMAT_R8G8B8A8_UNORM };
+	const VkFormat formats[] = { outputImage->GetInfo().format };
 	VkPipelineRenderingCreateInfoKHR pipelineRenderingCI{};
 	pipelineRenderingCI.sType = VkStructureType::VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
 	pipelineRenderingCI.colorAttachmentCount = 1;

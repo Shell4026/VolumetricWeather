@@ -24,7 +24,7 @@ void main()
 {
 	const vec3 normal = normalize(worldNormal);
 	
-	vec3 diffuse = texture(tex, uvs).rgb;
+	vec3 diffuse = texture(tex, uvs).rgb * ubo.sun.w;
 	float diff = max(0.0, dot(normal, -ubo.sun.xyz));
 	
 	vec3 lightProjCoord = lightProjPos.xyz / lightProjPos.w;
