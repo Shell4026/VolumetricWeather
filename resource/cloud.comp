@@ -151,71 +151,48 @@ float GetDensity(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
 	cloud = clamp(Remap(cloud, 1.0 - setting.coverage, 1.0, 0.0, 1.0), 0.0, 1.0);
 	return cloud * heightMask;
 }
+float GetDensityLOD(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos, uint lod)
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const float cloudThickness = cloudOuterRadius - cloudInnerRadius;
+	const float sampleRadius = length(samplePos - PLANET_CENTER);
+	const float heightRatio = clamp((sampleRadius - cloudInnerRadius) / cloudThickness, 0.0, 1.0);
+	
+	const float bottomFade = smoothstep(0.0, 0.15, heightRatio);
+	const float topFade = 1.0 - smoothstep(0.85, 1.0, heightRatio);
+	const float heightMask = bottomFade * topFade;
+	
+	const vec3 uvw0 = samplePos / setting.tiling;
+	float cloud = textureLod(perlin, uvw0 + vec3(setting.offset.x, 0.0, setting.offset.y), lod).r;
+	cloud = clamp(Remap(cloud, 1.0 - setting.coverage, 1.0, 0.0, 1.0), 0.0, 1.0);
+	return cloud * heightMask;
+}
 
 float CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float cloudInnerRadius, float cloudOuterRadius, float mu, float noise)
 {
 	const float stepSize = distance / steps;
 	const vec3 dir = (b - a) / distance;
 	
-	float sigmaSum = 0.0;
+	float transmittance = 1.0;
+	const float cone = tan(radians(30));
+	const float voxelSize = setting.tiling / 128.0;
 	for (uint i = 0; i < steps; ++i)
 	{
-		const vec3 samplePos = a + dir * stepSize * (i + noise);
-		const float density = GetDensity(cloudInnerRadius, cloudOuterRadius, samplePos);
+		const float t = stepSize * (i);
+		const vec3 samplePos = a + dir * t;
+		const float coneRadius = t * cone;
+		
+		const uint lod = min(uint(floor(log2(1 + coneRadius / voxelSize))), 7);
+		const float density = GetDensityLOD(cloudInnerRadius, cloudOuterRadius, samplePos, lod);
 		const float sigmaA = 4.4 * 1e-6 * setting.extinctionCoefficient;
-		sigmaSum += density * sigmaA * stepSize;
-		if (sigmaSum > 4.6) // 투과율 0.01정도
+		const float sigmaT = density * sigmaA;
+		const float stepT = max(exp(-sigmaT * stepSize), exp(-sigmaT * stepSize * 0.25) * 0.7);
+		transmittance *= stepT;
+		if (transmittance < 0.01)
 			return 0.0;
 	}
-	const float beer = exp(-sigmaSum);
-	const float powder = 1.0 - exp(-setting.powderStrength * sigmaSum);
-	return beer * powder;
+	return transmittance;
 }
-
-// float CloudLightConeOpticalDepth(
-	// vec3 origin, vec3 toSun, float maxDistance,
-	// float cloudInnerRadius, float cloudOuterRadius,
-	// float randomRotation)
-// {
-	// const float GOLDEN_ANGLE = 2.39996323;
-	// // Five local gathers and one long-distance shadow sample, following the Horizon-style layout.
-	// const float LOCAL_DISTANCE_FRACTIONS[5] = float[](0.08, 0.2, 0.4, 0.7, 1.0);
-	// const uint sampleCount = clamp(setting.lightViewSteps, 2u, 6u);
-	// const float horizonFactor = 1.0 - smoothstep(0.08, 0.30, abs(toSun.y));
-	// const float coneSlope = mix(0.08, 0.12, horizonFactor);
-	
-	// const vec3 helper = abs(toSun.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
-	// const vec3 coneU = normalize(cross(helper, toSun));
-	// const vec3 coneV = cross(toSun, coneU);
-	// float opticalDepth = 0.0;
-	// float previousDistance = 0.0;
-	// float previousDensity = 0.0;
-	// const float localMaxDistance = min(maxDistance * 0.45, 12000.0);
-
-	// for (uint i = 0; i < sampleCount; ++i)
-	// {
-		// const bool distantSample = i == sampleCount - 1u;
-		// const float distance = distantSample ? maxDistance * 0.95 : localMaxDistance * LOCAL_DISTANCE_FRACTIONS[i];
-		// // Do not let the sparse far sample represent an entire horizon-length interval.
-		// const float intervalLength = distantSample ? min(distance - previousDistance, CLOUD_THICKNESS) : distance - previousDistance;
-		// const float angle = randomRotation * 2.0 * PI + float(i) * GOLDEN_ANGLE;
-		// const float radialScale = sqrt((float(i) + 0.5) / float(sampleCount));
-		// const vec3 diskDirection = coneU * cos(angle) + coneV * sin(angle);
-		// const vec3 samplePos = origin + toSun * distance + diskDirection * (distance * coneSlope * radialScale);
-		// // Sparse light rays cannot resolve high-frequency Worley detail without visible dots.
-		// // Keep that detail on the view ray and use the continuous base shape for cloud shadows.
-		// const float density = GetDensityCheap(cloudInnerRadius, cloudOuterRadius, samplePos);
-		// const float sigmaA = 4.4 * 1e-6 * setting.extinctionCoefficient;
-		// // Smooth transitions between the sparse local samples without another texture lookup.
-		// const float intervalDensity = (i > 0u && !distantSample) ? 0.5 * (previousDensity + density) : density;
-		// opticalDepth += intervalDensity * sigmaA * intervalLength;
-		// previousDistance = distance;
-		// previousDensity = density;
-		// if (opticalDepth > 4.6) // 투과율 0.01정도
-			// break;
-	// }
-	// return opticalDepth;
-// }
 
 vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
 {
@@ -276,10 +253,8 @@ void SegmentTransmittance(
 	steps = clamp(uint(ceil(segmentLength / targetStepLength)), minStep, maxStep);
 	const float stepSize = segmentLength / steps;
 	const bool lightViewLimit = (setting.modeFlags & 1) == 1;
-	// const float CONE_ROTATION_SEQUENCE[8] = float[](0.0, 0.5, 0.25, 0.75, 0.125, 0.625, 0.375, 0.875);
-	// const float temporalConeRotation = CONE_ROTATION_SEQUENCE[setting.frame & 7u];
-	// const float sunHorizonFactor = 1.0 - smoothstep(0.08, 0.30, abs(sunDir.y));
-
+	const float isotropicPhase = 1.0 / (4.0 * PI);
+	
 	for (uint i = 0; i < steps; ++i)
 	{
 		if (transmittance <= 0.01)
@@ -290,60 +265,41 @@ void SegmentTransmittance(
 		if (density <= 0.001)
 			continue;
 		
-		float lightViewOpticalDepth = 0.0;
-		vec3 lightViewT = vec3(1.0);
+		float lightViewT = 1.0;
 		float groundNear;
 		float groundFar;
 		
 		if (RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, setting.groundRadius, groundNear, groundFar))
-			lightViewT = vec3(0.0);
+			lightViewT = 0.0;
 		else
 		{
-			lightViewT *= TransmittanceUsingLUT(samplePos, -sunDir);
 			vec2 seg0;
 			vec2 seg1;
 			int segCount = RayCloudShellIntersect(samplePos, -sunDir, PLANET_CENTER, cloudInner, cloudOuter, seg0, seg1);
-			// if (segCount >= 1)
-			// {
-				// float maxLightDistance = segCount == 2 ? seg1.y : seg0.y;
-				// maxLightDistance = min(lightViewLimit ? 64000.0 : 128000.0, maxLightDistance);
-
-				// const float worldConeRotation = 0.03125 *
-					// (1.0 + sin(dot(samplePos.xz, vec2(0.00031, 0.00023))));
-				// const float temporalShadowAmount = smoothstep(0.05, 0.25, density);
-				// const float sampleConeRotation = fract(
-					// Hash(float(i) + 13.0) +
-					// sunHorizonFactor *
-					// (worldConeRotation + temporalConeRotation * temporalShadowAmount));
-				// lightViewOpticalDepth = CloudLightConeOpticalDepth(
-					// samplePos, -sunDir, maxLightDistance,
-					// cloudInner, cloudOuter,
-					// sampleConeRotation);
-				// lightViewT *= exp(-lightViewOpticalDepth);
-			// }
 			if (segCount >= 1)
 			{
 				float seg0Length = seg0.y - seg0.x;
-				seg0Length = lightViewLimit ? min(64000, seg0Length) : seg0Length;
+				seg0Length = lightViewLimit ? min(3000, seg0Length) : seg0Length;
 				const vec3 seg0Pos = samplePos - sunDir * seg0.x;
 				const float seg0CloudLightViewT = CloudToSunTransmittance(
 					seg0Pos, seg0Pos - sunDir * seg0Length, 
-					seg0Length, setting.lightViewSteps, cloudInner, cloudOuter, mu, noise.g);
+					seg0Length, setting.lightViewSteps, cloudInner, cloudOuter, mu, noise.r);
 				if (segCount == 1)
 					lightViewT *= seg0CloudLightViewT;
 				else if (segCount == 2)
 				{
 					float seg1Length = seg1.y - seg1.x;
-					seg1Length = lightViewLimit ? min(64000, seg1Length) : seg1Length;
+					seg1Length = lightViewLimit ? min(1000, seg1Length) : seg1Length;
 					const vec3 seg1Pos = samplePos - sunDir * seg1.x;
 					const float seg1CloudLightViewT = CloudToSunTransmittance(
 						seg1Pos, seg1Pos - sunDir * seg1Length, 
-						seg1Length, setting.lightViewSteps, cloudInner, cloudOuter, mu, noise.g);
+						seg1Length, setting.lightViewSteps, cloudInner, cloudOuter, mu, noise.r);
 					lightViewT *= seg1CloudLightViewT;
 				}
 			}
 		}
 		
+		const vec3 cloudT = TransmittanceUsingLUT(samplePos, -sunDir);
 		const float sigmaA = 4.4 * 1e-6 * setting.extinctionCoefficient;
 		const float sigmaT = density * sigmaA;
 		const float stepTransmittance = exp(-sigmaT * stepSize);
@@ -351,8 +307,16 @@ void SegmentTransmittance(
 		const float depthWeight = transmittance * stepTransmittanceAlpha;
 		depthSum += t * depthWeight;
 		weightSum += depthWeight;
-		const float powder = 1.0;//powder = 1.0 - exp(-2.0 * setting.powderStrength * sigmaT * stepSize);
-		inScattering += transmittance * stepTransmittanceAlpha * (lightViewT * powder * phase * setting.sun.w);
+		
+		const float lightViewOpticalDepth = -log(max(lightViewT, 1e-4));
+		float powder = 1.0 - exp(-2.0 * lightViewOpticalDepth);
+		powder = mix(powder, 1.0, (mu + 1.0) * 0.5);
+		powder = mix(1.0, powder, setting.powderStrength);
+		
+		float lighting = lightViewT * phase * setting.sun.w;
+		lighting += 0.5 * pow(max(lightViewT, 1e-4), 0.3) * isotropicPhase;
+		
+		inScattering += transmittance * stepTransmittanceAlpha * powder * cloudT * lighting;
 		transmittance *= stepTransmittance;
 	}
 }

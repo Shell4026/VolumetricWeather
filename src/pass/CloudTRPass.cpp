@@ -83,6 +83,7 @@ void CloudTRPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	AddUsage(cloudPass.GetDepthImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(prevOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(prevDepth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(accum->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 }
 
 void CloudTRPass::SetSetting(const Setting& setting)
@@ -108,6 +109,8 @@ void CloudTRPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayou
 	ci.format = VkFormat::VK_FORMAT_R32_SFLOAT;
 	depth = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	depth2 = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	ci.format = VkFormat::VK_FORMAT_R8_UINT;
+	accum = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	CreateTRShader(cameraSetLayout);
 
@@ -131,6 +134,7 @@ void CloudTRPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool de
 		AddBinding(4, *cloudPass.GetDepthImage(), sampler->GetSampler()).
 		AddBinding(5, *prevOutput, sampler->GetSampler()).
 		AddBinding(6, *prevDepth, sampler->GetSampler()).
+		AddBinding(7, *accum).
 		Build(descPool);
 	material->UpdateBindingData(0, setting);
 }
@@ -195,6 +199,13 @@ void CloudTRPass::CreateTRShader(VkDescriptorSetLayout cameraSetLayout)
 		binding.binding = 6;
 		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		binding.descriptorCount = 1;
+	}
+	{
+		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
+		binding.binding = 7;
+		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		binding.descriptorCount = 1;
 	}
 	shader = std::make_unique<Shader>();

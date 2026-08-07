@@ -23,7 +23,7 @@ public:
 		float tiling2 = 3'000.f;
 		float extinctionCoefficient = 200.f;
 		float coverage = 0.05f;
-		float powderStrength = 10.0f;
+		float powderStrength = 1.0f;
 		float anvilBias = 0.95f;
 		alignas(16) glm::vec2 offset{ 0.f };
 		alignas(16) glm::vec4 sun{ 0.f };

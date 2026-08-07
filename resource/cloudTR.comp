@@ -25,6 +25,7 @@ layout(set = 1, binding = 3) uniform sampler2D curCloudTex;
 layout(set = 1, binding = 4) uniform sampler2D curCloudDepthTex;
 layout(set = 1, binding = 5) uniform sampler2D prevCloudTex;
 layout(set = 1, binding = 6) uniform sampler2D prevCloudDepthTex;
+layout(set = 1, binding = 7, r8ui) uniform uimage2D accumTex;
 
 vec3 PixelToViewPos(vec2 uv, float z)
 {
@@ -75,12 +76,14 @@ void main()
 	const vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
 	const vec3 viewRay = PixelToViewPos(uv, 1.0);
 	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
+	uint accum = imageLoad(accumTex, pixel).r;
 	
 	const vec4 curCloud = texelFetch(curCloudTex, pixel, 0);
 	const float curDepth = texelFetch(curCloudDepthTex, pixel, 0).r;
 	imageStore(trDepth, pixel, vec4(curDepth));
 	if (trp.historyValid == 0)
 	{
+		imageStore(accumTex, pixel, ivec4(0));
 		imageStore(trOutput, pixel, curCloud);
 		return;
 	}
@@ -88,13 +91,17 @@ void main()
 	const vec2 historyUV = PreviousCloudUV(rayDir, curDepth);
 	if (historyUV.x < 0.0 || historyUV.x >= 1.0 || historyUV.y < 0.0 || historyUV.y >= 1.0)
 	{
+		imageStore(accumTex, pixel, ivec4(0));
 		imageStore(trOutput, pixel, curCloud);
 		return;
 	}
 	vec4 prevCloud = texture(prevCloudTex, historyUV);
-	float historyWeight = clamp(trp.historyWeight, 0.0, 0.99);
+	const float maxHistoryWeight = clamp(trp.historyWeight, 0.0, 0.99);
+	float historyWeight = min(accum / float(accum + 1), maxHistoryWeight);
 
-	// const float opacity = 1.0 - curCloud.a;
+	const float curOpacity = 1.0 - curCloud.a;
+	const float historyOpacity = 1.0 - prevCloud.a;
+	const float opacityDiff = abs(historyOpacity - curOpacity);
 	// const float thinEdge = smoothstep(0.002, 0.02, opacity) * (1.0 - smoothstep(0.08, 0.25, opacity));
 	// historyWeight = mix(historyWeight, 0.99, thinEdge);
 
@@ -109,8 +116,8 @@ void main()
 		// const float expectedPrevDepth = length(curCloudPos - trp.pos);
 		
 		// const float depthDif = abs(expectedPrevDepth - prevDepth);
-		// // imageStore(trOutput, pixel, vec4(depthDif));
-		// // return;
+		// imageStore(trOutput, pixel, vec4(depthDif));
+		// return;
 
 		// const float rejectBegin = max(500.0, expectedPrevDepth * 0.01);
 		// const float rejectEnd = max(3000.0, expectedPrevDepth * 0.05);
@@ -136,5 +143,7 @@ void main()
 	const vec3 inScattering = mix(curCloud.rgb, prevCloud.rgb, historyWeight);
 	const float transmittance = mix(curCloud.a, prevCloud.a, historyWeight);
 	
+	accum = min(accum + 1, 16);
+	imageStore(accumTex, pixel, ivec4(accum));
 	imageStore(trOutput, pixel, vec4(inScattering, transmittance));
 }

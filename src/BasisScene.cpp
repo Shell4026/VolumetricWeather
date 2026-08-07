@@ -511,7 +511,7 @@ void BasisScene::DrawDebugGUI()
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Coverage", &setting.coverage, 0.0f, 1.0f, "%.2f"))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("Powder Strength", &setting.powderStrength, 0.f, 10.f))
+			if (ImGui::SliderFloat("Powder Strength", &setting.powderStrength, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Anvil bias", &setting.anvilBias, 0.f, 1.f))
 				cloudPass->SetSetting(setting);

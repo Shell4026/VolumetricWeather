@@ -45,6 +45,7 @@ private:
 	std::unique_ptr<VulkanImage> output2;
 	std::unique_ptr<VulkanImage> depth;
 	std::unique_ptr<VulkanImage> depth2;
+	std::unique_ptr<VulkanImage> accum;
 	std::unique_ptr<Shader> shader;
 	std::unique_ptr<Material> material;
 	VkPipeline pipeline = VK_NULL_HANDLE;
