@@ -553,56 +553,37 @@ void BasisScene::DrawOverlay()
 			ImGui::Text("Atmosphere model: hillaire");
 		ImGui::Text(std::format("pos: {:.2f}, {:.2f}, {:.2f}", pos.x, pos.y, pos.z).c_str());
 		ImGui::Text(std::format("to: {:.2f}, {:.2f}, {:.2f}", to.x, to.y, to.z).c_str());
-		double sum = 0;
-		for (int i = 0; i < shadowPassElapsed.Size(); ++i)
-			sum += shadowPassElapsed[i];
-		ImGui::Text(std::format("ShadowPass: {:.3}ms", sum / shadowPassElapsed.MaxSize()).c_str());
-		sum = 0;
-		for (int i = 0; i < opaquePassElapsed.Size(); ++i)
-			sum += opaquePassElapsed[i];
-		ImGui::Text(std::format("OpaquePass: {:.3}ms", sum / opaquePassElapsed.MaxSize()).c_str());
+
+		auto renderPassElapsedTextFn =
+			[](const char* passName, const CircularQueue<double, 10>& queue) -> double
+			{
+				double sum = 0;
+				for (int i = 0; i < queue.Size(); ++i)
+					sum += queue[i];
+				sum /= queue.MaxSize();
+				ImGui::Text(std::format("{}: {:.3}ms", passName, sum).c_str());
+				return sum;
+			};
+		renderPassElapsedTextFn("ShadowPass", shadowPassElapsed);
+		renderPassElapsedTextFn("OpaquePass", opaquePassElapsed);
 		if (hillaire)
 		{
 			ImGui::Separator();
-			sum = 0;
-			for (int i = 0; i < transmittanceLUTPassElapsed.Size(); ++i)
-				sum += transmittanceLUTPassElapsed[i];
-			const double transmittance = sum / transmittanceLUTPassElapsed.MaxSize();
-			ImGui::Text(std::format("Transmittance: {:.3}ms", transmittance).c_str());
-			sum = 0;
-			for (int i = 0; i < skyViewLUTPassElapsed.Size(); ++i)
-				sum += skyViewLUTPassElapsed[i];
-			const double skyView = sum / skyViewLUTPassElapsed.MaxSize();
-			ImGui::Text(std::format("SkyView: {:.3}ms", skyView).c_str());
-			sum = 0;
-			for (int i = 0; i < aerialPerspectiveLUTPassElapsed.Size(); ++i)
-				sum += aerialPerspectiveLUTPassElapsed[i];
-			const double aerialPerspective = sum / aerialPerspectiveLUTPassElapsed.MaxSize();
-			ImGui::Text(std::format("AerialPerspective: {:.3}ms", aerialPerspective).c_str());
-			sum = 0;
-			for (int i = 0; i < aerialShadowLUTPassElapsed.Size(); ++i)
-				sum += aerialShadowLUTPassElapsed[i];
-			const double aerialShadow = sum / aerialShadowLUTPassElapsed.MaxSize();
-			ImGui::Text(std::format("AerialShadow: {:.3}ms", aerialShadow).c_str());
-
-			ImGui::Text(std::format("LUTPass Sum: {:.3}ms", transmittance + skyView + aerialPerspective + aerialShadow).c_str());
+			const double transmittance = renderPassElapsedTextFn("Transmittance", transmittanceLUTPassElapsed);
+			const double skyView = renderPassElapsedTextFn("SkyView", skyViewLUTPassElapsed);
+			const double aerialPerspective = renderPassElapsedTextFn("AerialPerspective", aerialPerspectiveLUTPassElapsed);
+			const double aerialShadow = renderPassElapsedTextFn("AerialShadow", aerialShadowLUTPassElapsed);
+			const double LUTSum = transmittance + skyView + aerialPerspective + aerialShadow;
+			ImGui::Text(std::format("LUTPass Sum: {:.3}ms", LUTSum).c_str());
+			const double atmosphere = renderPassElapsedTextFn("AtmospherePass", atmospherePassElapsed);
+			ImGui::Text(std::format("LUT + AtmospherePass: {:.3}ms", LUTSum + atmosphere).c_str());
 			ImGui::Separator();
 		}
-		sum = 0;
-		for (int i = 0; i < atmospherePassElapsed.Size(); ++i)
-			sum += atmospherePassElapsed[i];
-		ImGui::Text(std::format("AtmospherePass: {:.3}ms", sum / atmospherePassElapsed.MaxSize()).c_str());
+		else
+			renderPassElapsedTextFn("AtmospherePass", atmospherePassElapsed);
 		if (bCloudEnable)
-		{
-			sum = 0;
-			for (int i = 0; i < cloudPassElapsed.Size(); ++i)
-				sum += cloudPassElapsed[i];
-			ImGui::Text(std::format("CloudPass: {:.3}ms", sum / cloudPassElapsed.MaxSize()).c_str());
-		}
-		sum = 0;
-		for (int i = 0; i < postProcessPassElapsed.Size(); ++i)
-			sum += postProcessPassElapsed[i];
-		ImGui::Text(std::format("PostProcessPass: {:.3}ms", sum / postProcessPassElapsed.MaxSize()).c_str());
+			renderPassElapsedTextFn("CloudPass", cloudPassElapsed);
+		renderPassElapsedTextFn("PostProcessPass", postProcessPassElapsed);
 		ImGui::End();
 	}
 }
