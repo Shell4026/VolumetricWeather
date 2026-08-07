@@ -29,7 +29,7 @@ auto LoadTextures(const VulkanContext& ctx, const tinygltf::Model& model) -> std
 			continue;
 		}
 		VulkanImage& vkImage = imgs.emplace_back(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		vkImage.SetData(img.image.data());
+		vkImage.SetData(img.image.data(), img.image.size());
 	}
 	return imgs;
 }

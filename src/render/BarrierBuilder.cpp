@@ -1,4 +1,5 @@
 ﻿#include "render/BarrierBuilder.h"
+#include "render/VulkanImage.h"
 #include "pass/APass.h"
 
 auto BarrierBuilder::BuildBarrier(const std::vector<APass*>& passes) -> std::vector<std::vector<BarrierInfo>>
@@ -45,6 +46,9 @@ auto BarrierBuilder::BuildBarrier(const std::vector<APass*>& passes) -> std::vec
 			barrier.dstStage = usagePtr->stage;
 			barrier.dstAccess = usagePtr->access;
 			barrier.dstLayout = usagePtr->layout;
+			const VulkanImage* vulkanImage = VulkanImage::GetVulkanImageUsingHandle(img);
+			if (vulkanImage != nullptr)
+				barrier.mipCount = vulkanImage->GetInfo().mipLevels;
 			if (lastUsagePtr == nullptr)
 			{
 				barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;;

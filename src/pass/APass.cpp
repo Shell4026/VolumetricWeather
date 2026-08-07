@@ -66,7 +66,7 @@ void APass::BeginRecord(const std::vector<BarrierInfo>* barrierInfos)
 			barrier.newLayout = info.dstLayout;
 			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			barrier.subresourceRange = { info.aspect, 0, 1, 0, 1 };
+			barrier.subresourceRange = { info.aspect, 0, info.mipCount, 0, 1 };
 			barrier.image = info.image;
 
 			vkCmdPipelineBarrier(
@@ -97,7 +97,7 @@ void APass::EndRecord(const std::vector<BarrierInfo>* barrierInfos)
 			barrier.newLayout = info.dstLayout;
 			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			barrier.subresourceRange = { info.aspect, 0, 1, 0, 1 };
+			barrier.subresourceRange = { info.aspect, 0, info.mipCount, 0, 1 };
 			barrier.image = info.image;
 
 			vkCmdPipelineBarrier(

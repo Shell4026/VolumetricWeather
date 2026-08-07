@@ -2,6 +2,8 @@
 #include "render/VulkanBuffer.h"
 #include "core/Logger.h"
 
+std::map<VkImage, VulkanImage*> VulkanImage::handleMap;
+
 VulkanSampler::~VulkanSampler()
 {
 	Clear();
@@ -46,11 +48,26 @@ VulkanImage::VulkanImage(const VulkanContext& ctx, const VkImageCreateInfo& ci, 
 {
 	Create(ctx, ci, aspect, memProp);
 }
+VulkanImage::VulkanImage(VulkanImage&& other) noexcept :
+	ctx(other.ctx),
+	img(other.img),
+	view(other.view),
+	mem(other.mem),
+	info(other.info),
+	bufferSize(other.bufferSize)
+{
+	other.img = VK_NULL_HANDLE;
+	other.view = VK_NULL_HANDLE;
+	other.mem = VK_NULL_HANDLE;
+	handleMap.insert_or_assign(img, this);
+}
 
 VulkanImage::~VulkanImage()
 {
 	if (ctx == nullptr || img == VK_NULL_HANDLE)
 		return;
+	handleMap.erase(img);
+
 	const VkDevice device = ctx->GetDevice();
 	vkDestroyImageView(device, view, nullptr);
 	vkFreeMemory(device, mem, nullptr);
@@ -63,6 +80,7 @@ void VulkanImage::Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, 
 	info = ci;
 	const VkDevice device = ctx.GetDevice();
 	VK_RESULT_CHECK(vkCreateImage(device, &ci, nullptr, &img));
+	handleMap.insert_or_assign(img, this);
 
 	VkMemoryRequirements memReqs;
 	vkGetImageMemoryRequirements(device, img, &memReqs);
@@ -86,14 +104,28 @@ void VulkanImage::Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, 
 	VK_RESULT_CHECK(vkCreateImageView(device, &viewCi, nullptr, &view));
 }
 
-void VulkanImage::SetData(const uint8_t* dataPtr)
+void VulkanImage::SetData(const uint8_t* dataPtr, std::size_t size, uint32_t mip)
 {
 	if (ctx == nullptr)
 		return;
+	if (mip >= info.mipLevels)
+	{
+		SH_ERROR_FORMAT("mip is big! (mip: {}, count: {})", mip, info.mipLevels);
+		return;
+	}
+	if (size > bufferSize)
+	{
+		SH_ERROR_FORMAT("Data size({}) is larger than buffer size({})!", size, bufferSize);
+		return;
+	}
+	const uint32_t mipWidth = info.extent.width >> mip;
+	const uint32_t mipHeight = info.extent.height >> mip;
+	const uint32_t mipDepth = info.extent.depth >> mip;
+
 	const VulkanBuffer staging = VulkanBuffer::Create(*ctx,
 		VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		bufferSize, dataPtr);
+		size, dataPtr);
 
 	// 커맨드 버퍼 할당
 	VkCommandBuffer cmd = VK_NULL_HANDLE;
@@ -111,12 +143,12 @@ void VulkanImage::SetData(const uint8_t* dataPtr)
 	region.bufferImageHeight = 0;
 
 	region.imageSubresource.aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.mipLevel = mip;
 	region.imageSubresource.baseArrayLayer = 0;
 	region.imageSubresource.layerCount = 1;
 
 	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = info.extent;
+	region.imageExtent = { mipWidth, mipHeight, mipDepth };
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -126,7 +158,7 @@ void VulkanImage::SetData(const uint8_t* dataPtr)
 	barrier.newLayout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.subresourceRange = { VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+	barrier.subresourceRange = { VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, mip, 1, 0, 1 };
 	barrier.image = img;
 
 	VkCommandBufferBeginInfo beginInfo{};
@@ -176,4 +208,12 @@ auto VulkanImage::GetCreateInfo() -> VkImageCreateInfo
 	ci.tiling = VkImageTiling::VK_IMAGE_TILING_OPTIMAL;
 	ci.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
 	return ci;
+}
+
+auto VulkanImage::GetVulkanImageUsingHandle(VkImage handle) -> VulkanImage*
+{
+	auto it = handleMap.find(handle);
+	if (it == handleMap.end())
+		return nullptr;
+	return it->second;
 }

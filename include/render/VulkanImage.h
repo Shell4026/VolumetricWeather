@@ -4,6 +4,7 @@
 #include "glm/vec4.hpp"
 
 #include <cstdint>
+#include <map>
 class VulkanSampler
 {
 public:
@@ -38,22 +39,11 @@ public:
 	VulkanImage() = default;
 	VulkanImage(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp);
 	VulkanImage(const VulkanImage& other) = delete;
-	VulkanImage(VulkanImage&& other) noexcept :
-		ctx(other.ctx),
-		img(other.img),
-		view(other.view),
-		mem(other.mem),
-		info(other.info),
-		bufferSize(other.bufferSize)
-	{
-		other.img = VK_NULL_HANDLE;
-		other.view = VK_NULL_HANDLE;
-		other.mem = VK_NULL_HANDLE;
-	}
+	VulkanImage(VulkanImage&& other) noexcept;
 	~VulkanImage();
 
 	void Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp);
-	void SetData(const uint8_t* dataPtr);
+	void SetData(const uint8_t* dataPtr, std::size_t size, uint32_t mip = 0);
 
 	auto GetImage() const -> VkImage { return img; }
 	auto GetView() const -> VkImageView { return view; }
@@ -61,6 +51,7 @@ public:
 	auto GetInfo() const -> const VkImageCreateInfo& { return info; }
 
 	static auto GetCreateInfo() -> VkImageCreateInfo;
+	static auto GetVulkanImageUsingHandle(VkImage handle) -> VulkanImage*;
 private:
 	const VulkanContext* ctx = nullptr;
 	VkImage img = VK_NULL_HANDLE;
@@ -69,4 +60,6 @@ private:
 	VkImageCreateInfo info{};
 
 	std::size_t bufferSize = 0;
+
+	static std::map<VkImage, VulkanImage*> handleMap;
 };

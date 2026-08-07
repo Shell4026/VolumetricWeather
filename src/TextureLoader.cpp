@@ -24,7 +24,7 @@ auto TextureLoader::Load(const VulkanContext& ctx, const std::filesystem::path& 
 	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
 	VulkanImage img{ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT};
-	img.SetData(pixels);
+	img.SetData(pixels, width * height * channel);
 	stbi_image_free(pixels);
 	return img;
 }

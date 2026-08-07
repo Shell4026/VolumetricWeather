@@ -4,7 +4,7 @@
 #include "glm/glm.hpp"
 
 #include <memory>
-
+#include <vector>
 class Shader;
 class Material;
 
@@ -53,6 +53,7 @@ protected:
 private:
 	void CreateCloudShader(VkDescriptorSetLayout cameraSetLayout);
 	void LoadNoises();
+	auto CreateNextNoiseMip(const std::vector<uint8_t>& noise, uint32_t width, uint32_t height, uint32_t depth) -> std::vector<uint8_t>;
 private:
 	std::unique_ptr<VulkanImage> output;
 	std::unique_ptr<VulkanImage> depth;

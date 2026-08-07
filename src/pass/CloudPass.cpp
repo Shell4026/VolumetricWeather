@@ -161,14 +161,19 @@ void CloudPass::CreateCloudShader(VkDescriptorSetLayout cameraSetLayout)
 
 void CloudPass::LoadNoises()
 {
+	uint32_t width = 128;
+	uint32_t height = 128;
+	uint32_t depth = 128;
+
 	VkImageCreateInfo ci = VulkanImage::GetCreateInfo();
-	ci.extent = { 128, 128, 128 };
+	ci.extent = { width, height, depth };
 	ci.format = VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
 	ci.imageType = VkImageType::VK_IMAGE_TYPE_3D;
 	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	ci.mipLevels = 8;
 	perlin = std::make_unique<VulkanImage>(*ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	
-	const std::size_t size = 128 * 128 * 128;
+	std::size_t size = width * height * depth;
 	Noise::Texel noiseTexel(size * 4, 0);
 
 	Noise::Texel perlinNoise;
@@ -177,7 +182,7 @@ void CloudPass::LoadNoises()
 	if (std::filesystem::exists(perlinWorleyPath))
 	{
 		perlinNoise = util::LoadBinary(perlinWorleyPath);
-		if (perlinNoise.size() != 128 * 128 * 128)
+		if (perlinNoise.size() != size)
 		{
 			SH_ERROR_FORMAT("Data size is wrong!: {} / {}", perlinNoise.size(), size);
 			throw std::runtime_error{ "Data size is wrong!" };
@@ -217,12 +222,69 @@ void CloudPass::LoadNoises()
 		f2 *= 2;
 	}
 
-	for (std::size_t i = 0; i < size; ++i)
+	for (uint32_t m = 0; m < ci.mipLevels; ++m)
 	{
-		noiseTexel[i * 4 + 0] = perlinNoise[i];
-		noiseTexel[i * 4 + 1] = worleyNoises[0][i];
-		noiseTexel[i * 4 + 2] = worleyNoises[1][i];
-		noiseTexel[i * 4 + 3] = worleyNoises[2][i];
+		noiseTexel.resize(size * 4, 0);
+		for (std::size_t i = 0; i < size; ++i)
+		{
+			noiseTexel[i * 4 + 0] = perlinNoise[i];
+			noiseTexel[i * 4 + 1] = worleyNoises[0][i];
+			noiseTexel[i * 4 + 2] = worleyNoises[1][i];
+			noiseTexel[i * 4 + 3] = worleyNoises[2][i];
+		}
+		perlin->SetData(noiseTexel.data(), noiseTexel.size(), m);
+
+		perlinNoise = CreateNextNoiseMip(perlinNoise, width, height, depth);
+		worleyNoises[0] = CreateNextNoiseMip(worleyNoises[0], width, height, depth);
+		worleyNoises[1] = CreateNextNoiseMip(worleyNoises[1], width, height, depth);
+		worleyNoises[2] = CreateNextNoiseMip(worleyNoises[2], width, height, depth);
+		width >>= 1;
+		height >>= 1;
+		depth >>= 1;
+		size = width * height * depth;
 	}
-	perlin->SetData(noiseTexel.data());
+}
+
+auto CloudPass::CreateNextNoiseMip(const Noise::Texel& noise, uint32_t width, uint32_t height, uint32_t depth) -> std::vector<uint8_t>
+{
+	if (noise.size() != width * height * depth)
+		return {};
+
+	const uint32_t w = width >> 1;
+	const uint32_t h = height >> 1;
+	const uint32_t d = depth >> 1;
+
+	const std::size_t mipSize = w * h * d;
+	if (mipSize == 0)
+		return {};
+
+	Noise::Texel mip(mipSize, 0);
+
+	auto srcIndexFn = [&](uint32_t x, uint32_t y, uint32_t z)
+		{
+			return x + width * y + width * height * z;
+		};
+
+	auto dstIndexFn = [&](uint32_t x, uint32_t y, uint32_t z)
+		{
+			return x + w * y + w * h * z;
+		};
+
+	for (int z = 0; z < d; ++z)
+	{
+		for (int y = 0; y < h; ++y)
+		{
+			for (int x = 0; x < w; ++x)
+			{
+				const int wh = w * h;
+				int texel = 0;
+				for (int dz = 0; dz < 2; ++dz)
+					for (int dy = 0; dy < 2; ++dy)
+						for (int dx = 0; dx < 2; ++dx)
+							texel += noise[srcIndexFn(x * 2 + dx, y * 2 + dy, z * 2 + dz)];
+				mip[dstIndexFn(x, y, z)] = texel / 8;
+			}
+		}
+	}
+	return mip;
 }
