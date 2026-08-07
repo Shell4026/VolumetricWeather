@@ -17,6 +17,7 @@
 #include <map>
 class ShadowPass;
 class OpaquePass;
+class LowDepthPass;
 class LUTPass;
 class AtmospherePass;
 class HillairePass;
@@ -59,6 +60,7 @@ private:
 
 	std::unique_ptr<ShadowPass> shadowPass;
 	std::unique_ptr<OpaquePass> opaquePass;
+	std::unique_ptr<LowDepthPass> lowDepthPass;
 	std::unique_ptr<LUTPass> lutPass;
 	std::unique_ptr<AtmospherePass> atmospherePass;
 	std::unique_ptr<HillairePass> hillairePass;
@@ -92,6 +94,7 @@ private:
 
 	CircularQueue<double, 10> shadowPassElapsed;
 	CircularQueue<double, 10> opaquePassElapsed;
+	CircularQueue<double, 10> lowDepthPassElapsed;
 
 	CircularQueue<double, 10> transmittanceLUTPassElapsed;
 	CircularQueue<double, 10> skyViewLUTPassElapsed;

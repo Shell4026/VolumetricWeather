@@ -58,7 +58,7 @@ void CloudPass::SetSetting(const Setting& setting)
 void CloudPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
 	VkImageCreateInfo ci = VulkanImage::GetCreateInfo();
-	ci.extent = { ctx.GetSwapChainExtent().width / 4, ctx.GetSwapChainExtent().height / 4, 1};
+	ci.extent = { ctx.GetSwapChainExtent().width / 2, ctx.GetSwapChainExtent().height / 2, 1};
 	ci.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
 	ci.imageType = VkImageType::VK_IMAGE_TYPE_2D;
 	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -71,7 +71,7 @@ void CloudPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout 
 	CreateCloudShader(cameraSetLayout);
 
 	sampler = &samplerManager->GetLinearRepeat();
-	depthSampler = &samplerManager->GetLinearClampWhite();
+	depthSampler = &samplerManager->GetPointClampWhite();
 	pointSampler = &samplerManager->GetPointRepeat();
 }
 

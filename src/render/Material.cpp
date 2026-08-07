@@ -19,7 +19,8 @@ void Material::Build(VkDescriptorPool descPool)
 
 	// 버퍼 생성
 	const std::size_t size = nextBufferOffset;
-	buffer = std::make_unique<VulkanBuffer>(CreateUniformBuffer(size));
+	if (size > 0)
+		buffer = std::make_unique<VulkanBuffer>(CreateUniformBuffer(size));
 
 	// BufferInfo토대로 VkWriteDescriptorSet생성 후 디스크립터셋하고 데이터 연결
 	std::vector<VkWriteDescriptorSet> writes(bindingInfos.size());

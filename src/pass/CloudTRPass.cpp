@@ -38,7 +38,7 @@ void CloudTRPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	uploadedSetting.historyValid = historyValid ? 1u : 0u;
 	if (historyValid)
 	{
-		// Converge quickly after a reset instead of letting the first noisy frame dominate.
+		// 처음에는 0.5부터 시작해서 점차 historyWeight까지 올라감
 		const float rampWeight = static_cast<float>(historyFrameCount) / static_cast<float>(historyFrameCount + 1u);
 		uploadedSetting.historyWeight = std::min(uploadedSetting.historyWeight, rampWeight);
 	}
@@ -99,7 +99,7 @@ void CloudTRPass::InvalidateHistory()
 void CloudTRPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
 	VkImageCreateInfo ci = VulkanImage::GetCreateInfo();
-	ci.extent = { ctx.GetSwapChainExtent().width / 4, ctx.GetSwapChainExtent().height / 4, 1};
+	ci.extent = { ctx.GetSwapChainExtent().width / 2, ctx.GetSwapChainExtent().height / 2, 1};
 	ci.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
 	ci.imageType = VkImageType::VK_IMAGE_TYPE_2D;
 	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;

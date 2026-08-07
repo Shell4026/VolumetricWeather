@@ -29,6 +29,7 @@ public:
 	void InvalidateHistory();
 
 	auto GetOutputImage() const -> const VulkanImage* { return curOutput; }
+	auto GetDepthImage() const -> const VulkanImage* { return curDepth; }
 	auto GetSampler() const -> const VulkanSampler* { return sampler; }
 	auto GetSetting() const -> const Setting& { return setting; }
 protected:

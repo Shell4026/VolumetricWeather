@@ -1,6 +1,7 @@
 ﻿#include "pass/HillairePass.h"
 #include "pass/LUTPass.h"
 #include "pass/cloudTRPass.h"
+#include "pass/LowDepthPass.h"
 
 #include "core/Logger.h"
 
@@ -8,8 +9,8 @@
 #include "render/VulkanImage.h"
 #include "render/Material.h"
 
-HillairePass::HillairePass(const LUTPass& lutPass, const CloudTRPass& cloudTRPass) :
-	lutPass(lutPass), cloudTRPass(cloudTRPass)
+HillairePass::HillairePass(const LowDepthPass& lowDepthPass, const LUTPass& lutPass, const CloudTRPass& cloudTRPass) :
+	lowDepthPass(lowDepthPass), lutPass(lutPass), cloudTRPass(cloudTRPass)
 {
 }
 
@@ -33,18 +34,22 @@ void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(
-		lutPass.GetAerialShadowDepth()->GetImage(),
+		cloudTRPass.GetOutputImage()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(
-		cloudTRPass.GetOutputImage()->GetImage(),
+		lowDepthPass.GetHalfDepthTexture()->GetImage(),
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(
+		lowDepthPass.GetQuarterDepthTexture()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void HillairePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
-	material->UpdateBindingData(10, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
+	material->UpdateBindingData(9, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
 	AtmospherePass::Record(ctx, frame);
 }
 
@@ -54,14 +59,13 @@ void HillairePass::UpdateMaterial()
 	material->UpdateBindingData(6, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler());
 	material->UpdateBindingData(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler());
 	material->UpdateBindingData(8, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler());
-	material->UpdateBindingData(9, *lutPass.GetAerialShadowDepth(), lutPass.GetAerialShadowSampler()->GetSampler());
-	material->UpdateBindingData(10, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
+	material->UpdateBindingData(9, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
 }
 
 auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
 {
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-	set1Bindings.reserve(9);
+	set1Bindings.reserve(11);
 	VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
 	binding0.binding = 0;
 	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
@@ -119,6 +123,13 @@ auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSet
 		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		binding.descriptorCount = 1;
 	}
+	{
+		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
+		binding.binding = 11;
+		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		binding.descriptorCount = 1;
+	}
 
 	Shader shader{};
 	shader.
@@ -134,15 +145,16 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 	material->
 		AddBinding<Atmosphere>(0).
 		AddBinding(1, *outputImage).
-		AddBinding(2, *opaqueDepthTex, opaqueSampler->GetSampler()).
+		AddBinding(2, *opaqueDepthTex, opaqueDepthSampler->GetSampler()).
 		AddBinding(3, *opaqueTex, opaqueSampler->GetSampler()).
 		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
 		AddBinding(5, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler()).
 		AddBinding(6, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler()).
 		AddBinding(7, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler()).
 		AddBinding(8, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler()).
-		AddBinding(9, *lutPass.GetAerialShadowDepth(), lutPass.GetAerialShadowSampler()->GetSampler()).
-		AddBinding(10, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler()).
+		AddBinding(9, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler()).
+		AddBinding(10, *lowDepthPass.GetHalfDepthTexture(), opaqueDepthSampler->GetSampler()).
+		AddBinding(11, *lowDepthPass.GetQuarterDepthTexture(), opaqueDepthSampler->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, atmosphere);

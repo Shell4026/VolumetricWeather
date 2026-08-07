@@ -62,7 +62,6 @@ public:
 	auto GetAerialPerspectiveLUT() const -> VulkanImage* { return aerialPerspective.lut.get(); }
 	auto GetAerialShadowSampler() const -> const VulkanSampler* { return aerialPerspective.sampler; } // 같은 샘플러
 	auto GetAerialShadowLUT() const -> VulkanImage* { return aerialShadow.lut.get(); }
-	auto GetAerialShadowDepth() const -> VulkanImage* { return aerialShadow.lowResDepth.get(); }
 	auto IsUseLightShadow() const -> bool { return bUseLightShadow; }
 	auto GetLUTElpasedTimeMs(LUTType type) const -> double;
 protected:
@@ -136,7 +135,6 @@ private:
 		std::unique_ptr<Material> material;
 		std::unique_ptr<Material> material2;
 		std::unique_ptr<VulkanImage> lut;
-		std::unique_ptr<VulkanImage> lowResDepth;
 		VkPipeline pipeline = VK_NULL_HANDLE;
 		VkPipeline pipeline2 = VK_NULL_HANDLE;
 		GPUTimer timer;

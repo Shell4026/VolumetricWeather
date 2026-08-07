@@ -118,6 +118,7 @@ void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLa
 	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	opaqueSampler = &samplerManager->GetLinearClampWhite();
+	opaqueDepthSampler = &samplerManager->GetPointClampWhite();
 
 	computeShader = std::make_unique<Shader>(CreateShader(ctx.GetDevice(), cameraSetLayout));
 }

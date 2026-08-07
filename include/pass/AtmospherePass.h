@@ -54,6 +54,7 @@ protected:
 	const VulkanImage* opaqueTex = nullptr;
 	const VulkanImage* shadowMap = nullptr;
 	const VulkanSampler* opaqueSampler = nullptr;
+	const VulkanSampler* opaqueDepthSampler = nullptr;
 	const VulkanSampler* shadowSampler = nullptr;
 private:
 	VkDescriptorSetLayout cameraSetLayout = VK_NULL_HANDLE;

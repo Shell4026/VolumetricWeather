@@ -25,8 +25,9 @@ layout(set = 1, binding = 5) uniform sampler2D transmittanceLUT;
 layout(set = 1, binding = 6) uniform sampler2D skyViewLUT;
 layout(set = 1, binding = 7) uniform sampler3D aerialPerspectiveLUT;
 layout(set = 1, binding = 8) uniform sampler2D aerialShadowLUT;
-layout(set = 1, binding = 9) uniform sampler2D aerialShadowDepth;
-layout(set = 1, binding = 10) uniform sampler2D cloudTex;
+layout(set = 1, binding = 9) uniform sampler2D cloudTex;
+layout(set = 1, binding = 10) uniform sampler2D halfDepth;
+layout(set = 1, binding = 11) uniform sampler2D quarterDepth;
 const float GROUND_RADIUS = 6360 * 1000.0;
 const vec3 PLANET_CENTER = vec3(0.0, -GROUND_RADIUS, 0.0);
 const float CLOUD_HEIGHT = 2000;
@@ -109,7 +110,7 @@ vec3 UpsampledAerialShadow(vec2 uv, float viewZ)
 			const vec2 sampleUV = (vec2(coord) + 0.5) / lutSize;
 			
 			const vec3 shadow = texelFetch(aerialShadowLUT, coord, 0).rgb;
-			const float shadowZ = PixelToViewPos(sampleUV, texelFetch(aerialShadowDepth, coord, 0).r).z;
+			const float shadowZ = PixelToViewPos(sampleUV, texelFetch(quarterDepth, coord, 0).r).z;
 			
 			const float weightX = (x == 0) ? 1.0 - fraction.x : fraction.x;
 			const float weightY = (y == 0) ? 1.0 - fraction.y : fraction.y;
@@ -171,7 +172,7 @@ vec3 RenderSun(vec3 worldRayDir, vec3 viewRayDir)
 
 vec4 UpsampledCloud(vec2 uv, float viewZ)
 {
-	//return texture(cloudTex, uv).;
+	//return texture(cloudTex, uv);
 	const ivec2 texSize = textureSize(cloudTex, 0);
 	const vec2 texelPos = texSize * uv - 0.5;
 	const ivec2 base = ivec2(floor(texelPos));
@@ -188,7 +189,7 @@ vec4 UpsampledCloud(vec2 uv, float viewZ)
 			const vec2 sampleUV = (vec2(coord) + 0.5) / texSize;
 			
 			const vec4 cloud = texelFetch(cloudTex, coord, 0);
-			const float lowResZ = PixelToViewPos(sampleUV, texelFetch(aerialShadowDepth, coord, 0).r).z;
+			const float lowResZ = PixelToViewPos(sampleUV, texelFetch(halfDepth, coord, 0).r).z;
 			
 			const float weightX = (x == 0) ? 1.0 - fraction.x : fraction.x;
 			const float weightY = (y == 0) ? 1.0 - fraction.y : fraction.y;

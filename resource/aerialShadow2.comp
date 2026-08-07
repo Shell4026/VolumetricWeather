@@ -22,7 +22,6 @@ layout(set = 1, binding = 2) uniform sampler3D aerialPerspectiveLUT;
 layout(set = 1, binding = 3) uniform sampler2DShadow shadowMap;
 layout(set = 1, binding = 4) uniform sampler2D depth;
 layout(set = 1, binding = 5) uniform sampler2D noiseTex;
-layout(set = 1, binding = 6, r32f) uniform writeonly image2D lowResDepth;
 const float PI = 3.141592;
 
 vec3 PixelToViewPos(vec2 uv, float z)
@@ -185,5 +184,4 @@ void main()
 	}
 
 	imageStore(outImage, pixel, vec4(inScattering, 1.0));
-	imageStore(lowResDepth, pixel, vec4(z));
 }

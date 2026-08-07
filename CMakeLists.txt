@@ -30,6 +30,7 @@ set(PASS_HEADERS
 "include/pass/BlitPass.h" 
 "include/pass/CloudPass.h"
 "include/pass/CloudTRPass.h"
+"include/pass/LowDepthPass.h"
 )
 set(PASS_CPPS 
 "src/pass/APass.cpp"
@@ -42,6 +43,7 @@ set(PASS_CPPS
 "src/pass/BlitPass.cpp"
 "src/pass/CloudPass.cpp"
 "src/pass/CloudTRPass.cpp"
+"src/pass/LowDepthPass.cpp"
 )
 set(RENDER_HEADERS 
 "include/render/BarrierBuilder.h"

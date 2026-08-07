@@ -50,7 +50,7 @@ vec3 PixelToViewPos(vec2 uv, float z)
 
 float MiePhase(float mu, float g)
 {
-	return 3 * (1 - g * g) * (1 + mu * mu) / (8 * 3.141592 * (2 + g * g) * pow(1 + g * g - 2 * g * mu, 3.0/2.0));
+	return 3 * (1 - g * g) * (1 + mu * mu) / (8 * 3.141592 * (2 + g * g) * pow(1 + g * g - 2 * g * mu, 1.5));
 }
 
 // 구 내부에서 쏜 경우 near은 음수가 나옴
@@ -167,7 +167,7 @@ float CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float 
 		if (sigmaSum > 4.6) // 투과율 0.01정도
 			return 0.0;
 	}
-	const float beer = max(exp(-sigmaSum), exp(-sigmaSum * 0.25) * 0.7);
+	const float beer = exp(-sigmaSum);
 	const float powder = 1.0 - exp(-setting.powderStrength * sigmaSum);
 	return beer * powder;
 }

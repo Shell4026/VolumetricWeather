@@ -9,6 +9,7 @@
 
 #include "pass/ShadowPass.h"
 #include "pass/OpaquePass.h"
+#include "pass/LowDepthPass.h"
 #include "pass/LUTPass.h"
 #include "pass/AtmospherePass.h"
 #include "pass/HillairePass.h"
@@ -88,7 +89,6 @@ void BasisScene::BeginRender(double dt)
 		else if (img == lutPass->GetAerialShadowLUT())
 		{
 			InvalidateImageUsage(img->GetImage());
-			InvalidateImageUsage(lutPass->GetAerialShadowDepth()->GetImage());
 			lutPass->ReCreateShadowLUT(req.width, req.height);
 		}
 	}
@@ -117,6 +117,7 @@ void BasisScene::BeginRender(double dt)
 		opaquePassElapsed.Push(opaquePass->GetElapsedTimeMs());
 		if (currentAtmospherePass == hillairePass.get())
 		{
+			lowDepthPassElapsed.Push(lowDepthPass->GetElapsedTimeMs());
 			transmittanceLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::Transmittance));
 			skyViewLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::SkyView));
 			aerialPerspectiveLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::AerialPerspective));
@@ -220,6 +221,10 @@ void BasisScene::SetupPass()
 	opaquePass->SetImageSize(width, height);
 	opaquePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
+	lowDepthPass = std::make_unique<LowDepthPass>();
+	lowDepthPass->SetDepthTexture(*opaquePass->GetOutputImageDepth());
+	lowDepthPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
+
 	lutPass = std::make_unique<LUTPass>();
 	lutPass->SetDepthTexture(*opaquePass->GetOutputImageDepth());
 	lutPass->SetShadowMap(*shadowPass->GetShadowMap());
@@ -245,7 +250,7 @@ void BasisScene::SetupPass()
 	cloudTRPass = std::make_unique<CloudTRPass>(*cloudPass);
 	cloudTRPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	hillairePass = std::make_unique<HillairePass>(*lutPass, *cloudTRPass);
+	hillairePass = std::make_unique<HillairePass>(*lowDepthPass, *lutPass, *cloudTRPass);
 	hillairePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
 	hillairePass->SetOpaqueDepthTexture(*opaquePass->GetOutputImageDepth());
 	hillairePass->SetShadowMap(*shadowPass->GetShadowMap());
@@ -261,7 +266,7 @@ void BasisScene::SetupPass()
 	blitPass = std::make_unique<BlitPass>();
 	blitPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	allPasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), cloudTRPass.get(), postProcessPass.get(), blitPass.get() };
+	allPasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), cloudTRPass.get(), postProcessPass.get(), blitPass.get()};
 	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
 
 	UpdateSun();
@@ -569,6 +574,7 @@ void BasisScene::DrawOverlay()
 		if (hillaire)
 		{
 			ImGui::Separator();
+			renderPassElapsedTextFn("lowDepthPass", lowDepthPassElapsed);
 			const double transmittance = renderPassElapsedTextFn("Transmittance", transmittanceLUTPassElapsed);
 			const double skyView = renderPassElapsedTextFn("SkyView", skyViewLUTPassElapsed);
 			const double aerialPerspective = renderPassElapsedTextFn("AerialPerspective", aerialPerspectiveLUTPassElapsed);
@@ -658,9 +664,9 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 	{
 		SH_INFO("Change to Hillaire");
 		if (bCloudEnable)
-			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), cloudPass.get(), cloudTRPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+			activePasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), cloudPass.get(), cloudTRPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get()};
 		else
-			activePasses = { shadowPass.get(), opaquePass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+			activePasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
 	}
 	else

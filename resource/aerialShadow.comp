@@ -22,7 +22,6 @@ layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
 layout(set = 1, binding = 3) uniform sampler2DShadow shadowMap;
 layout(set = 1, binding = 4) uniform sampler2D depth;
 layout(set = 1, binding = 5) uniform sampler2D noiseTex;
-layout(set = 1, binding = 6, r32f) uniform writeonly image2D lowResDepth;
 const float PI = 3.141592;
 
 vec3 PixelToViewPos(vec2 uv, float z)
@@ -246,5 +245,4 @@ void main()
 	const vec4 result = vec4(InScatteringInShadow(start, end, distance, sunDir, mu, setting.sun.w, noise), 1.0);
 
 	imageStore(outImage, pixel, result);
-	imageStore(lowResDepth, pixel, vec4(z));
 }
