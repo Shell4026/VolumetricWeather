@@ -53,6 +53,7 @@ void BasisScene::Clear()
 	opaqueShader.Clear();
 
 	mountain = Mountain{};
+	city = City{};
 
 	if (sampler != VK_NULL_HANDLE)
 	{
@@ -199,7 +200,21 @@ void BasisScene::PrepareResource()
 	mountain.data.sun = sun;
 	mountain.material->UpdateBindingData(0, mountain.data);
 
-	CreateDrawables();
+	// 도시
+	city.model = GLBLoader::LoadGLB(ctx, "models/city.glb");
+	city.data.sun = sun;
+	for (std::size_t i = 0; i < city.model.textures.size(); ++i)
+	{
+		Material* const matPtr = city.materials.emplace_back(std::make_unique<Material>(ctx, opaqueShader)).get();
+		matPtr->
+			AddBinding<City::MaterialData>(0).
+			AddBinding(1, city.model.textures[i], sampler).
+			AddBinding(2, *ctx.GetEmptyImage(), sampler).
+			Build(GetDescriptorPool());
+		matPtr->UpdateBindingData(0, city.data);
+	}
+	CreateCityDrawables();
+	//CreateDrawables();
 
 	// 텍스쳐
 	std::optional<VulkanImage> texOpt = TextureLoader::Load(ctx, "textures/BlueNoise.png");
@@ -215,7 +230,12 @@ void BasisScene::SetupPass()
 	shadowPass = std::make_unique<ShadowPass>();
 	shadowPass->Init(ctx, samplerManager, GetDescriptorPool(), VK_NULL_HANDLE);
 	mountain.material->UpdateBindingData(2, *shadowPass->GetShadowMap(), shadowPass->GetShadowSampler()->GetSampler());
-
+	for (std::unique_ptr<Material>& matPtr : city.materials)
+	{
+		if (matPtr == nullptr)
+			continue;
+		matPtr->UpdateBindingData(2, *shadowPass->GetShadowMap(), shadowPass->GetShadowSampler()->GetSampler());
+	}
 	opaquePass = std::make_unique<OpaquePass>();
 	opaquePass->SetShader(opaqueShader);
 	opaquePass->SetImageSize(width, height);
@@ -617,6 +637,7 @@ void BasisScene::DrawPresetGUI()
 		preset.cloudCoverage = cloudSetting.coverage;
 		preset.cloudDarkHeight = cloudSetting.darkHeight;
 		preset.windVel = cloudSetting.windVelKmh;
+		preset.cloudAnvil = cloudSetting.anvilBias;
 		presetManager.AddPreset(presetName, preset);
 		presetName.clear();
 	}
@@ -639,6 +660,7 @@ void BasisScene::DrawPresetGUI()
 			cloudSetting.coverage = presetInfo.preset.cloudCoverage;
 			cloudSetting.darkHeight = presetInfo.preset.cloudDarkHeight;
 			cloudSetting.windVelKmh = presetInfo.preset.windVel;
+			cloudSetting.anvilBias = presetInfo.preset.cloudAnvil;
 			cloudPass->SetSetting(cloudSetting);
 
 			UpdateSun();
@@ -716,7 +738,41 @@ void BasisScene::CreateDrawables()
 			bfs.push({ &child, modelMatrix });
 		}
 	}
-	return;
+}
+
+void BasisScene::CreateCityDrawables()
+{
+	glm::mat4 rootMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, 0.f });
+	rootMatrix = glm::scale(rootMatrix, glm::vec3{ 10.f, 10.f, 10.f });
+
+	struct BFSInfo
+	{
+		GLBLoader::Node* node;
+		glm::mat4 parentModelMatrix;
+	};
+	std::queue<BFSInfo> bfs;
+	bfs.push({ &city.model.nodes[0], rootMatrix });
+	while (!bfs.empty())
+	{
+		auto [nodePtr, parentModelMatrix] = bfs.front();
+		bfs.pop();
+
+		const glm::mat4 modelMatrix = parentModelMatrix * nodePtr->modelMatrix;
+		if (nodePtr->meshPtr != nullptr)
+		{
+			Drawable& drawable = drawables.emplace_back();
+			drawable.modelMatrix = modelMatrix;
+			drawable.mesh = nodePtr->meshPtr.get();
+			if (nodePtr->textureIdx >= 0)
+				drawable.mat = city.materials[nodePtr->textureIdx].get();
+		}
+
+		for (int idx : nodePtr->childrenIdxs)
+		{
+			GLBLoader::Node& child = city.model.nodes[idx];
+			bfs.push({ &child, modelMatrix });
+		}
+	}
 }
 
 void BasisScene::ControlCamera(double dt)
@@ -809,6 +865,10 @@ void BasisScene::UpdateSun()
 	mountain.data.sun = sun;
 	mountain.data.viewProj = sunViewProj;
 	mountain.material->UpdateBindingData(0, mountain.data);
+	city.data.sun = sun;
+	city.data.viewProj = sunViewProj;
+	for (std::unique_ptr<Material>& matPtr : city.materials)
+		matPtr->UpdateBindingData(0, city.data);
 
 	atmosphere.sun = sun;
 	atmosphere.sunViewProj = mountain.data.viewProj;
@@ -830,7 +890,7 @@ auto BasisScene::Preset::Serialize() const -> Json
 	json["camPos"] = { camPos.x, camPos.y, camPos.z };
 	json["camQuat"] = { camQuat.x, camQuat.y, camQuat.z, camQuat.w };
 	json["sun"] = { sun.x, sun.y, sun.z, sun.w };
-	json["cloud"] = { cloudTile, cloudEC, cloudCoverage, windVel.x, windVel.y, cloudDarkHeight };
+	json["cloud"] = { cloudTile, cloudEC, cloudCoverage, windVel.x, windVel.y, cloudDarkHeight, cloudAnvil };
 	return json;
 }
 
@@ -858,5 +918,7 @@ void BasisScene::Preset::Deserialize(const Json& json)
 		windVel.y = it.value()[4];
 		if (size >= 6)
 			cloudDarkHeight = it.value()[5];
+		if (size >= 7)
+			cloudAnvil = it.value()[6];
 	}
 }

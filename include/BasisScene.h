@@ -53,6 +53,7 @@ private:
 	void DrawPresetGUI();
 	void SetAtmosphereModel(bool bHillare);
 	void CreateDrawables();
+	void CreateCityDrawables();
 	void ControlCamera(double dt);
 	void UpdateSun();
 private:
@@ -84,6 +85,16 @@ private:
 		} data;
 		std::unique_ptr<Material> material;
 	} mountain;
+	struct City
+	{
+		GLBLoader::Model model;
+		struct MaterialData
+		{
+			alignas(16) glm::vec4 sun;
+			alignas(16) glm::mat4 viewProj;
+		} data;
+		std::vector<std::unique_ptr<Material>> materials;
+	} city;
 	std::unique_ptr<VulkanImage> blueNoise;
 
 	std::vector<APass*> allPasses;
@@ -117,6 +128,7 @@ private:
 		float cloudEC;
 		float cloudCoverage;
 		float cloudDarkHeight;
+		float cloudAnvil;
 		glm::vec2 windVel;
 		auto Serialize() const -> Json;
 		void Deserialize(const Json& json);

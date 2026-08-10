@@ -110,11 +110,11 @@ auto AScene::CreateDescriptorPool()->VkDescriptorPool
 	storageImagePoolSize.descriptorCount = 10;
 	VkDescriptorPoolSize& samplerPoolSize = poolSizes.emplace_back();
 	samplerPoolSize.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerPoolSize.descriptorCount = 20;
+	samplerPoolSize.descriptorCount = 100;
 
 	VkDescriptorPoolCreateInfo poolCi{};
 	poolCi.sType = VkStructureType::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolCi.maxSets = 20;
+	poolCi.maxSets = 100;
 	poolCi.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 	poolCi.pPoolSizes = poolSizes.data();
 	poolCi.flags = VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;

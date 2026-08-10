@@ -187,7 +187,11 @@ auto GLBLoader::LoadGLB(const VulkanContext& ctx, const std::filesystem::path& p
 				}
 			}
 			if (primitive.material != -1)
-				node.textureIdx = gltfModel.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
+			{
+				const int textureIdx = gltfModel.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
+				if (textureIdx != -1)
+					node.textureIdx = gltfModel.textures[textureIdx].source;
+			}
 			node.meshPtr = std::make_unique<Mesh<GLBVertex>>();
 			node.meshPtr->SetVertices(std::move(verts));
 			node.meshPtr->SetIndices(std::move(indices));
