@@ -36,8 +36,10 @@ void CloudPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	APass::SetUsages(ctx, frame);
 
-	timer = (timer + 1) % 0xFFFF;
-	setting.frame = timer;
+	frameIdx = frameIdx + 1;
+	time += frame.dt;
+	setting.frame = frameIdx;
+	setting.time = time;
 	material->UpdateBindingData(0, setting);
 
 	AddUsage(output->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);

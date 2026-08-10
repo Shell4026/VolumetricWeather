@@ -11,21 +11,27 @@ class Material;
 class CloudPass : public APass
 {
 public:
-	struct alignas(16) Setting
+	struct Setting
 	{
-		uint32_t steps = 60;
-		uint32_t lightViewSteps = 10;
-		uint32_t modeFlags = 0;
+		uint32_t steps = 20;
+		uint32_t lightViewSteps = 6;
+		uint32_t modeFlags = 1;
 		uint32_t frame = 0;
+
+		float time = 0.0f;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
 		float tiling = 96'000.f;
+
 		float tiling2 = 3'000.f;
 		float extinctionCoefficient = 200.f;
 		float coverage = 0.05f;
-		float powderStrength = 1.0f;
+		float powderStrength = 0.5f;
+
 		float anvilBias = 0.95f;
-		alignas(16) glm::vec2 offset{ 0.f };
+		float darkHeight = 0.5f;
+		alignas(8) glm::vec2 windVelKmh{ 1.f, 0.f };
+
 		alignas(16) glm::vec4 sun{ 0.f };
 	};
 	enum ModeFlag
@@ -74,5 +80,6 @@ private:
 	Setting setting;
 	uint64_t settingRevision = 0;
 
-	uint32_t timer = 0;
+	uint32_t frameIdx = 0;
+	float time = 0.f;
 };

@@ -212,6 +212,7 @@ void main()
     const vec3 end   = camera.pos + rayDir * rayEnd;
 	vec3 sigmaSum; // start에서 end까지 누적된 소멸 계수(sigmaT)
 	vec3 result = InScattering(start, end, rayEnd - rayStart, sunDir, mu, setting.sun.w, setting.steps, sigmaSum);
-	
-	imageStore(outImage, pixel, vec4(result, 1.0));
+	const vec3 transmittance = exp(-sigmaSum);
+	const float transmittanceGray = dot(transmittance, vec3(1.0 / 3.0));
+	imageStore(outImage, pixel, vec4(result, transmittanceGray));
 }

@@ -85,6 +85,7 @@ void AScene::BeginRender(double dt)
 
 void AScene::Render(double dt)
 {
+	frames[currentFrameIdx].dt = static_cast<float>(dt);
 	cameraUniformBuffers->SetData(&cameraUniformData, sizeof(cameraUniformData));
 
 	BeginBuildCommandBuffer();

@@ -44,7 +44,7 @@ int main()
 	);
 	BasisScene scene{ ctx, imgui, win, samplerManager };
 	scene.Init();
-
+	SH_INFO_FORMAT("ctx: {}, instance: {}", (void*)&ctx, (void*)ctx.GetInstance());
 	double dt = 0.0;
 	while (win.IsOpen())
 	{

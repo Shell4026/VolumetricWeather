@@ -158,7 +158,7 @@ void BasisScene::PrepareResource()
 	// 산 모델용 샘플러 생성
 	VkSamplerCreateInfo samplerCi = VulkanSampler::GetCreateInfo();
 	VK_RESULT_CHECK(vkCreateSampler(ctx.GetDevice(), &samplerCi, nullptr, &sampler));
-
+	SH_INFO_FORMAT("ctx: {}, instance: {}", (void*)&ctx, (void*)ctx.GetInstance());
 	// opaqueShader 초기화
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
 	VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
@@ -515,10 +515,14 @@ void BasisScene::DrawDebugGUI()
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Anvil bias", &setting.anvilBias, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("OffsetX", &setting.offset.x, 0.f, 1.f))
+			if (ImGui::SliderFloat("Dark Height", &setting.darkHeight, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("OffsetY", &setting.offset.y, 0.f, 1.f))
+			float windVel[2] = { setting.windVelKmh.x, setting.windVelKmh.y };
+			if (ImGui::SliderFloat2("Wind (km/h)", windVel, 0.f, 100.f))
+			{
+				setting.windVelKmh = { windVel[0], windVel[1] };
 				cloudPass->SetSetting(setting);
+			}
 
 			CloudTRPass::Setting trSetting = cloudTRPass->GetSetting();
 			if (ImGui::SliderFloat("History Weight", &trSetting.historyWeight, 0.0f, 1.0f, "%.2f"))
@@ -611,7 +615,8 @@ void BasisScene::DrawPresetGUI()
 		preset.cloudTile = cloudSetting.tiling;
 		preset.cloudEC = cloudSetting.extinctionCoefficient;
 		preset.cloudCoverage = cloudSetting.coverage;
-		preset.cloudOffset = cloudSetting.offset;
+		preset.cloudDarkHeight = cloudSetting.darkHeight;
+		preset.windVel = cloudSetting.windVelKmh;
 		presetManager.AddPreset(presetName, preset);
 		presetName.clear();
 	}
@@ -632,7 +637,8 @@ void BasisScene::DrawPresetGUI()
 			cloudSetting.tiling = presetInfo.preset.cloudTile;
 			cloudSetting.extinctionCoefficient = presetInfo.preset.cloudEC;
 			cloudSetting.coverage = presetInfo.preset.cloudCoverage;
-			cloudSetting.offset = presetInfo.preset.cloudOffset;
+			cloudSetting.darkHeight = presetInfo.preset.cloudDarkHeight;
+			cloudSetting.windVelKmh = presetInfo.preset.windVel;
 			cloudPass->SetSetting(cloudSetting);
 
 			UpdateSun();
@@ -824,7 +830,7 @@ auto BasisScene::Preset::Serialize() const -> Json
 	json["camPos"] = { camPos.x, camPos.y, camPos.z };
 	json["camQuat"] = { camQuat.x, camQuat.y, camQuat.z, camQuat.w };
 	json["sun"] = { sun.x, sun.y, sun.z, sun.w };
-	json["cloud"] = { cloudTile, cloudEC, cloudCoverage, cloudOffset.x, cloudOffset.y };
+	json["cloud"] = { cloudTile, cloudEC, cloudCoverage, windVel.x, windVel.y, cloudDarkHeight };
 	return json;
 }
 
@@ -844,10 +850,13 @@ void BasisScene::Preset::Deserialize(const Json& json)
 	}
 	if (auto it = json.find("cloud"); it != json.end())
 	{
+		const std::size_t size = it.value().size();
 		cloudTile = it.value()[0];
 		cloudEC = it.value()[1];
 		cloudCoverage = it.value()[2];
-		cloudOffset.x = it.value()[3];
-		cloudOffset.y = it.value()[4];
+		windVel.x = it.value()[3];
+		windVel.y = it.value()[4];
+		if (size >= 6)
+			cloudDarkHeight = it.value()[5];
 	}
 }

@@ -116,7 +116,8 @@ private:
 		float cloudTile;
 		float cloudEC;
 		float cloudCoverage;
-		glm::vec2 cloudOffset;
+		float cloudDarkHeight;
+		glm::vec2 windVel;
 		auto Serialize() const -> Json;
 		void Deserialize(const Json& json);
 	};

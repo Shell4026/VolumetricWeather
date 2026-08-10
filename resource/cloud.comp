@@ -15,16 +15,22 @@ layout(set = 1, binding = 0) uniform Setting
 	uint steps;
 	uint lightViewSteps;
 	uint modeFlags;
-	uint frame;
+	uint frameIdx;
+	
+	float time;
 	float groundRadius;
 	float atmosphereRadius;
 	float tiling;
+	
 	float tiling2;
 	float extinctionCoefficient;
 	float coverage;
 	float powderStrength;
+	
 	float anvilBias;
-	vec2 offset;
+	float darkHeight;
+	vec2 windVelKmh;
+	
 	vec4 sun;
 } setting;
 
@@ -50,7 +56,8 @@ vec3 PixelToViewPos(vec2 uv, float z)
 
 float MiePhase(float mu, float g)
 {
-	return 3 * (1 - g * g) * (1 + mu * mu) / (8 * 3.141592 * (2 + g * g) * pow(1 + g * g - 2 * g * mu, 1.5));
+	float g2 = g * g;
+	return 3 * (1 - g2) * (1 + mu * mu) / (8 * PI * (2 + g2) * pow(1 + g2 - 2 * g * mu, 1.5));
 }
 
 // 구 내부에서 쏜 경우 near은 음수가 나옴
@@ -128,57 +135,97 @@ float Remap(float value, float originalMin, float originalMax, float newMin, flo
 {
 	return newMin + ((value - originalMin) / (originalMax - originalMin)) * (newMax - newMin);
 }
-
-float GetDensity(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
+float RemapClamp(float value, float originalMin, float originalMax, float newMin, float newMax)
 {
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	return clamp(Remap(value, originalMin, originalMax, newMin, newMax), 0.0, 1.0);
+}
+
+vec2 GetCloudVelocity()
+{
+	const float delta = 0.2777777777; // km/h -> m/sec
+	const vec2 vel = setting.windVelKmh * delta;
+	const float voxelSize = 1.0 / setting.tiling;
+	const vec2 offset = vel * voxelSize * setting.time;
+	return offset;
+}
+
+float GetSampleHeightRatio(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
+{
 	const float cloudThickness = cloudOuterRadius - cloudInnerRadius;
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
 	const float sampleRadius = length(samplePos - PLANET_CENTER);
 	const float heightRatio = clamp((sampleRadius - cloudInnerRadius) / cloudThickness, 0.0, 1.0);
+	return heightRatio;
+}
+
+float GetHeightMask(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
+{
+	const float heightRatio = GetSampleHeightRatio(cloudInnerRadius, cloudOuterRadius, samplePos);
 	
 	const float bottomFade = smoothstep(0.0, 0.15, heightRatio);
 	const float topFade = 1.0 - smoothstep(0.85, 1.0, heightRatio);
 	const float heightMask = bottomFade * topFade;
-	
+	return heightMask;
+}
+
+float GetCoverage(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
+{
+	float coverage = setting.coverage;
+	const float height = GetSampleHeightRatio(cloudInnerRadius, cloudOuterRadius, samplePos);
+	coverage = 1.0 - pow(coverage, Remap(height, 0.7, 0.8, 1.0, mix(1.0, 0.5, setting.anvilBias)));
+	return coverage;
+}
+
+float GetDensity(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
+{
+	const float heightMask = GetHeightMask(cloudInnerRadius, cloudOuterRadius, samplePos);
 	const vec3 uvw0 = samplePos / setting.tiling;
 	const vec3 uvw1 = samplePos / setting.tiling2;
 	
-	const float perlinWorley = texture(perlin, uvw0 + vec3(setting.offset.x, 0.0, setting.offset.y)).r;
+	const vec2 offset = GetCloudVelocity();
+	const float perlinWorley = texture(perlin, uvw0 + vec3(offset.x, 0.0, offset.y)).r;
 	const vec3 worley = texture(perlin, uvw1).gba;
 	
 	const float wfbm = worley.r * 0.625 + worley.g * 0.125 + worley.b * 0.25;
 	float cloud = Remap(perlinWorley, wfbm - 1.0, 1.0, 0.0, 1.0);
-	cloud = clamp(Remap(cloud, 1.0 - setting.coverage, 1.0, 0.0, 1.0), 0.0, 1.0);
+	const float coverage = GetCoverage(cloudInnerRadius, cloudOuterRadius, samplePos);
+	cloud = clamp(Remap(cloud, coverage, 1.0, 0.0, 1.0), 0.0, 1.0);
 	return cloud * heightMask;
 }
 float GetDensityLOD(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos, uint lod)
 {
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
-	const float cloudThickness = cloudOuterRadius - cloudInnerRadius;
-	const float sampleRadius = length(samplePos - PLANET_CENTER);
-	const float heightRatio = clamp((sampleRadius - cloudInnerRadius) / cloudThickness, 0.0, 1.0);
-	
-	const float bottomFade = smoothstep(0.0, 0.15, heightRatio);
-	const float topFade = 1.0 - smoothstep(0.85, 1.0, heightRatio);
-	const float heightMask = bottomFade * topFade;
+	const float heightMask = GetHeightMask(cloudInnerRadius, cloudOuterRadius, samplePos);
 	
 	const vec3 uvw0 = samplePos / setting.tiling;
-	float cloud = textureLod(perlin, uvw0 + vec3(setting.offset.x, 0.0, setting.offset.y), lod).r;
-	cloud = clamp(Remap(cloud, 1.0 - setting.coverage, 1.0, 0.0, 1.0), 0.0, 1.0);
+	const vec2 offset = GetCloudVelocity();
+	float cloud = textureLod(perlin, uvw0 + vec3(offset.x, 0.0, offset.y), lod).r;
+	const float coverage = GetCoverage(cloudInnerRadius, cloudOuterRadius, samplePos);
+	
+	cloud = clamp(Remap(cloud, coverage, 1.0, 0.0, 1.0), 0.0, 1.0);
 	return cloud * heightMask;
 }
 
-float CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float cloudInnerRadius, float cloudOuterRadius, float mu, float noise)
+float CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float cloudInnerRadius, float cloudOuterRadius)
 {
-	const float stepSize = distance / steps;
+	//const float stepSize = distance / steps;
 	const vec3 dir = (b - a) / distance;
 	
 	float transmittance = 1.0;
-	const float cone = tan(radians(30));
+	const float cone = tan(radians(45));
 	const float voxelSize = setting.tiling / 128.0;
+	//const float distribution = 3.0;
+    //const float expDistribution = exp(distribution);
 	for (uint i = 0; i < steps; ++i)
 	{
-		const float t = stepSize * (i);
+		float u0 = float(i) / float(steps);
+		float u1 = float(i + 1) / float(steps);
+		
+		float t0 = distance * u0 * u0;
+		float t1 = distance * u1 * u1;
+		
+		const float dt = t1 - t0;
+		const float t = (t0 + t1) * 0.5;
+		
 		const vec3 samplePos = a + dir * t;
 		const float coneRadius = t * cone;
 		
@@ -186,7 +233,7 @@ float CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float 
 		const float density = GetDensityLOD(cloudInnerRadius, cloudOuterRadius, samplePos, lod);
 		const float sigmaA = 4.4 * 1e-6 * setting.extinctionCoefficient;
 		const float sigmaT = density * sigmaA;
-		const float stepT = max(exp(-sigmaT * stepSize), exp(-sigmaT * stepSize * 0.25) * 0.7);
+		const float stepT = exp(-sigmaT * dt); // max(exp(-sigmaT * stepSize), exp(-sigmaT * stepSize * 0.25) * 0.7);
 		transmittance *= stepT;
 		if (transmittance < 0.01)
 			return 0.0;
@@ -247,7 +294,7 @@ void SegmentTransmittance(
 	const float cloudInner = setting.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuter = cloudInner + CLOUD_THICKNESS;
 	const float segmentLength = segment.y - segment.x;
-	const float targetStepLength = 500.0;
+	const float targetStepLength = 100.0;
 	const uint maxStep = max(uint(steps), 1u);
 	const uint minStep = min(5u, maxStep);
 	steps = clamp(uint(ceil(segmentLength / targetStepLength)), minStep, maxStep);
@@ -283,17 +330,17 @@ void SegmentTransmittance(
 				const vec3 seg0Pos = samplePos - sunDir * seg0.x;
 				const float seg0CloudLightViewT = CloudToSunTransmittance(
 					seg0Pos, seg0Pos - sunDir * seg0Length, 
-					seg0Length, setting.lightViewSteps, cloudInner, cloudOuter, mu, noise.r);
-				if (segCount == 1)
-					lightViewT *= seg0CloudLightViewT;
-				else if (segCount == 2)
+					seg0Length, setting.lightViewSteps, cloudInner, cloudOuter);
+				lightViewT *= seg0CloudLightViewT;
+				
+				if (segCount == 2 && lightViewT > 0.01)
 				{
 					float seg1Length = seg1.y - seg1.x;
 					seg1Length = lightViewLimit ? min(1000, seg1Length) : seg1Length;
 					const vec3 seg1Pos = samplePos - sunDir * seg1.x;
 					const float seg1CloudLightViewT = CloudToSunTransmittance(
 						seg1Pos, seg1Pos - sunDir * seg1Length, 
-						seg1Length, setting.lightViewSteps, cloudInner, cloudOuter, mu, noise.r);
+						seg1Length, setting.lightViewSteps, cloudInner, cloudOuter);
 					lightViewT *= seg1CloudLightViewT;
 				}
 			}
@@ -314,9 +361,12 @@ void SegmentTransmittance(
 		powder = mix(1.0, powder, setting.powderStrength);
 		
 		float lighting = lightViewT * phase * setting.sun.w;
-		lighting += 0.5 * pow(max(lightViewT, 1e-4), 0.3) * isotropicPhase;
+		lighting += 0.2 * pow(max(lightViewT, 1e-4), 0.3) * isotropicPhase * setting.sun.w;
 		
-		inScattering += transmittance * stepTransmittanceAlpha * powder * cloudT * lighting;
+		const float heightRatio = GetSampleHeightRatio(cloudInner, cloudOuter, samplePos);
+		const float verticalP = pow(RemapClamp(heightRatio, 0.0, setting.darkHeight, 0.1, 1.0), 0.8);
+		
+		inScattering += transmittance * stepTransmittanceAlpha * powder * cloudT * lighting * verticalP;
 		transmittance *= stepTransmittance;
 	}
 }
@@ -361,8 +411,8 @@ void main()
 	const ivec2 noisePixel = pixel % textureSize(noiseTex, 0);
 	const vec2 bluseNoise = texelFetch(noiseTex, noisePixel, 0).rg;
 
-	const vec2 noise = fract(bluseNoise + setting.frame * 0.61803398875);
-	vec2 cloudSegment0;
+	const vec2 noise = fract(bluseNoise + setting.frameIdx * 0.61803398875);
+	vec2 cloudSegment0 ;
 	vec2 cloudSegment1;
 	int cloudSegmentCount = 
 		RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, cloudSegment0, cloudSegment1);

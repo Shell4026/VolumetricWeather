@@ -8,5 +8,6 @@ struct FrameContext
 	VkDescriptorSet cameraSet = VK_NULL_HANDLE;
 	VkSemaphore imageAvailableSemaphore = VK_NULL_HANDLE;
 	uint32_t imgIdx = 0;
+	float dt = 0.f;
 	uint64_t submittedValue = 0;
 };
