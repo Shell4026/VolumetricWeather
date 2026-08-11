@@ -6,6 +6,7 @@
 #include "render/SamplerManager.h"
 
 #include "BasisScene.h"
+#include "SceneManager.h"
 
 #include <iostream>
 #include <chrono>
@@ -44,7 +45,8 @@ int main()
 	);
 	BasisScene scene{ ctx, imgui, win, samplerManager };
 	scene.Init();
-	SH_INFO_FORMAT("ctx: {}, instance: {}", (void*)&ctx, (void*)ctx.GetInstance());
+	SceneManager::AddScene("main", scene);
+	SceneManager::SetCurrentScene(scene);
 	double dt = 0.0;
 	while (win.IsOpen())
 	{
@@ -53,14 +55,9 @@ int main()
 		win.Update();
 		imgui.Begin(dt);
 		ImGui::ShowDemoWindow();
-		scene.Update(dt);
+		SceneManager::UpdateCurrentScene(dt);
 		imgui.End();
-
-		if (!bPauseRendering)
-		{
-			scene.BeginRender(dt);
-			scene.Render(dt);
-		}
+		SceneManager::RenderCurrentScene(dt, bPauseRendering);
 
 		auto end = std::chrono::steady_clock::now();
 		dt = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

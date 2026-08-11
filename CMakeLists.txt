@@ -79,7 +79,7 @@ set(HEADERS
 "include/BasisScene.h" 
 "include/PresetManager.h"
 "include/TextureLoader.h"
-)
+ "include/SceneManager.h")
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
@@ -89,7 +89,7 @@ set(CPPS
 "src/BasisScene.cpp"
 "src/PresetManager.cpp"
 "src/TextureLoader.cpp"
-)
+ "src/SceneManager.cpp")
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
