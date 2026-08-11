@@ -24,8 +24,7 @@ layout(set = 1, binding = 2, r32f) uniform writeonly image2D trDepth;
 layout(set = 1, binding = 3) uniform sampler2D curCloudTex;
 layout(set = 1, binding = 4) uniform sampler2D curCloudDepthTex;
 layout(set = 1, binding = 5) uniform sampler2D prevCloudTex;
-layout(set = 1, binding = 6) uniform sampler2D prevCloudDepthTex;
-layout(set = 1, binding = 7, r8ui) uniform uimage2D accumTex;
+layout(set = 1, binding = 6, r8ui) uniform uimage2D accumTex;
 
 vec3 PixelToViewPos(vec2 uv, float z)
 {

@@ -29,7 +29,7 @@ public:
 	void InvalidateHistory();
 
 	auto GetOutputImage() const -> const VulkanImage* { return curOutput; }
-	auto GetDepthImage() const -> const VulkanImage* { return curDepth; }
+	auto GetDepthImage() const -> const VulkanImage* { return depth.get(); }
 	auto GetSampler() const -> const VulkanSampler* { return sampler; }
 	auto GetSetting() const -> const Setting& { return setting; }
 protected:
@@ -44,20 +44,16 @@ private:
 	std::unique_ptr<VulkanImage> output;
 	std::unique_ptr<VulkanImage> output2;
 	std::unique_ptr<VulkanImage> depth;
-	std::unique_ptr<VulkanImage> depth2;
 	std::unique_ptr<VulkanImage> accum;
 	std::unique_ptr<Shader> shader;
 	std::unique_ptr<Material> material;
 	VkPipeline pipeline = VK_NULL_HANDLE;
 
 	const VulkanImage* curOutput = nullptr;
-	const VulkanImage* curDepth = nullptr;
 	const VulkanImage* prevOutput = nullptr;
-	const VulkanImage * prevDepth = nullptr;
 	const VulkanSampler* sampler = nullptr;
 
 	Setting setting;
-	bool historyValid = false;
-	uint32_t historyFrameCount = 0;
 	uint64_t cloudSettingRevision = 0;
+	bool historyValid = false;
 };
