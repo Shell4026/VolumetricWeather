@@ -119,7 +119,12 @@ void main()
 		imageStore(trOutput, pixel, curCloud);
 		return;
 	}
-
+	if (curDepth < 0.0)
+	{
+		imageStore(accumTex, pixel, ivec4(0));
+		imageStore(trOutput, pixel, curCloud);
+		return;
+	}
 	const vec2 historyUV = PreviousCloudUV(rayDir, curDepth);
 	if (historyUV.x < 0.0 || historyUV.x >= 1.0 || historyUV.y < 0.0 || historyUV.y >= 1.0)
 	{

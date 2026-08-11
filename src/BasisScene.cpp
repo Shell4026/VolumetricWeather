@@ -537,6 +537,8 @@ void BasisScene::DrawDebugGUI()
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Dark Height", &setting.darkHeight, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
+			if (ImGui::SliderFloat("Dark Strength", &setting.darkStrength, 0.f, 4.f))
+				cloudPass->SetSetting(setting);
 			float windVel[2] = { setting.windVelKmh.x, setting.windVelKmh.y };
 			if (ImGui::SliderFloat2("Wind (km/h)", windVel, 0.f, 100.f))
 			{

@@ -29,6 +29,8 @@ layout(set = 1, binding = 0) uniform Setting
 	
 	float anvilBias;
 	float darkHeight;
+	float darkStrength;
+	
 	vec2 windVelKmh;
 	
 	vec4 sun;
@@ -364,7 +366,7 @@ void SegmentTransmittance(
 		lighting += 0.2 * pow(max(lightViewT, 1e-4), 0.3) * isotropicPhase * setting.sun.w;
 		
 		const float heightRatio = GetSampleHeightRatio(cloudInner, cloudOuter, samplePos);
-		const float verticalP = pow(RemapClamp(heightRatio, 0.0, setting.darkHeight, 0.1, 1.0), 0.8);
+		const float verticalP = pow(RemapClamp(heightRatio, 0.0, setting.darkHeight, 0.1, 1.0), setting.darkStrength);
 		
 		inScattering += transmittance * stepTransmittanceAlpha * powder * cloudT * lighting * verticalP;
 		transmittance *= stepTransmittance;
