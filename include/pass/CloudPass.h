@@ -31,7 +31,9 @@ public:
 		float anvilBias = 0.0f;
 		float darkHeight = 0.8f;
 		float darkStrength = 1.5f;
+		float densityPMin = 0.3f;
 
+		float densityPFactor = 0.8f;
 		alignas(8) glm::vec2 windVelKmh{ 1.f, 0.f };
 
 		alignas(16) glm::vec4 sun{ 0.f };
