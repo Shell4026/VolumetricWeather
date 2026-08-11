@@ -6,6 +6,7 @@ layout(set = 1, binding = 0) uniform Setting
 	int steps;
 	float groundRadius;
 	float atmosphereRadius;
+	float mieCoefficient;
 } setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
 
@@ -17,7 +18,7 @@ vec3 RayleighScattering(float y)
 
 vec3 MieScattering(float y)
 {
-	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6;
+	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6 * setting.mieCoefficient;
 	return mie * exp(-y / 1200.0);
 }
 
@@ -29,7 +30,7 @@ vec3 ScatteringCoefficient(float y)
 
 vec3 AbsorptionCoefficient(float y)
 {
-	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6;
+	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6 * setting.mieCoefficient;
 	const vec3 ozone = vec3(0.65, 1.881, 0.085) * 1e-6;
 	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
 }

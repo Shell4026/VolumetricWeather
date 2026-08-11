@@ -17,6 +17,9 @@ layout(set = 1, binding = 0) uniform Setting
 	uint steps;
 	float groundRadius;
 	float atmosphereRadius;
+	float mieCoefficient; // 여기선 필요없음
+	
+	float mieG;
 } setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
 layout(set = 1, binding = 2) uniform sampler3D aerialPerspectiveLUT;

@@ -483,7 +483,8 @@ void LUTPass::UpdateMaterials()
 	aerialSetting.groundRadius = shadowSetting.groundRadius = skyViewSetting.groundRadius = transmitSetting.groundRadius = globalSetting.groundRadius;
 	aerialSetting.sun = shadowSetting.sun = skyViewSetting.sun = globalSetting.sun;
 	aerialSetting.sunViewProj = shadowSetting.sunViewProj = globalSetting.sunViewProj;
-
+	aerialSetting.mieCoefficient = shadowSetting.mieCoefficient = skyViewSetting.mieCoefficient = transmitSetting.mieCoefficient = globalSetting.mieCoefficient;
+	aerialSetting.mieG = shadowSetting.mieG = skyViewSetting.mieG = globalSetting.mieG;
 	transmitSetting.steps = globalSetting.transmittanceLUTSteps;
 	skyViewSetting.steps = globalSetting.skyViewLUTSteps;
 	aerialSetting.steps = globalSetting.aerialPerspectiveLUTSteps;

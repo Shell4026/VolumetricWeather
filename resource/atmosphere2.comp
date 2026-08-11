@@ -9,14 +9,12 @@ layout(set = 0, binding = 0) uniform Camera
 	mat4 invView;
 	mat4 invProj;
 } camera;
-layout(set = 1, binding = 0) uniform Atmosphere
+layout(set = 1, binding = 0) uniform Setting
 {
 	vec4 sun; // dir, illuminance
-	mat4 sunViewProj;
-	ivec2 steps; // view step, sky-view step
 	float radius;
-	int modeFlags;
-} atmosphere;
+	uint modeFlags;
+} setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D atmosphereResult;
 layout(set = 1, binding = 2) uniform sampler2D depth;
 layout(set = 1, binding = 3) uniform sampler2D opaque;
@@ -90,7 +88,7 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 vec4 SkyViewLUT(vec3 rayDir)
 {
 	const float PI = 3.141592;
-	const vec3 camToSun = -atmosphere.sun.xyz;
+	const vec3 camToSun = -setting.sun.xyz;
 	const vec3 up = normalize(camera.pos - PLANET_CENTER);
 	const vec3 forward = normalize(camToSun - up * dot(camToSun, up));
 	const vec3 right = cross(forward, up);
@@ -193,14 +191,14 @@ int RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float inner
 
 vec3 RenderSun(vec3 worldRayDir, vec3 viewRayDir)
 {
-	const vec3 toSunDir = -atmosphere.sun.xyz;
+	const vec3 toSunDir = -setting.sun.xyz;
 	const vec3 sunViewDir = normalize(mat3(camera.view) * toSunDir);
 	if (RaySphereIntersect(camera.pos, worldRayDir, PLANET_CENTER, GROUND_RADIUS))
 		return vec3(0.0);
 	
 	const float cosAngle = dot(viewRayDir, sunViewDir);
 	const float sunMask = step(cos(radians(0.52)), cosAngle);
-	const vec3 sunColor = vec3(atmosphere.sun.w) * sunMask;
+	const vec3 sunColor = vec3(setting.sun.w) * sunMask;
 	return sunColor;
 }
 
@@ -264,7 +262,7 @@ void main()
 	
 	float nearAtmo = 0.0;
 	float farAtmo = 1.0;
-	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, atmosphere.radius, nearAtmo, farAtmo))
+	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.radius, nearAtmo, farAtmo))
 	{
 		imageStore(atmosphereResult, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
 		return;
@@ -279,7 +277,7 @@ void main()
 	// 0001 AerialPerspective
 	// 0010 AerialShadow
 	// 0100 Cloud
-	if ((atmosphere.modeFlags & 2) == 2)
+	if ((setting.modeFlags & 2) == 2)
 		aerialShadow = UpsampledAerialShadow(uv, viewPos.z);
 	
 	// const vec4 skyView = SkyViewLUT(rayDir);
@@ -289,9 +287,8 @@ void main()
 	vec3 background = vec3(0.0);
 	if (z < 1.0)
 	{
-		const float lutZ = clamp(surfaceLength / 32000.0, 0.0, 1.0);
-		if ((atmosphere.modeFlags & 1) == 1)
 		const float lutZ = GetAerialPerspectiveZ(surfaceLength);
+		if ((setting.modeFlags & 1) == 1)
 			aerialPerspective = texture(aerialPerspectiveLUT, vec3(uv, lutZ));
 		
 		const vec4 opaqueColor = texture(opaque, uv);
@@ -310,7 +307,7 @@ void main()
 	const float cloudOuterRadius = cloudInnerRadius + CLOUD_THICKNESS;
 	vec3 result = background;
 
-	if ((atmosphere.modeFlags & 4) == 4)
+	if ((setting.modeFlags & 4) == 4)
 	{
 		vec2 segment0;
 		vec2 segment1;
@@ -324,7 +321,7 @@ void main()
 			vec4 atmosphereToCloud = vec4(0.0, 0.0, 0.0, 1.0);
 
 			const float farDepth = max(segment0.y, segment1.y);
-			if ((atmosphere.modeFlags & 1) == 1)
+			if ((setting.modeFlags & 1) == 1)
 			{
 				const float cloudLutZ = clamp(cloudDepth / 32000, 0.0, 1.0);
 				atmosphereToCloud = texture(aerialPerspectiveLUT, vec3(uv, cloudLutZ));

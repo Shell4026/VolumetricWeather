@@ -16,7 +16,7 @@ HillairePass::HillairePass(const LowDepthPass& lowDepthPass, const LUTPass& lutP
 
 void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
-	AtmospherePass::SetUsages(ctx, frame);
+	AtmosphereBasePass::SetUsages(ctx, frame);
 	AddUsage(
 		lutPass.GetTransmittanceLUT()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
@@ -55,7 +55,7 @@ void HillairePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
 	material->UpdateBindingData(8, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
 	material->UpdateBindingData(9, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler());
-	AtmospherePass::Record(ctx, frame);
+	AtmosphereBasePass::Record(ctx, frame);
 }
 
 void HillairePass::UpdateMaterial()
@@ -65,6 +65,12 @@ void HillairePass::UpdateMaterial()
 	material->UpdateBindingData(7, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler());
 	material->UpdateBindingData(8, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
 	material->UpdateBindingData(9, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler());
+}
+
+void HillairePass::SetSetting(const Setting& setting)
+{
+	this->setting = setting;
+	material->UpdateBindingData(0, this->setting);
 }
 
 auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
@@ -167,7 +173,7 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 {
 	material = std::make_unique<Material>(ctx, *GetShader());
 	material->
-		AddBinding<Atmosphere>(0).
+		AddBinding<Setting>(0).
 		AddBinding(1, *outputImage).
 		AddBinding(2, *opaqueDepthTex, opaqueDepthSampler->GetSampler()).
 		AddBinding(3, *opaqueTex, opaqueSampler->GetSampler()).
@@ -181,5 +187,5 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 		AddBinding(11, *lowDepthPass.GetQuarterDepthTexture(), opaqueDepthSampler->GetSampler()).
 		Build(descPool);
 
-	material->UpdateBindingData(0, atmosphere);
+	material->UpdateBindingData(0, setting);
 }

@@ -19,6 +19,7 @@ class ShadowPass;
 class OpaquePass;
 class LowDepthPass;
 class LUTPass;
+class AtmosphereBasePass;
 class AtmospherePass;
 class HillairePass;
 class PostProcessPass;
@@ -71,7 +72,7 @@ private:
 	std::unique_ptr<BlitPass> blitPass;
 	AtmosphereRMSEMeasurement rmseMeasurement;
 
-	AtmospherePass* currentAtmospherePass = nullptr;
+	AtmosphereBasePass* currentAtmospherePass = nullptr;
 
 	Shader opaqueShader;
 

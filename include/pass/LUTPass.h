@@ -20,6 +20,8 @@ public:
 		glm::mat4 sunViewProj;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
+		float mieCoefficient = 1.f;
+		float mieG = 0.8f;
 		uint32_t transmittanceLUTSteps = 64;
 		uint32_t skyViewLUTSteps = 64;
 		uint32_t aerialPerspectiveLUTSteps = 5;
@@ -76,6 +78,7 @@ private:
 		uint32_t steps = 40;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
+		float mieCoefficient = 1.f;
 	} transmitSetting;
 	struct alignas(16) SkyViewSetting
 	{
@@ -83,6 +86,9 @@ private:
 		uint32_t steps = 40;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
+		float mieCoefficient = 1.f;
+
+		float mieG = 0.8f;
 	} skyViewSetting;
 	struct alignas(16) AerialPerspectiveSetting
 	{
@@ -91,6 +97,9 @@ private:
 		uint32_t steps = 20;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
+		float mieCoefficient = 1.f;
+
+		float mieG = 0.8f;
 	} aerialSetting;
 	struct alignas(16) AerialShadowSetting
 	{
@@ -99,6 +108,9 @@ private:
 		uint32_t steps = 20;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
+		float mieCoefficient = 1.f;
+
+		float mieG = 0.8f;
 	} shadowSetting;
 
 	struct Transmittance

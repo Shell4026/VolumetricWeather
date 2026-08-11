@@ -13,9 +13,13 @@ layout(set = 1, binding = 0) uniform Setting
 {
 	vec4 sun; // dir, illuminance
 	mat4 sunViewProj;
+	
 	uint steps;
 	float groundRadius;
 	float atmosphereRadius;
+	float mieCoefficient;
+	
+	float mieG;
 } setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
 layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
@@ -56,7 +60,7 @@ vec3 RayleighScattering(float y)
 
 vec3 MieScattering(float y)
 {
-	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6;
+	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6 * setting.mieCoefficient;
 	return mie * exp(-y / 1200.0);
 }
 
@@ -68,7 +72,7 @@ vec3 ScatteringCoefficient(float y)
 
 vec3 AbsorptionCoefficient(float y)
 {
-	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6;
+	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6 * setting.mieCoefficient;
 	const vec3 ozone = vec3(0.65, 1.881, 0.085) * 1e-6;
 	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
 }
@@ -144,7 +148,7 @@ vec3 InScatteringInShadow(vec3 a, vec3 b, float distance, vec3 sunDir, float mu,
 	const vec3 stepVec = (b - a) / steps;
 	
 	const float rayleighPhase = RayleighPhase(mu);
-	const float miePhase = MiePhase(mu, 0.8);
+	const float miePhase = MiePhase(mu, setting.mieG);
 	
 	vec3 inScattering = vec3(0.0, 0.0, 0.0);
 	vec3 sigmaSum = vec3(0.0, 0.0, 0.0);

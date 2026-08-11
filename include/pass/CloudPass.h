@@ -28,9 +28,9 @@ public:
 		float coverage = 0.05f;
 		float powderStrength = 0.5f;
 
-		float anvilBias = 0.95f;
-		float darkHeight = 0.5f;
-		float darkStrength = 1.2f;
+		float anvilBias = 0.0f;
+		float darkHeight = 0.8f;
+		float darkStrength = 1.5f;
 
 		alignas(8) glm::vec2 windVelKmh{ 1.f, 0.f };
 

@@ -312,22 +312,36 @@ void BasisScene::DrawDebugGUI()
 	{
 		if (ImGui::BeginMenuBar())
 		{
-			if (ImGui::Button("Atmosphere"))
+			if (ImGui::Button("Scene"))
 				menu = 0;
-			if (ImGui::Button("Camera"))
+			if (ImGui::Button("Atmosphere"))
 				menu = 1;
-			if (ImGui::Button("Quality"))
+			if (ImGui::Button("Camera"))
 				menu = 2;
-			if (ImGui::Button("Cloud"))
+			if (ImGui::Button("Quality"))
 				menu = 3;
-			if (ImGui::Button("Preset"))
+			if (ImGui::Button("Cloud"))
 				menu = 4;
+			if (ImGui::Button("Preset"))
+				menu = 5;
 			ImGui::EndMenuBar();
 		}
 
-		AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
 		ImGui::BeginDisabled(rmseMeasurement.IsRunning());
-		if (menu == 0) // Atmosphere
+		if (menu == 0)
+		{
+			if (ImGui::Button("Mountain"))
+			{
+				drawables.clear();
+				CreateDrawables();
+			}
+			if (ImGui::Button("City"))
+			{
+				drawables.clear();
+				CreateCityDrawables();
+			}
+		}
+		else if (menu == 1) // Atmosphere
 		{
 			if (!rmseMeasurement.IsRunning() && ImGui::Button("Change Atmosphere model"))
 			{
@@ -335,25 +349,43 @@ void BasisScene::DrawDebugGUI()
 				changeAtmosphereReq.bHillaire = currentAtmospherePass == atmospherePass.get();
 			}
 
-			ImGui::Text("Atmosphere radius(km)");
-			int atmoRadiusKM = static_cast<int>(atmosphere.radius / 1000.f);
-			if (ImGui::SliderInt("##atmosphereRadius", &atmoRadiusKM, 6370, 10000))
+			if (currentAtmospherePass == atmospherePass.get())
 			{
-				atmosphere.radius = atmoRadiusKM * 1000.f;
-				currentAtmospherePass->SetAtmosphere(atmosphere);
-				lutPass->globalSetting.atmosphereRadius = atmosphere.radius;
-				lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
+				AtmospherePass* const pass = static_cast<AtmospherePass*>(currentAtmospherePass);
+				AtmospherePass::Setting setting = pass->GetSetting();
+				int atmoRadiusKM = static_cast<int>(setting.radius / 1000.f);
+				if (ImGui::SliderInt("Atmosphere Radius(km)", &atmoRadiusKM, 6370, 10000))
+				{
+					setting.radius = atmoRadiusKM * 1000.f;
+					pass->SetSetting(setting);
+				}
+				if (ImGui::SliderFloat("Mie Coefficient", &setting.mieCoefficient, 0.0, 100.0))
+					pass->SetSetting(setting);
+				if (ImGui::SliderFloat("Mie G", &setting.mieG, 0.0, 1.0))
+					pass->SetSetting(setting);
+			}
+			else
+			{
+				HillairePass* const pass = static_cast<HillairePass*>(currentAtmospherePass);
+				LUTPass::GlobalSetting& setting = lutPass->globalSetting;
+				int atmoRadiusKM = static_cast<int>(lutPass->globalSetting.atmosphereRadius / 1000.f);
+				if (ImGui::SliderInt("Atmosphere Radius(km)", &atmoRadiusKM, 6370, 10000))
+				{
+					setting.atmosphereRadius = atmoRadiusKM * 1000.f;
+					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
+				}
+				if (ImGui::SliderFloat("Mie Coefficient", &setting.mieCoefficient, 0.0, 100.0))
+					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
+				if (ImGui::SliderFloat("Mie G", &setting.mieG, 0.0, 1.0))
+					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 			}
 
-			ImGui::Text("Sun illuminance");
-			if (ImGui::SliderFloat("##SunIlluminance", &sun.w, 0.f, 1000.f))
+			if (ImGui::SliderFloat("Sun Illuminance", &sun.w, 0.f, 1000.f))
 			{
 				UpdateSun();
 			}
-
-			ImGui::Text("Sun direction");
 			static float angle = 0.0f;
-			if (ImGui::SliderFloat("##SunDirection", &angle, 0.f, 360.f))
+			if (ImGui::SliderFloat("Sun Direction", &angle, 0.f, 360.f))
 			{
 				glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
 				glm::vec3 sunDir = glm::normalize(q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f }));
@@ -362,7 +394,7 @@ void BasisScene::DrawDebugGUI()
 				UpdateSun();
 			}
 		}
-		else if (menu == 1) // Camera
+		else if (menu == 2) // Camera
 		{
 			ImGui::Text("Cam pos");
 			float pos[] = { camera.GetPos().x, camera.GetPos().y, camera.GetPos().z };
@@ -378,20 +410,21 @@ void BasisScene::DrawDebugGUI()
 			if (ImGui::SliderFloat("##exposure", &exposure, 0.f, 1.f))
 				postProcessPass->SetExposure(exposure);
 		}
-		else if (menu == 2) // Quality
+		else if (menu == 3) // Quality
 		{
-			ImGui::Text("View Steps");
-			if (ImGui::SliderInt("##viewSteps", &atmosphere.steps.x, 1, 256))
-				currentAtmospherePass->SetAtmosphere(atmosphere);
-
 			if (currentAtmospherePass == atmospherePass.get())
 			{
+				AtmospherePass::Setting setting = atmospherePass->GetSetting();
+				ImGui::Text("View Steps");
+				if (ImGui::SliderInt("##viewSteps", &setting.steps.x, 1, 256))
+					atmospherePass->SetSetting(setting);
 				ImGui::Text("Sky-View Steps");
-				if (ImGui::SliderInt("##skyViewSteps", &atmosphere.steps.y, 1, 256))
-					currentAtmospherePass->SetAtmosphere(atmosphere);
+				if (ImGui::SliderInt("##skyViewSteps", &setting.steps.y, 1, 256))
+					atmospherePass->SetSetting(setting);
 			}
 			else
 			{
+				HillairePass::Setting setting = hillairePass->GetSetting();
 				ImGui::Separator();
 				if (ImGui::CollapsingHeader("Transmittance LUT"))
 				{
@@ -422,13 +455,13 @@ void BasisScene::DrawDebugGUI()
 
 				if (ImGui::CollapsingHeader("AerialPerspective LUT"))
 				{
-					bool bActive = atmosphere.modeFlags & 0b01;
+					bool bActive = setting.modeFlags & 0b01;
 					if (ImGui::Checkbox("Toggle##AP", &bActive))
 					{
-						atmosphere.modeFlags ^= 0b01;
+						setting.modeFlags ^= 0b01;
 						lutPass->TogglePass(LUTPass::LUTType::AerialPerspective);
 
-						currentAtmospherePass->SetAtmosphere(atmosphere);
+						hillairePass->SetSetting(setting);
 					}
 					ImGui::Text("Steps");
 					if (ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 16))
@@ -437,12 +470,12 @@ void BasisScene::DrawDebugGUI()
 
 				if (ImGui::CollapsingHeader("Volumetric Shadow"))
 				{
-					bool bActive = atmosphere.modeFlags & 0b10;
+					bool bActive = setting.modeFlags & 0b10;
 					if (ImGui::Checkbox("Toggle##VolumetricShadow", &bActive))
 					{
-						atmosphere.modeFlags ^= 0b10;
+						setting.modeFlags ^= 0b10;
 						lutPass->TogglePass(LUTPass::LUTType::AerialShadow);
-						currentAtmospherePass->SetAtmosphere(atmosphere);
+						hillairePass->SetSetting(setting);
 					}
 					bool IsUseLightShadow = lutPass->IsUseLightShadow();
 					if (ImGui::Checkbox("Light", &IsUseLightShadow))
@@ -470,9 +503,18 @@ void BasisScene::DrawDebugGUI()
 			ImGui::Separator();
 			if (ImGui::Button("Measure"))
 			{
-				const AtmospherePass::Atmosphere settings = currentAtmospherePass->GetAtmosphere();
-				atmospherePass->SetAtmosphere(settings);
-				hillairePass->SetAtmosphere(settings);
+				AtmospherePass::Setting atmoSetting = atmospherePass->GetSetting();
+				HillairePass::Setting hillSetting = hillairePass->GetSetting();
+				if (currentAtmospherePass == atmospherePass.get())
+				{
+					hillSetting.radius = atmoSetting.radius;
+					hillairePass->SetSetting(hillSetting);
+				}
+				else
+				{
+					atmoSetting.radius = atmoSetting.radius;
+					atmospherePass->SetSetting(atmoSetting);
+				}
 				rmseMeasurement.Start(currentAtmospherePass == hillairePass.get());
 			}
 
@@ -488,19 +530,19 @@ void BasisScene::DrawDebugGUI()
 			if (!rmseMeasurement.GetError().empty())
 				ImGui::TextWrapped("RMSE error: %s", rmseMeasurement.GetError().c_str());
 		}
-		if (menu == 3)
+		if (menu == 4)
 		{
 			if (ImGui::Checkbox("Enable", &bCloudEnable))
 			{
 				changeAtmosphereReq.bValid = true;
 				changeAtmosphereReq.bHillaire = currentAtmospherePass == hillairePass.get();
-				AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
+
+				HillairePass::Setting setting = hillairePass->GetSetting();
 				if (bCloudEnable)
-					atmosphere.modeFlags |= 0b0100;
+					setting.modeFlags |= 0b0100;
 				else
-					atmosphere.modeFlags &= 0b1011;
-				atmospherePass->SetAtmosphere(atmosphere);
-				hillairePass->SetAtmosphere(atmosphere);
+					setting.modeFlags &= 0b1011;
+				hillairePass->SetSetting(setting);
 			}
 			CloudPass::Setting setting = cloudPass->GetSetting();
 			if (ImGui::SliderInt("Steps", reinterpret_cast<int*>(&setting.steps), 1, 128))
@@ -550,7 +592,7 @@ void BasisScene::DrawDebugGUI()
 			if (ImGui::SliderFloat("History Weight", &trSetting.historyWeight, 0.0f, 1.0f, "%.2f"))
 				cloudTRPass->SetSetting(trSetting);
 		}
-		if (menu == 4)
+		if (menu == 5)
 		{
 			DrawPresetGUI();
 		}
@@ -683,8 +725,7 @@ void BasisScene::DrawPresetGUI()
 void BasisScene::SetAtmosphereModel(bool useHillaire)
 {
 	cloudTRPass->InvalidateHistory();
-	AtmospherePass* requestedPass = useHillaire ? 
-		static_cast<AtmospherePass*>(hillairePass.get()) : atmospherePass.get();
+	AtmosphereBasePass* requestedPass = useHillaire ? static_cast<AtmosphereBasePass*>(hillairePass.get()) : atmospherePass.get();
 
 	counter = 0;
 	atmospherePassElapsed.Clear();
@@ -863,7 +904,6 @@ void BasisScene::UpdateSun()
 
 	const glm::mat4 sunViewProj = sunCamera.GetMatrixProj() * sunCamera.GetMatrixView();;
 
-	AtmospherePass::Atmosphere atmosphere = currentAtmospherePass->GetAtmosphere();
 	mountain.data.sun = sun;
 	mountain.data.viewProj = sunViewProj;
 	mountain.material->UpdateBindingData(0, mountain.data);
@@ -872,9 +912,15 @@ void BasisScene::UpdateSun()
 	for (std::unique_ptr<Material>& matPtr : city.materials)
 		matPtr->UpdateBindingData(0, city.data);
 
+	AtmospherePass::Setting atmosphere = atmospherePass->GetSetting();
 	atmosphere.sun = sun;
 	atmosphere.sunViewProj = mountain.data.viewProj;
-	currentAtmospherePass->SetAtmosphere(atmosphere);
+	atmospherePass->SetSetting(atmosphere);
+
+	HillairePass::Setting hillaireSetting = hillairePass->GetSetting();
+	hillaireSetting.sun = sun;
+	hillairePass->SetSetting(hillaireSetting);
+
 	lutPass->globalSetting.sun = sun;
 	lutPass->globalSetting.sunViewProj = sunViewProj;
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView | LUTPass::LUTType::AerialPerspective);

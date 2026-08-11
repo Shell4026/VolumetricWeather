@@ -38,5 +38,5 @@ void main()
 	
 	float shadow = texture(shadowMap, vec3(lightProjUV, lightProjCoord.z - bias));
 	
-    outColor = vec4((shadow * diff) * diffuse, 1.0);
+    outColor = vec4((shadow * diff + 0.01) * diffuse, 1.0);
 }

@@ -6,12 +6,12 @@
 #include "render/VulkanBuffer.h"
 #include "render/VulkanImage.h"
 #include "render/Material.h"
-AtmospherePass::~AtmospherePass()
+AtmosphereBasePass::~AtmosphereBasePass()
 {
 	Clear();
 }
 
-void AtmospherePass::Clear()
+void AtmosphereBasePass::Clear()
 {
 	if (ctx == nullptr)
 		return;
@@ -30,7 +30,7 @@ void AtmospherePass::Clear()
 	APass::Clear();
 }
 
-void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void AtmosphereBasePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	const uint32_t width = outputImage->GetInfo().extent.width;
@@ -42,7 +42,7 @@ void AtmospherePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 8.f)), static_cast<uint32_t>(std::ceil(height / 8.f)), 1);
 }
 
-void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void AtmosphereBasePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 {
 	APass::SetUsages(ctx, frame);
 	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
@@ -60,10 +60,35 @@ void AtmospherePass::SetUsages(const VulkanContext& ctx, const FrameContext& fra
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
-void AtmospherePass::SetAtmosphere(const Atmosphere& atmosphere)
+void AtmosphereBasePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
-	this->atmosphere = atmosphere;
-	material->UpdateBindingData(0, this->atmosphere);
+	this->cameraSetLayout = cameraSetLayout;
+
+	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
+	imgCi.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
+	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	imgCi.extent = { width, height, 1 };
+	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	opaqueSampler = &samplerManager->GetLinearClampWhite();
+	opaqueDepthSampler = &samplerManager->GetPointClampWhite();
+
+	computeShader = std::make_unique<Shader>(CreateShader(ctx.GetDevice(), cameraSetLayout));
+}
+
+void AtmosphereBasePass::BuildPipeline(const VulkanContext& ctx)
+{
+	VkComputePipelineCreateInfo ci{};
+	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	ci.layout = computeShader->GetPipelineLayout();
+	ci.stage = computeShader->GetPipelineShaderStageCreateInfos().front();
+	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &pipeline));
+}
+
+void AtmospherePass::SetSetting(const Setting& setting)
+{
+	this->setting = setting;
+	material->UpdateBindingData(0, this->setting);
 }
 
 auto AtmospherePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
@@ -104,46 +129,18 @@ auto AtmospherePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraS
 	return shader;
 }
 
-void AtmospherePass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
-{
-	this->cameraSetLayout = cameraSetLayout;
-
-	glm::vec3 sunDir = glm::normalize(glm::vec3{ -1.f, 0.f, 0.f });
-	atmosphere.sun = glm::vec4{ sunDir, 20.f };
-
-	VkImageCreateInfo imgCi = VulkanImage::GetCreateInfo();
-	imgCi.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
-	imgCi.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-	imgCi.extent = { width, height, 1 };
-	outputImage = std::make_unique<VulkanImage>(ctx, imgCi, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	opaqueSampler = &samplerManager->GetLinearClampWhite();
-	opaqueDepthSampler = &samplerManager->GetPointClampWhite();
-
-	computeShader = std::make_unique<Shader>(CreateShader(ctx.GetDevice(), cameraSetLayout));
-}
-
 void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
 {
 	const VkDevice device = ctx.GetDevice();
 
-	material = std::make_unique<Material>(ctx, *computeShader);
+	material = std::make_unique<Material>(ctx, *GetShader());
 	material->
-		AddBinding<Atmosphere>(0).
+		AddBinding<Setting>(0).
 		AddBinding(1, *outputImage).
 		AddBinding(2, *opaqueDepthTex, opaqueSampler->GetSampler()).
 		AddBinding(3, *opaqueTex, opaqueSampler->GetSampler()).
 		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
 		Build(descPool);
 
-	material->UpdateBindingData(0, atmosphere);
-}
-
-void AtmospherePass::BuildPipeline(const VulkanContext& ctx)
-{
-	VkComputePipelineCreateInfo ci{};
-	ci.sType = VkStructureType::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-	ci.layout = computeShader->GetPipelineLayout();
-	ci.stage = computeShader->GetPipelineShaderStageCreateInfos().front();
-	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &pipeline));
+	material->UpdateBindingData(0, setting);
 }

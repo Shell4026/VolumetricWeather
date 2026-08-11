@@ -9,25 +9,16 @@
 
 class Shader;
 class Material;
-class AtmospherePass : public APass
+
+class AtmosphereBasePass : public APass
 {
 public:
-	struct alignas(16) Atmosphere
-	{
-		glm::vec4 sun; // dir, illuminance
-		glm::mat4 sunViewProj{ 1.f };
-		glm::ivec2 steps = { 64, 20 };
-		float radius = 6'460'000.f;
-		int modeFlags = 0b0111;
-	};
-public:
-	AtmospherePass() { bUseSwapchainImage = false; }
-	~AtmospherePass();
+	AtmosphereBasePass() { bUseSwapchainImage = false; }
+	~AtmosphereBasePass();
 
 	void Clear() override;
 	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
-	void SetAtmosphere(const Atmosphere& atmosphere);
 	void SetOpaqueDepthTexture(const VulkanImage& opaqueDepthTex) { this->opaqueDepthTex = &opaqueDepthTex; }
 	void SetOpaqueTexture(const VulkanImage& opaqueDepthTex) { this->opaqueTex = &opaqueDepthTex; }
 	void SetShadowMap(const VulkanImage& shadowMap) { this->shadowMap = &shadowMap; }
@@ -35,18 +26,14 @@ public:
 	void SetImageSize(uint32_t width, uint32_t height) { this->width = width; this->height = height; }
 
 	auto GetOutputImage() const -> VulkanImage* { return outputImage.get(); }
-	auto GetAtmosphere() const -> const Atmosphere& { return atmosphere; }
 	auto GetShader() const -> Shader* { return computeShader.get(); }
 protected:
-	virtual auto CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader;
+	virtual auto CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader = 0;
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
-	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 	void BuildPipeline(const VulkanContext& ctx) override;
 protected:
 	std::unique_ptr<Material> material;
 	VkPipeline pipeline = VK_NULL_HANDLE;
-
-	Atmosphere atmosphere;
 
 	std::unique_ptr<VulkanImage> outputImage;
 
@@ -63,4 +50,26 @@ private:
 
 	uint32_t width = 1024;
 	uint32_t height = 768;
+};
+
+class AtmospherePass : public AtmosphereBasePass
+{
+public:
+	struct alignas(16) Setting
+	{
+		glm::vec4 sun; // dir, illuminance
+		glm::mat4 sunViewProj{ 1.f };
+		glm::ivec2 steps = { 64, 20 };
+		float radius = 6'460'000.f;
+		float mieCoefficient = 1.f;
+		float mieG = 0.8f;
+	};
+public:
+	void SetSetting(const Setting& setting);
+	auto GetSetting() const -> const Setting& { return setting; }
+protected:
+	auto CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader override;
+	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
+private:
+	Setting setting;
 };
