@@ -13,6 +13,7 @@ layout(set = 1, binding = 0) uniform Setting
 {
 	vec4 sun; // dir, illuminance
 	mat4 sunViewProj;
+	
 	uint steps;
 	float groundRadius;
 	float atmosphereRadius;
@@ -64,6 +65,17 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 	
 	return far >= 0.0;
 }
+
+float GetAerialPerspectiveZ(float depth)
+{
+    const float maxDistance = 32000;
+    const float exponent = 3.2;
+
+    const float x = clamp(depth / maxDistance, 0.0, 1.0);
+
+    return log(1.0 + x * (exp(exponent) - 1.0)) / exponent;
+}
+
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -120,7 +132,7 @@ void main()
 	vec3 inScattering = vec3(0.0, 0.0, 0.0);
 	
 	float t0 = rayStart;
-	float z0 = clamp(t0 / 32000.0, 0.0, 1.0);
+	float z0 = GetAerialPerspectiveZ(t0);
 	vec3 scattering0 = texture(aerialPerspectiveLUT, vec3(uv, z0)).rgb;
 	// for (uint i = 0; i < steps; ++i)
 	// {
@@ -163,12 +175,12 @@ void main()
 		const bool isShadowed = Visible(samplePos) < 0.5;
 		if (isShadowed && !wasShadowed) // 밝음 -> 그림자
 		{
-			const float startZ = clamp(segmentT0 / 32000.0, 0.0, 1.0);
+			const float startZ = GetAerialPerspectiveZ(segmentT0);
 			scattering0 = texture(aerialPerspectiveLUT, vec3(uv, startZ)).rgb; 
 		}
 		else if (!isShadowed && wasShadowed) // 그림자 -> 밝음
 		{
-			const float endZ = clamp(segmentT0 / 32000.0, 0.0, 1.0);
+			const float endZ = GetAerialPerspectiveZ(segmentT0);
 			const vec3 scattering1 = texture(aerialPerspectiveLUT, vec3(uv, endZ)).rgb;
 			inScattering += scattering1 - scattering0;
 		}
@@ -178,7 +190,7 @@ void main()
 	// 레이끝까지 그림자 상태임
 	if (wasShadowed)
 	{
-		const float endZ = clamp(t0 / 32000.0, 0.0, 1.0);
+		const float endZ = GetAerialPerspectiveZ(t0);
 		const vec3 scattering1 = texture(aerialPerspectiveLUT, vec3(uv, endZ)).rgb;
 		inScattering += scattering1 - scattering0;
 	}

@@ -241,6 +241,16 @@ vec4 UpsampledCloud(vec2 uv, float viewZ)
 	return cloudSum / weightSum;
 }
 
+float GetAerialPerspectiveZ(float depth)
+{
+    const float maxDistance = 32000;
+    const float exponent = 3.2;
+
+    const float x = clamp(depth / maxDistance, 0.0, 1.0);
+
+    return log(1.0 + x * (exp(exponent) - 1.0)) / exponent;
+}
+
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -281,6 +291,7 @@ void main()
 	{
 		const float lutZ = clamp(surfaceLength / 32000.0, 0.0, 1.0);
 		if ((atmosphere.modeFlags & 1) == 1)
+		const float lutZ = GetAerialPerspectiveZ(surfaceLength);
 			aerialPerspective = texture(aerialPerspectiveLUT, vec3(uv, lutZ));
 		
 		const vec4 opaqueColor = texture(opaque, uv);

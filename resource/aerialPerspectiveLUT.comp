@@ -131,6 +131,16 @@ vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
 	return texture(transmittanceLUT, uv).xyz;
 }
 
+float GetAerialPerspectiveZ(float depth) // 다른 셰이더에서 사용
+{
+    const float maxDistance = 32000;
+    const float exponent = 3.2;
+
+    const float x = clamp(depth / maxDistance, 0.0, 1.0);
+
+    return log(1.0 + x * (exp(exponent) - 1.0)) / exponent;
+}
+
 void main()
 {
 	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -156,8 +166,10 @@ void main()
 	imageStore(outImage, ivec3(pixel, 0), vec4(inScattering, 1.0));
 	for (int z = 1; z < size.z; ++z)
 	{
-		const float sliceBegin = (z - 1) * sliceLength;
-		const float sliceEnd = z * sliceLength;
+		// const float sliceBegin = (z - 1) * sliceLength;
+		// const float sliceEnd = z * sliceLength;
+		const float sliceBegin = 32000 * (exp(3.2 * (z - 1) / 31) - 1) / (exp(3.2) - 1);
+		const float sliceEnd = 32000 * (exp(3.2 * z / 31) - 1) / (exp(3.2) - 1);
 		const float stepSize = (sliceEnd - sliceBegin) / setting.steps;
 		
 		for (int i = 0; i < setting.steps; ++i)
