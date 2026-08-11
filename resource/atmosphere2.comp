@@ -104,7 +104,7 @@ vec4 SkyViewLUT(vec3 rayDir)
 	return texture(skyViewLUT, skyUV);
 }
 
-vec3 UpsampledAerialShadow(vec2 uv, float viewZ)
+vec3 UpsampledAerialShadow(vec2 uv, float ndcZ)
 {
 	//return texture(aerialShadowLUT, uv).rgb;
 	const ivec2 lutSize = textureSize(aerialShadowLUT, 0);
@@ -114,6 +114,8 @@ vec3 UpsampledAerialShadow(vec2 uv, float viewZ)
 	
 	float weightSum = 0.0;
 	vec3 shadowSum = vec3(0.0);
+	float bestDiff = 1e30;
+	vec3 bestShadow = vec3(0.0);
 	for (int y = 0; y <= 1; ++y)
 	{
 		for (int x = 0; x <= 1; ++x)
@@ -123,21 +125,26 @@ vec3 UpsampledAerialShadow(vec2 uv, float viewZ)
 			const vec2 sampleUV = (vec2(coord) + 0.5) / lutSize;
 			
 			const vec3 shadow = texelFetch(aerialShadowLUT, coord, 0).rgb;
-			const float shadowZ = PixelToViewPos(sampleUV, texelFetch(quarterDepth, coord, 0).r).z;
+			const float shadowZ = texelFetch(quarterDepth, coord, 0).r;
 			
 			const float weightX = (x == 0) ? 1.0 - fraction.x : fraction.x;
 			const float weightY = (y == 0) ? 1.0 - fraction.y : fraction.y;
 			const float spatialWeight = weightX * weightY;
 			
-			float depthDiff = abs(viewZ - shadowZ);
-			float weight = exp(-depthDiff * 0.01) * spatialWeight;
+			const float depthDiff = abs(ndcZ - shadowZ);
+			if (bestDiff < depthDiff)
+			{
+				bestDiff = depthDiff;
+				bestShadow = shadow;
+			}
+			const float weight = exp(-depthDiff * 1e6) * spatialWeight;
 			weightSum += weight;
 			shadowSum += shadow * weight;
 		}
 	}
 
 	if (weightSum < 1e-6)
-		return vec3(0.0);
+		return bestShadow;
 	return shadowSum / weightSum;
 }
 
@@ -202,7 +209,7 @@ vec3 RenderSun(vec3 worldRayDir, vec3 viewRayDir)
 	return sunColor;
 }
 
-vec4 UpsampledCloud(vec2 uv, float viewZ)
+vec4 UpsampledCloud(vec2 uv, float ndcZ)
 {
 	//return texture(cloudTex, uv);
 	const ivec2 texSize = textureSize(cloudTex, 0);
@@ -212,6 +219,8 @@ vec4 UpsampledCloud(vec2 uv, float viewZ)
 	
 	float weightSum = 0.0;
 	vec4 cloudSum = vec4(0.0);
+	float bestDiff = 1e30;
+	vec4 bestCloud = vec4(0.0);
 	for (int y = 0; y <= 1; ++y)
 	{
 		for (int x = 0; x <= 1; ++x)
@@ -221,21 +230,26 @@ vec4 UpsampledCloud(vec2 uv, float viewZ)
 			const vec2 sampleUV = (vec2(coord) + 0.5) / texSize;
 			
 			const vec4 cloud = texelFetch(cloudTex, coord, 0);
-			const float lowResZ = PixelToViewPos(sampleUV, texelFetch(halfDepth, coord, 0).r).z;
+			const float lowResZ = texelFetch(halfDepth, coord, 0).r;
 			
 			const float weightX = (x == 0) ? 1.0 - fraction.x : fraction.x;
 			const float weightY = (y == 0) ? 1.0 - fraction.y : fraction.y;
 			const float spatialWeight = weightX * weightY;
 			
-			float depthDiff = abs(viewZ - lowResZ);
-			float weight = exp(-depthDiff * 0.01) * spatialWeight;
+			const float depthDiff = abs(ndcZ - lowResZ);
+			if (depthDiff < bestDiff)
+			{
+				bestDiff = depthDiff;
+				bestCloud = cloud;
+			}
+			const float weight = exp(-depthDiff * 1e6) * spatialWeight;
 			weightSum += weight;
 			cloudSum += cloud * weight;
 		}
 	}
 
 	if (weightSum < 1e-6)
-		return vec4(0.0);
+		return bestCloud;
 	return cloudSum / weightSum;
 }
 
@@ -278,7 +292,7 @@ void main()
 	// 0010 AerialShadow
 	// 0100 Cloud
 	if ((setting.modeFlags & 2) == 2)
-		aerialShadow = UpsampledAerialShadow(uv, viewPos.z);
+		aerialShadow = UpsampledAerialShadow(uv, z);
 	
 	// const vec4 skyView = SkyViewLUT(rayDir);
 	// imageStore(atmosphereResult, pixel, vec4(vec3(skyView.a), 1.0));
@@ -315,7 +329,7 @@ void main()
 		const float segCount = RayCloudShellIntersect(camera.pos, rayDir, PLANET_CENTER, cloudInnerRadius, cloudOuterRadius, segment0, segment1);
 		if (segCount >= 1)
 		{
-			const vec4 cloud = UpsampledCloud(uv, viewPos.z);
+			const vec4 cloud = UpsampledCloud(uv, z);
 			const float cloudDepth = max(texture(cloudDepthTex, uv).r, 0.0);
 
 			vec4 atmosphereToCloud = vec4(0.0, 0.0, 0.0, 1.0);
@@ -323,7 +337,7 @@ void main()
 			const float farDepth = max(segment0.y, segment1.y);
 			if ((setting.modeFlags & 1) == 1)
 			{
-				const float cloudLutZ = clamp(cloudDepth / 32000, 0.0, 1.0);
+				const float cloudLutZ = GetAerialPerspectiveZ(cloudDepth);
 				atmosphereToCloud = texture(aerialPerspectiveLUT, vec3(uv, cloudLutZ));
 			}
 			// 구름까지 대기의 산란 + (구름까지 대기의 투과율 * 구름의 산란) + 구름의 투과율 * (구름 뒤 산란)
