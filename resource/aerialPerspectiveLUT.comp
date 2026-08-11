@@ -22,7 +22,9 @@ layout(set = 1, binding = 0) uniform Setting
 } setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image3D outImage;
 layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
-layout(set = 1, binding = 3) uniform sampler2DShadow shadowMap;
+layout(set = 1, binding = 3) uniform sampler2D multipleScatteringLUT;
+layout(set = 1, binding = 4) uniform sampler2DShadow shadowMap;
+
 vec3 projToWorldPos(vec2 pixel)
 {
 	const vec3 ndc = vec3(pixel * 2.0 - 1.0, 1.0);
@@ -134,6 +136,19 @@ vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
 	return texture(transmittanceLUT, uv).xyz;
 }
 
+vec3 MultipleScatteringUsingLUT(vec3 samplePos, float sampleHeight, vec3 toSunDir)
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 up = (samplePos - PLANET_CENTER) / (sampleHeight + setting.groundRadius);
+	const float mu = dot(up, toSunDir);
+	
+	vec2 uv;
+	uv.x = mu * 0.5 + 0.5;
+	uv.y = max(0, min(sampleHeight / (setting.atmosphereRadius - setting.groundRadius), 1.0));
+	
+	return texture(multipleScatteringLUT, uv).rgb;
+}
+
 float GetAerialPerspectiveZ(float depth) // 다른 셰이더에서 사용
 {
     const float maxDistance = 32000;
@@ -166,6 +181,7 @@ void main()
 	
 	vec3 sigmaSum = vec3(0.0); // 소멸률
 	vec3 inScattering = vec3(0.0);
+	vec3 transmittance = vec3(1.0);
 	imageStore(outImage, ivec3(pixel, 0), vec4(inScattering, 1.0));
 	for (int z = 1; z < size.z; ++z)
 	{
@@ -183,6 +199,8 @@ void main()
 			const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
 			if (sampleHeight < 0.0)
 				break;
+			
+			transmittance = exp(-sigmaSum);
 			
 			const vec3 sigmaS = ScatteringCoefficient(sampleHeight);
 			const vec3 sigmaT = sigmaS + AbsorptionCoefficient(sampleHeight);
@@ -204,10 +222,14 @@ void main()
 			(
 				RayleighScattering(sampleHeight) * rayleighPhase + 
 				MieScattering(sampleHeight) * miePhase
-			) * stepSize;
-			inScattering += exp(-sigmaSum) * lightViewTransmittance * visibility * phase * setting.sun.w;
+			);
+			
+			const vec3 single = visibility * lightViewTransmittance * phase;
+			const vec3 multi = sigmaS * MultipleScatteringUsingLUT(samplePos, sampleHeight, -sunDir);
+			const vec3 stepScat = (single + multi) * setting.sun.w * stepSize;
+		
+		inScattering += transmittance * stepScat;
 		}
-		const vec3 transmittance = exp(-sigmaSum);
 		const float transmittanceGray = dot(transmittance, vec3(1.0 / 3.0));
 		
 		imageStore(outImage, ivec3(pixel, z), vec4(inScattering, transmittanceGray));

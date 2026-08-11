@@ -49,6 +49,16 @@ void LUTPass::Clear()
 	}
 	skyView.sampler = nullptr;
 
+	multipleScattering.material.reset();
+	multipleScattering.shader.reset();
+	multipleScattering.lut.reset();
+	if (multipleScattering.pipeline != VK_NULL_HANDLE)
+	{
+		vkDestroyPipeline(device, multipleScattering.pipeline, nullptr);
+		multipleScattering.pipeline = VK_NULL_HANDLE;
+	}
+	multipleScattering.sampler = nullptr;
+
 	transmittance.material.reset();
 	transmittance.shader.reset();
 	transmittance.lut.reset();
@@ -78,13 +88,40 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 		vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, transmittance.shader->GetPipelineLayout(), 1, descSets.size(), descSets.data(), 0, nullptr);
 		vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
 		transmittance.timer.End(cmd);
-		updateLUTFlags = LUTType::All; // 투과율 LUT가 바뀌면 사실상 다 갱신해야
+		updateLUTFlags = LUTType::All; // 투과율 LUT가 바뀌면 다 갱신해야
+	}
+	if ((enableLUTFlags & LUTType::MultipleScattering) && (updateLUTFlags & LUTType::MultipleScattering))
+	{
+		const uint32_t width = multipleScattering.lut->GetInfo().extent.width;
+		const uint32_t height = multipleScattering.lut->GetInfo().extent.height;
+
+		multipleScattering.timer.Begin(cmd);
+		VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+			VkImageLayout::VK_IMAGE_LAYOUT_GENERAL, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT);
+
+		vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, multipleScattering.pipeline);
+		VkDescriptorSet descSets = multipleScattering.material->GetVkDescriptorSet();
+		vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, multipleScattering.shader->GetPipelineLayout(), 1, 1, &descSets, 0, nullptr);
+		vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
+
+		VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+			VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT);
+		multipleScattering.timer.End(cmd);
+		updateLUTFlags = LUTType::SkyView | LUTType::AerialPerspective | LUTType::AerialShadow;
 	}
 	// Sky-View LUT
 	if ((enableLUTFlags & LUTType::SkyView) && (updateLUTFlags & LUTType::SkyView))
 	{
 		skyView.timer.Begin(cmd);
 		VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+			VkImageLayout::VK_IMAGE_LAYOUT_GENERAL, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT);
+		VulkanContext::BarrierCommand(cmd, multipleScattering.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 			VkImageLayout::VK_IMAGE_LAYOUT_GENERAL, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 			VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT);
@@ -97,6 +134,10 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 		vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, skyView.shader->GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
 		vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
 
+		VulkanContext::BarrierCommand(cmd, multipleScattering.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+			VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT);
 		VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 			VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
 			VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -104,24 +145,32 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 		skyView.timer.End(cmd);
 	}
 	// AerialPerspective LUT
-	if ((enableLUTFlags & LUTType::AerialPerspective) || (updateLUTFlags & LUTType::AerialPerspective) || (updateLUTFlags & LUTType::AerialShadow))
+	if ((enableLUTFlags & LUTType::AerialPerspective) && ((updateLUTFlags & LUTType::AerialPerspective) || (updateLUTFlags & LUTType::AerialShadow)))
 	{
 		// Aerial Perspective
 		if (enableLUTFlags & LUTType::AerialPerspective)
 		{
+			const uint32_t width = aerialPerspective.lut->GetInfo().extent.width;
+			const uint32_t height = aerialPerspective.lut->GetInfo().extent.height;
+
 			aerialPerspective.timer.Begin(cmd);
 			VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 				VkImageLayout::VK_IMAGE_LAYOUT_GENERAL, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 				VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT);
-			const uint32_t width = aerialPerspective.lut->GetInfo().extent.width;
-			const uint32_t height = aerialPerspective.lut->GetInfo().extent.height;
-
+			VulkanContext::BarrierCommand(cmd, multipleScattering.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+				VkImageLayout::VK_IMAGE_LAYOUT_GENERAL, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT);
 			vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, aerialPerspective.pipeline);
 			std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, aerialPerspective.material->GetVkDescriptorSet() };
 			vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, aerialPerspective.shader->GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
 			vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 8.f)), static_cast<uint32_t>(std::ceil(height / 8.f)), 1);
 
+			VulkanContext::BarrierCommand(cmd, multipleScattering.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+				VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+				VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT, VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT);
 			VulkanContext::BarrierCommand(cmd, transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
 				VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
 				VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -180,8 +229,10 @@ void LUTPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	APass::SetUsages(ctx, frame);
 	if (enableLUTFlags == 0)
 		return;
-	if (enableLUTFlags & 0b0100)
+	if (enableLUTFlags & LUTType::Transmittance)
 		AddUsage(transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	if (enableLUTFlags & LUTType::MultipleScattering)
+		AddUsage(multipleScattering.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	if (enableLUTFlags & LUTType::SkyView)
 		AddUsage(skyView.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	if (enableLUTFlags & LUTType::AerialPerspective)
@@ -226,6 +277,8 @@ auto LUTPass::GetLUTElpasedTimeMs(LUTType type) const -> double
 {
 	if (type == LUTType::Transmittance)
 		return transmittance.timer.GetElapsedMs();
+	if (type == LUTType::MultipleScattering)
+		return multipleScattering.timer.GetElapsedMs();
 	if (type == LUTType::SkyView)
 		return skyView.timer.GetElapsedMs();
 	if (type == LUTType::AerialPerspective)
@@ -243,16 +296,8 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 	{
 		std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
 		set1Bindings.reserve(2);
-		VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
-		binding0.binding = 0;
-		binding0.descriptorCount = 1;
-		binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding1 = set1Bindings.emplace_back();
-		binding1.binding = 1;
-		binding1.descriptorCount = 1;
-		binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+		AddDescSetLayoutBinding(set1Bindings, 0, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 
 		transmittance.shader = std::make_unique<Shader>();
 		transmittance.shader->
@@ -268,25 +313,36 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 		transmittance.sampler = &samplerManager->GetLinearClampWhite();
 		transmittance.timer.Create(ctx);
 	}
+	// Multiple Scattering LUT
+	{
+		std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
+		set1Bindings.reserve(3);
+		AddDescSetLayoutBinding(set1Bindings, 0, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 2, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+
+		multipleScattering.shader = std::make_unique<Shader>();
+		multipleScattering.shader->
+			AddSet(0, ctx.GetEmptyDescriptorSetLayout()).
+			AddSet(1, std::move(set1Bindings)).
+			Build(device, "shaders/multipleScatteringLUT.comp.spv");
+
+		VkImageCreateInfo imageCI = VulkanImage::GetCreateInfo();
+		imageCI.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
+		imageCI.extent = { 128, 128, 1 };
+		imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
+		multipleScattering.lut = std::make_unique<VulkanImage>(ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		multipleScattering.sampler = &samplerManager->GetLinearClamp();
+		multipleScattering.timer.Create(ctx);
+	}
 	// Sky-View LUT
 	{
 		std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-		set1Bindings.reserve(2);
-		VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
-		binding0.binding = 0;
-		binding0.descriptorCount = 1;
-		binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding1 = set1Bindings.emplace_back();
-		binding1.binding = 1;
-		binding1.descriptorCount = 1;
-		binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding2 = set1Bindings.emplace_back();
-		binding2.binding = 2;
-		binding2.descriptorCount = 1;
-		binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+		set1Bindings.reserve(3);
+		AddDescSetLayoutBinding(set1Bindings, 0, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 2, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 3, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 
 		skyView.shader = std::make_unique<Shader>();
 		skyView.shader->
@@ -311,28 +367,12 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 	// AerialPerspective LUT
 	{
 		std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-		set1Bindings.reserve(2);
-		VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
-		binding0.binding = 0;
-		binding0.descriptorCount = 1;
-		binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding1 = set1Bindings.emplace_back();
-		binding1.binding = 1;
-		binding1.descriptorCount = 1;
-		binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding2 = set1Bindings.emplace_back();
-		binding2.binding = 2;
-		binding2.descriptorCount = 1;
-		binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding3 = set1Bindings.emplace_back();
-		binding3.binding = 3;
-		binding3.descriptorCount = 1;
-		binding3.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding3.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-
+		set1Bindings.reserve(4);
+		AddDescSetLayoutBinding(set1Bindings, 0, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 2, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 3, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 4, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 		aerialPerspective.shader = std::make_unique<Shader>();
 		aerialPerspective.shader->
 			AddSet(0, cameraSetLayout).
@@ -345,48 +385,20 @@ void LUTPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout ca
 		imageCI.extent = { 32, 32, 32 };
 		imageCI.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
 		aerialPerspective.lut = std::make_unique<VulkanImage>(ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		aerialPerspective.sampler = &samplerManager->GetLinearClmap();
+		aerialPerspective.sampler = &samplerManager->GetLinearClamp();
 		aerialPerspective.timer.Create(ctx);
 	}
 	// Aerial Shadow
 	{
 		std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-		set1Bindings.reserve(2);
-		VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
-		binding0.binding = 0;
-		binding0.descriptorCount = 1;
-		binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding1 = set1Bindings.emplace_back();
-		binding1.binding = 1;
-		binding1.descriptorCount = 1;
-		binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding2 = set1Bindings.emplace_back();
-		binding2.binding = 2;
-		binding2.descriptorCount = 1;
-		binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding3 = set1Bindings.emplace_back();
-		binding3.binding = 3;
-		binding3.descriptorCount = 1;
-		binding3.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding3.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding4 = set1Bindings.emplace_back();
-		binding4.binding = 4;
-		binding4.descriptorCount = 1;
-		binding4.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding4.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding5 = set1Bindings.emplace_back();
-		binding5.binding = 5;
-		binding5.descriptorCount = 1;
-		binding5.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding5.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		VkDescriptorSetLayoutBinding& binding6 = set1Bindings.emplace_back();
-		binding6.binding = 6;
-		binding6.descriptorCount = 1;
-		binding6.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		binding6.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
+		set1Bindings.reserve(7);
+		AddDescSetLayoutBinding(set1Bindings, 0, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 2, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 3, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 4, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 5, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+		AddDescSetLayoutBinding(set1Bindings, 6, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 
 		aerialShadow.shader = std::make_unique<Shader>();
 		aerialShadow.shader->
@@ -417,11 +429,19 @@ void LUTPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPo
 		AddBinding(1, *transmittance.lut).
 		Build(descPool);
 
+	multipleScattering.material = std::make_unique<Material>(ctx, *multipleScattering.shader);
+	multipleScattering.material->
+		AddBinding<MultipleScatteringSetting>(0).
+		AddBinding(1, *multipleScattering.lut).
+		AddBinding(2, *transmittance.lut, transmittance.sampler->GetSampler()).
+		Build(descPool);
+
 	skyView.material = std::make_unique<Material>(ctx, *skyView.shader);
 	skyView.material->
 		AddBinding<SkyViewSetting>(0).
 		AddBinding(1, *skyView.lut).
 		AddBinding(2, *transmittance.lut, transmittance.sampler->GetSampler()).
+		AddBinding(3, *multipleScattering.lut, multipleScattering.sampler->GetSampler()).
 		Build(descPool);
 
 	aerialPerspective.material = std::make_unique<Material>(ctx, *aerialPerspective.shader);
@@ -429,7 +449,8 @@ void LUTPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPo
 		AddBinding<AerialPerspectiveSetting>(0).
 		AddBinding(1, *aerialPerspective.lut).
 		AddBinding(2, *transmittance.lut, transmittance.sampler->GetSampler()).
-		AddBinding(3, *shadowMap, shadowSampler->GetSampler()).
+		AddBinding(3, *multipleScattering.lut, multipleScattering.sampler->GetSampler()).
+		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
 		Build(descPool);
 
 	aerialShadow.material = std::make_unique<Material>(ctx, *aerialShadow.shader);
@@ -461,6 +482,10 @@ void LUTPass::BuildPipeline(const VulkanContext& ctx)
 	ci.stage = transmittance.shader->GetPipelineShaderStageCreateInfos().front();
 	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &transmittance.pipeline));
 
+	ci.layout = multipleScattering.shader->GetPipelineLayout();
+	ci.stage = multipleScattering.shader->GetPipelineShaderStageCreateInfos().front();
+	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &multipleScattering.pipeline));
+
 	ci.layout = skyView.shader->GetPipelineLayout();
 	ci.stage = skyView.shader->GetPipelineShaderStageCreateInfos().front();
 	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &skyView.pipeline));
@@ -483,15 +508,18 @@ void LUTPass::UpdateMaterials()
 	aerialSetting.groundRadius = shadowSetting.groundRadius = skyViewSetting.groundRadius = transmitSetting.groundRadius = globalSetting.groundRadius;
 	aerialSetting.sun = shadowSetting.sun = skyViewSetting.sun = globalSetting.sun;
 	aerialSetting.sunViewProj = shadowSetting.sunViewProj = globalSetting.sunViewProj;
-	aerialSetting.mieCoefficient = shadowSetting.mieCoefficient = skyViewSetting.mieCoefficient = transmitSetting.mieCoefficient = globalSetting.mieCoefficient;
+	aerialSetting.mieCoefficient = shadowSetting.mieCoefficient = skyViewSetting.mieCoefficient = msSetting.mieCoefficient = transmitSetting.mieCoefficient = globalSetting.mieCoefficient;
 	aerialSetting.mieG = shadowSetting.mieG = skyViewSetting.mieG = globalSetting.mieG;
 	transmitSetting.steps = globalSetting.transmittanceLUTSteps;
+	msSetting.steps = globalSetting.msLUTSteps;
 	skyViewSetting.steps = globalSetting.skyViewLUTSteps;
 	aerialSetting.steps = globalSetting.aerialPerspectiveLUTSteps;
 	shadowSetting.steps = globalSetting.aerialShadowSteps;
 
 	if (enableLUTFlags & LUTType::Transmittance)
 		transmittance.material->UpdateBindingData(0, transmitSetting);
+	if (enableLUTFlags & LUTType::MultipleScattering)
+		multipleScattering.material->UpdateBindingData(0, msSetting);
 	if (enableLUTFlags & LUTType::SkyView)
 		skyView.material->UpdateBindingData(0, skyViewSetting);
 	if (enableLUTFlags & LUTType::AerialPerspective)

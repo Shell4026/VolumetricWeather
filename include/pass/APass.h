@@ -40,6 +40,8 @@ protected:
 
 	void AddUsage(VkImage image, VkImageAspectFlags apsect, VkImageLayout usage);
 
+	static void AddDescSetLayoutBinding(std::vector<VkDescriptorSetLayoutBinding>& bindings, uint32_t bindingNumber, VkDescriptorType descType, VkShaderStageFlags stage);
+
 	static auto LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule;
 private:
 	void AllocateCommandBuffer(VkDevice device);

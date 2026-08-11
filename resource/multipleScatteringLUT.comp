@@ -1,0 +1,203 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(set = 1, binding = 0) uniform Setting
+{
+	uint steps;
+	float groundRadius;
+	float atmosphereRadius;
+	float mieCoefficient;
+} setting;
+layout(set = 1, binding = 1) uniform writeonly image2D msLUT;
+layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
+
+const float PI = 3.1415926535;
+
+vec2 GetUV(float mu, float sampleHeight)
+{
+	const float u = mu * 0.5 + 0.5;
+	const float v = max(0, min(sampleHeight / (setting.atmosphereRadius - setting.groundRadius), 1.0));
+	return vec2(u, v);
+}
+
+vec2 GetMuHeight(vec2 uv)
+{
+	const float mu = 2.0 * (uv.x - 0.5); // -1 ~ 1
+	const float height = uv.y * (setting.atmosphereRadius - setting.groundRadius);
+	return vec2(mu, height);
+}
+
+vec3 RayleighScattering(float y)
+{
+	const vec3 rayleigh = vec3(5.802, 13.558, 33.1) * 1e-6;
+	return rayleigh * exp(-y / 8000.0);
+}
+
+vec3 MieScattering(float y)
+{
+	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6 * setting.mieCoefficient;
+	return mie * exp(-y / 1200.0);
+}
+
+vec3 ScatteringCoefficient(float y)
+{
+	vec3 sigma = RayleighScattering(y) + MieScattering(y);
+	return sigma;
+}
+
+vec3 AbsorptionCoefficient(float y)
+{
+	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6 * setting.mieCoefficient;
+	const vec3 ozone = vec3(0.65, 1.881, 0.085) * 1e-6;
+	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
+}
+
+vec3 Transmittance(float mu, float height)
+{
+	const float sampleDis = setting.groundRadius + height;
+	const float rayProj = sampleDis * mu;
+	const float d2 = sampleDis * sampleDis - rayProj * rayProj;
+	const float r2 = setting.atmosphereRadius * setting.atmosphereRadius;
+	const float sampleToAtmosphere = sqrt(r2 - d2) - rayProj;
+	if (sampleToAtmosphere <= 0.0)
+		return vec3(1.0);
+	
+	const float stepSize = sampleToAtmosphere / setting.steps;
+
+	vec3 sigmaSum = vec3(0.0, 0.0, 0.0);
+	for (uint i = 0; i < setting.steps; ++i)
+	{
+		const float t = (i + 0.5) * stepSize;
+		const float sampleRadius = sqrt(d2 + (rayProj + t) * (rayProj + t));
+		const float sampleHeight = sampleRadius - setting.groundRadius;
+		if (sampleHeight < 0.0)
+			return vec3(0.0);
+		
+		const vec3 sigmaT = ScatteringCoefficient(sampleHeight) + AbsorptionCoefficient(sampleHeight);
+		sigmaSum += sigmaT;
+	}
+	return exp(-sigmaSum * stepSize);
+}
+
+bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float radius, out float near, out float far)
+{
+	vec3 rs = sphereOrigin - rayOrigin;
+	float a2 = dot(rs, rs);
+	float b = dot(rs, rayDir);
+	float c2 = a2 - b * b;
+	float r2 = radius * radius;
+	if (c2 > r2)
+		return false;
+	
+	float d = sqrt(r2 - c2); // 구 내부 ray길이
+	near = b - d;
+	far = b + d;
+	
+	return far >= 0.0;
+}
+
+vec2 GetTransmittanceUV(vec3 samplePos, vec3 toSunDir)
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	
+	const float sampleLength = length(samplePos - PLANET_CENTER);
+	const float height = sampleLength - setting.groundRadius;
+	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
+	const float mu = dot(up, toSunDir);
+	
+	const float r = height + setting.groundRadius;
+	// 지평선에서 대기까지의 거리 H
+	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
+	// 지평선 거리 rho
+	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);
+	
+	const float dMin = setting.atmosphereRadius - r; // 머리 위의 대기까지의 거리
+	const float dMax = rho + H; // 지평선 너머의 대기까지의 거리
+	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + setting.atmosphereRadius * setting.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
+	d = max(d, 0.0);
+	
+	float u = (d - dMin) / (dMax - dMin); // 0(머리위) ~ 1(지평선)
+	float v = rho / H; // 그냥 높이 비율 대신 제곱근 비율로 바뀐거
+	v = 1.0 - v;
+	return vec2(u, v);
+}
+
+vec3 InScattering(vec3 start, vec3 dir, float dis, vec3 toSunDir, inout vec3 fms)
+{
+	const vec3 planetCenter = vec3(0.0, -setting.groundRadius, 0.0);
+	const float stepSize = dis / setting.steps;
+	const float phase = 1.0 / (4 * PI);
+	
+	vec3 transmittance = vec3(1.0);
+	vec3 scattering = vec3(0.0);
+	for (int i = 0; i < setting.steps; ++i)
+	{
+		const vec3 samplePos = start + dir * (i + 0.5) * stepSize;
+		const float sampleRadius = length(samplePos - planetCenter);
+		const float sampleHeight = sampleRadius - setting.groundRadius;
+		
+		const vec3 sigmaS = ScatteringCoefficient(sampleHeight);
+		const vec3 sigmaA = AbsorptionCoefficient(sampleHeight);
+		const vec3 sigmaT = sigmaS + sigmaA;
+		
+		const vec3 stepT = exp(-sigmaT * stepSize);
+		vec3 lightViewTransmittance = vec3(0.0);
+		float near, far;
+		if (!RaySphereIntersect(samplePos, toSunDir, planetCenter, setting.groundRadius, near, far))
+			lightViewTransmittance = texture(transmittanceLUT, GetTransmittanceUV(samplePos, toSunDir)).rgb;
+		scattering += transmittance * ((1.0 - stepT) * (lightViewTransmittance * sigmaS * phase) / max(sigmaT, 1e-6));
+		fms += transmittance * ((1.0 - stepT) * sigmaS / max(sigmaT, 1e-6));
+		
+		transmittance *= stepT;
+	}
+	return scattering;
+}
+
+void main()
+{
+	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	const ivec2 size = imageSize(msLUT);
+	if (pixel.x >= size.x || pixel.y >= size.y)
+		return;
+	
+	vec2 uv = vec2(pixel + 0.5) / size;
+	uv.y = 1.0 - uv.y;
+	
+	const vec2 muHeight = GetMuHeight(uv);
+	const float mu = muHeight.x;
+	const vec3 planetCenter = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 samplePos = vec3(0.0, muHeight.y, 0.0);
+	const vec3 toSunDir = vec3(sqrt(max(0.0, 1.0 - mu * mu)), mu, 0.0); //sin, cos, 0.0
+	
+	vec3 l2 = vec3(0.0);
+	vec3 fms = vec3(0.0);
+	for (int i = 0; i < 8; ++i)
+	{
+		for (int j = 0; j < 8; ++j)
+		{
+			const float u = (i + 0.5) / 8.0;
+			const float v = (j + 0.5) / 8.0;
+			const float theta = 2.0 * PI * u;
+			const float z = 1.0 - 2.0 * v; // 1 ~ -1
+			const float r = sqrt(max(1.0 - z * z, 0.0));
+			vec3 dir = vec3(0.0);
+			dir.x = r * cos(theta);
+			dir.y = r * sin(theta);
+			dir.z = z;
+			float near = 0.0;
+			float far = 0.0;
+			float dis = 0.0;
+			if (RaySphereIntersect(samplePos, dir, planetCenter, setting.groundRadius, near, far))
+				dis = near;
+			else if (RaySphereIntersect(samplePos, dir, planetCenter, setting.atmosphereRadius, near, far))
+				dis = far;
+			
+			l2 += InScattering(samplePos, dir, dis, toSunDir, fms);
+		}
+	}
+	l2 /= 64.0;
+	fms /= 64.0;
+	const vec3 psiMS = l2 / max((1.0 - fms), 1e-4);
+	imageStore(msLUT, pixel, vec4(psiMS, 1.0));
+}

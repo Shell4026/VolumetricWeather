@@ -21,7 +21,7 @@ layout(set = 1, binding = 0) uniform Setting
 } setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
 layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
-
+layout(set = 1, binding = 3) uniform sampler2D multipleScatteringLUT;
 const float PI = 3.141592;
 
 vec3 RayleighScattering(float y)
@@ -76,14 +76,14 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 	return far >= 0.0;
 }
 
-vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
+vec2 GetTransmittanceUV(vec3 samplePos, vec3 toSunDir)
 {
 	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
 	
 	const float sampleLength = length(samplePos - PLANET_CENTER);
 	const float height = sampleLength - setting.groundRadius;
 	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
-	const float mu = dot(up, dir);
+	const float mu = dot(up, toSunDir);
 	
 	const float r = height + setting.groundRadius;
 	// 지평선에서 대기까지의 거리 H
@@ -111,7 +111,20 @@ vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
 	return texture(transmittanceLUT, uv).xyz;
 }
 
-vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float illuminance, uint steps, out vec3 sigmaSum)
+vec3 MultipleScatteringUsingLUT(vec3 samplePos, float sampleHeight, vec3 toSunDir)
+{
+	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 up = (samplePos - PLANET_CENTER) / (sampleHeight + setting.groundRadius);
+	const float mu = dot(up, toSunDir);
+	
+	vec2 uv;
+	uv.x = mu * 0.5 + 0.5;
+	uv.y = max(0, min(sampleHeight / (setting.atmosphereRadius - setting.groundRadius), 1.0));
+	
+	return texture(multipleScatteringLUT, uv).rgb;
+}
+
+vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float illuminance, uint steps, inout vec3 transmittance)
 {
 	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
 	
@@ -122,7 +135,7 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 	const float miePhase = MiePhase(mu, setting.mieG);
 	
 	vec3 inScattering = vec3(0.0, 0.0, 0.0);
-	sigmaSum = vec3(0.0, 0.0, 0.0);
+	vec3 sigmaSum = vec3(0.0);
 	for (uint i = 0; i < steps; ++i)
 	{
 		const vec3 samplePos = a + dir * stepSize * (i + 0.5);
@@ -130,11 +143,10 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		if (sampleHeight < 0.0)
 			break;
 
-		const vec3 transmittance = exp(-sigmaSum); // L_scat의 T(c, x)
-		
 		const vec3 sigmaS = ScatteringCoefficient(sampleHeight);
 		const vec3 sigmaT = sigmaS + AbsorptionCoefficient(sampleHeight);
-		sigmaSum += sigmaT * stepSize;
+		transmittance = exp(-sigmaSum);
+		sigmaSum += sigmaT * stepSize * 0.5;
 		
 		float near = 0.0;
 		float far = 0.0;
@@ -153,9 +165,13 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		(
 			RayleighScattering(sampleHeight) * rayleighPhase + 
 			MieScattering(sampleHeight) * miePhase
-		) * stepSize;
+		);
 		
-		inScattering += transmittance * visibility * lightViewTransmittance * phase * illuminance;
+		const vec3 single = visibility * lightViewTransmittance * phase;
+		const vec3 multi = sigmaS * MultipleScatteringUsingLUT(samplePos, sampleHeight, -sunDir);
+		const vec3 stepScat = (single + multi) * illuminance * stepSize;
+		
+		inScattering += transmittance * stepScat;
 	}
 	return inScattering;
 }
@@ -213,9 +229,8 @@ void main()
 	
     const vec3 start = camera.pos + rayDir * rayStart;
     const vec3 end   = camera.pos + rayDir * rayEnd;
-	vec3 sigmaSum; // start에서 end까지 누적된 소멸 계수(sigmaT)
-	vec3 result = InScattering(start, end, rayEnd - rayStart, sunDir, mu, setting.sun.w, setting.steps, sigmaSum);
-	const vec3 transmittance = exp(-sigmaSum);
+	vec3 transmittance = vec3(1.0);
+	vec3 result = InScattering(start, end, rayEnd - rayStart, sunDir, mu, setting.sun.w, setting.steps, transmittance);
 	const float transmittanceGray = dot(transmittance, vec3(1.0 / 3.0));
 	imageStore(outImage, pixel, vec4(result, transmittanceGray));
 }

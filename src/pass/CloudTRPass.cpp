@@ -103,7 +103,7 @@ void CloudTRPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayou
 	prevOutput = output2.get();
 	cloudSettingRevision = cloudPass.GetSettingRevision();
 	
-	sampler = &samplerManager->GetLinearClmap();
+	sampler = &samplerManager->GetLinearClamp();
 }
 
 void CloudTRPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)

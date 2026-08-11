@@ -179,6 +179,15 @@ void APass::AddUsage(VkImage image, VkImageAspectFlags apsect, VkImageLayout usa
 	imageUsages.push_back(imgUsage);
 }
 
+void APass::AddDescSetLayoutBinding(std::vector<VkDescriptorSetLayoutBinding>& bindings, uint32_t bindingNumber, VkDescriptorType descType, VkShaderStageFlags stage)
+{
+	VkDescriptorSetLayoutBinding& binding = bindings.emplace_back();
+	binding.binding = bindingNumber;
+	binding.descriptorCount = 1;
+	binding.descriptorType = descType;
+	binding.stageFlags = stage;
+}
+
 auto APass::LoadShader(VkDevice device, const std::filesystem::path& path) -> VkShaderModule
 {
 	std::ifstream file(path, std::ios::ate | std::ios::binary);

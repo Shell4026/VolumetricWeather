@@ -26,14 +26,16 @@ public:
 		uint32_t skyViewLUTSteps = 64;
 		uint32_t aerialPerspectiveLUTSteps = 5;
 		uint32_t aerialShadowSteps = 64;
+		uint32_t msLUTSteps = 64;
 	} globalSetting;
 	enum LUTType
 	{
-		SkyView = 0b0001,
-		AerialPerspective = 0b0010,
-		Transmittance = 0b0100,
-		AerialShadow = 0b1000,
-		All = 0b1111
+		SkyView = 1,
+		AerialPerspective = 2,
+		Transmittance = 4,
+		AerialShadow = 8,
+		MultipleScattering = 16,
+		All = 31
 	};
 	using LUTTypeFlags = uint32_t;
 public:
@@ -80,6 +82,13 @@ private:
 		float atmosphereRadius = 6'460'000.f;
 		float mieCoefficient = 1.f;
 	} transmitSetting;
+	struct alignas(16) MultipleScatteringSetting
+	{
+		uint32_t steps = 32;
+		float groundRadius = 6'360'000.f;
+		float atmosphereRadius = 6'460'000.f;
+		float mieCoefficient = 1.f;
+	} msSetting;
 	struct alignas(16) SkyViewSetting
 	{
 		glm::vec4 sun;
@@ -122,6 +131,15 @@ private:
 		VkPipeline pipeline = VK_NULL_HANDLE;
 		GPUTimer timer;
 	} transmittance;
+	struct MultipleScattering
+	{
+		std::unique_ptr<Shader> shader;
+		std::unique_ptr<Material> material;
+		std::unique_ptr<VulkanImage> lut;
+		const VulkanSampler* sampler = nullptr;
+		VkPipeline pipeline = VK_NULL_HANDLE;
+		GPUTimer timer;
+	} multipleScattering;
 	struct SkyView
 	{
 		std::unique_ptr<Shader> shader;

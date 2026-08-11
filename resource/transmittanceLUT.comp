@@ -51,25 +51,25 @@ vec3 Transmittance(float mu, float height)
 	for (uint i = 0; i < setting.steps; ++i)
 	{
 		const float t = (i + 0.5) * stepSize;
-		float sampleRadius = sqrt(d2 + (rayProj + t) * (rayProj + t));
-		float sampleHeight = sampleRadius - setting.groundRadius;
+		const float sampleRadius = sqrt(d2 + (rayProj + t) * (rayProj + t));
+		const float sampleHeight = sampleRadius - setting.groundRadius;
 		if (sampleHeight < 0.0)
 			return vec3(0.0);
 		
 		const vec3 sigmaT = ScatteringCoefficient(sampleHeight) + AbsorptionCoefficient(sampleHeight);
-		sigmaSum += sigmaT * stepSize;
+		sigmaSum += sigmaT;
 	}
-	return exp(-sigmaSum);
+	return exp(-sigmaSum * stepSize);
 }
 
-vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir) // 여기서는 안 씀
+vec2 GetTransmittanceUV(vec3 samplePos, vec3 toSunDir) // 여기서는 안 씀
 {
 	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
 	
 	const float sampleLength = length(samplePos - PLANET_CENTER);
 	const float height = sampleLength - setting.groundRadius;
 	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
-	const float mu = dot(up, dir);
+	const float mu = dot(up, toSunDir);
 	
 	const float r = height + setting.groundRadius;
 	// 지평선에서 대기까지의 거리 H

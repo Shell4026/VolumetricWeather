@@ -341,7 +341,7 @@ void main()
 				atmosphereToCloud = texture(aerialPerspectiveLUT, vec3(uv, cloudLutZ));
 			}
 			// 구름까지 대기의 산란 + (구름까지 대기의 투과율 * 구름의 산란) + 구름의 투과율 * (구름 뒤 산란)
-			result = atmosphereToCloud.rgb + (atmosphereToCloud.a * cloud.rgb) +
+			result = min(cloud.a + 0.2, 1.0) * atmosphereToCloud.rgb + (atmosphereToCloud.a * cloud.rgb) +
 				cloud.a * (background - atmosphereToCloud.rgb);
 		}
 	}

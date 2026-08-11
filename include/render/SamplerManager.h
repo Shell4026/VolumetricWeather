@@ -16,7 +16,7 @@ public:
 
     auto GetSamplerOrCreate(const VkSamplerCreateInfo& ci) -> VulkanSampler*;
     auto GetLinearRepeat() const -> VulkanSampler& { return *linearRepeat; }
-    auto GetLinearClmap() const -> VulkanSampler& { return *linearClamp; }
+    auto GetLinearClamp() const -> VulkanSampler& { return *linearClamp; }
     auto GetLinearClampBlack() const -> VulkanSampler& { return *linearClampBlack; }
     auto GetLinearClampWhite() const -> VulkanSampler& { return *linearClampWhite; }
     auto GetPointRepeat() const -> VulkanSampler& { return *pointRepeat; }

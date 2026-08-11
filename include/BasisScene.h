@@ -109,6 +109,7 @@ private:
 	CircularQueue<double, 10> lowDepthPassElapsed;
 
 	CircularQueue<double, 10> transmittanceLUTPassElapsed;
+	CircularQueue<double, 10> msLUTPassElapsed;
 	CircularQueue<double, 10> skyViewLUTPassElapsed;
 	CircularQueue<double, 10> aerialPerspectiveLUTPassElapsed;
 	CircularQueue<double, 10> aerialShadowLUTPassElapsed;

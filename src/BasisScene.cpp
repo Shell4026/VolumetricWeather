@@ -120,6 +120,7 @@ void BasisScene::BeginRender(double dt)
 		{
 			lowDepthPassElapsed.Push(lowDepthPass->GetElapsedTimeMs());
 			transmittanceLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::Transmittance));
+			msLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::MultipleScattering));
 			skyViewLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::SkyView));
 			aerialPerspectiveLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::AerialPerspective));
 			aerialShadowLUTPassElapsed.Push(lutPass->GetLUTElpasedTimeMs(LUTPass::LUTType::AerialShadow));
@@ -432,6 +433,12 @@ void BasisScene::DrawDebugGUI()
 					if (ImGui::SliderInt("##TransmittanceLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.transmittanceLUTSteps), 1, 64))
 						lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 				}
+				if (ImGui::CollapsingHeader("MultipleScattering LUT"))
+				{
+					ImGui::Text("Steps");
+					if (ImGui::SliderInt("##MSLUTSteps", reinterpret_cast<int*>(&lutPass->globalSetting.msLUTSteps), 1, 64))
+						lutPass->UpdateLUTFlags(LUTPass::LUTType::MultipleScattering);
+				}
 				
 				if (ImGui::CollapsingHeader("Sky-View LUT"))
 				{
@@ -648,6 +655,7 @@ void BasisScene::DrawOverlay()
 			ImGui::Separator();
 			renderPassElapsedTextFn("lowDepthPass", lowDepthPassElapsed);
 			const double transmittance = renderPassElapsedTextFn("Transmittance", transmittanceLUTPassElapsed);
+			const double ms = renderPassElapsedTextFn("MultipleScattering", msLUTPassElapsed);
 			const double skyView = renderPassElapsedTextFn("SkyView", skyViewLUTPassElapsed);
 			const double aerialPerspective = renderPassElapsedTextFn("AerialPerspective", aerialPerspectiveLUTPassElapsed);
 			const double aerialShadow = renderPassElapsedTextFn("AerialShadow", aerialShadowLUTPassElapsed);
@@ -839,12 +847,12 @@ void BasisScene::ControlCamera(double dt)
 	}
 	if (Input::IsKeyDown(Event::KeyType::Left))
 	{
-		camera.AddYaw(60.0 * dt);
+		camera.AddYaw(120.0 * dt);
 		camera.UpdateMatrix();
 	}
 	if (Input::IsKeyDown(Event::KeyType::Right))
 	{
-		camera.AddYaw(-60.0 * dt);
+		camera.AddYaw(-120.0 * dt);
 		camera.UpdateMatrix();
 	}
 	if (Input::IsKeyDown(Event::KeyType::W))
