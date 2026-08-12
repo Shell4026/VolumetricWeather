@@ -20,30 +20,41 @@ set(CORE_HEADERS "include/core/Event.h" "include/core/ImGUI.h" "include/core/Inp
 set(CORE_CPPS "src/core/Event.cpp" "src/core/ImGUI.cpp" "src/core/Input.cpp" "src/core/Logger.cpp" "src/core/Window.cpp" "src/core/Implemntation.cpp" "src/core/Util.cpp" "src/core/Noise.cpp")
 set(PASS_HEADERS 
 "include/pass/APass.h"
-"include/pass/AtmospherePass.h"
 "include/pass/PostProcessPass.h"
 "include/pass/OpaquePass.h"
 "include/pass/ShadowPass.h"
 "include/pass/IDrawablePass.h"
 "include/pass/LUTPass.h"
-"include/pass/HillairePass.h" 
+"include/pass/AtmospherePass.h"
+"include/pass/HillairePass.h"
 "include/pass/BlitPass.h" 
 "include/pass/CloudPass.h"
 "include/pass/CloudTRPass.h"
 "include/pass/LowDepthPass.h"
- "include/pass/CloudPaintPass.h" "src/pass/CloudPaintPass.cpp")
+"include/pass/CloudPaintPass.h" 
+ )
 set(PASS_CPPS 
 "src/pass/APass.cpp"
-"src/pass/AtmospherePass.cpp"
 "src/pass/PostProcessPass.cpp"
 "src/pass/OpaquePass.cpp"
 "src/pass/ShadowPass.cpp"
 "src/pass/LUTPass.cpp"
-"src/pass/HillairePass.cpp" 
+"src/pass/AtmospherePass.cpp"
+"src/pass/HillairePass.cpp"
 "src/pass/BlitPass.cpp"
 "src/pass/CloudPass.cpp"
 "src/pass/CloudTRPass.cpp"
 "src/pass/LowDepthPass.cpp"
+"src/pass/CloudPaintPass.cpp"
+)
+set(WEATHER_HEADERS
+"include/weather/ArtistCloudSetting.h"
+"include/weather/AtmosphereRMSEMeasurement.h"
+"include/weather/CloudParameterMapper.h"
+)
+set(WEATHER_CPPS
+"src/weather/AtmosphereRMSEMeasurement.cpp"
+"src/weather/CloudParameterMapper.cpp"
 )
 set(RENDER_HEADERS 
 "include/render/BarrierBuilder.h"
@@ -75,22 +86,24 @@ set(HEADERS
 "include/FPSCamera.h"
 "include/Scene.h"
 "include/GLBLoader.h"
-"include/AtmosphereRMSEMeasurement.h"
 "include/BasisScene.h" 
 "include/PresetManager.h"
 "include/TextureLoader.h"
- "include/SceneManager.h")
+"include/SceneManager.h"
+"include/CloudEditor.h" 
+)
 set(CPPS
 "src/Camera.cpp"
 "src/FPSCamera.cpp"
 "src/GLBLoader.cpp"
-"src/AtmosphereRMSEMeasurement.cpp"
 "src/Scene.cpp"
 "src/BasisScene.cpp"
 "src/PresetManager.cpp"
 "src/TextureLoader.cpp"
- "src/SceneManager.cpp" "include/CloudEditor.h" "src/CloudEditor.cpp")
-add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS})
+"src/SceneManager.cpp"
+"src/CloudEditor.cpp"
+)
+add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS} ${WEATHER_CPPS} ${WEATHER_HEADERS})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(VolumetricWeather PRIVATE SH_DEBUG)

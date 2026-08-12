@@ -2,7 +2,7 @@
 #include "Scene.h"
 #include "GLBLoader.h"
 #include "Camera.h"
-#include "AtmosphereRMSEMeasurement.h"
+#include "weather/AtmosphereRMSEMeasurement.h"
 #include "PresetManager.h"
 
 #include "core/CircularQueue.hpp"
