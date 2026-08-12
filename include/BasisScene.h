@@ -26,6 +26,7 @@ class PostProcessPass;
 class BlitPass;
 class CloudPass;
 class CloudTRPass;
+class CloudEditor;
 
 class Material;
 class VulkanImage;
@@ -46,7 +47,7 @@ protected:
 	void PrepareResource() override;
 	void SetupPass() override;
 
-	auto GetActivePassList() -> std::vector<APass*> & override { return activePasses; }
+	auto GetActivePassList() -> std::vector<APass*> & override;
 	void BeginBuildCommandBuffer() override;
 private:
 	void DrawDebugGUI();
@@ -100,6 +101,7 @@ private:
 
 	std::vector<APass*> allPasses;
 	std::vector<APass*> activePasses;
+	std::vector<APass*> activePasses2;
 	std::vector<Drawable> drawables;
 
 	glm::vec4 sun{ -1.f, 0.f, -1.f, 15.f };
@@ -150,5 +152,7 @@ private:
 		bool bHillaire = false;
 	} changeAtmosphereReq;
 	std::map<const VulkanImage*, ImageReCreateRequest> imgRecreateRequests;
+
+	std::unique_ptr<CloudEditor> cloudEditor;
 	bool bCloudEnable = true;
 };

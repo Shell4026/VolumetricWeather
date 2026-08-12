@@ -1,0 +1,36 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(push_constant) uniform PushConstants
+{
+    vec2 brushUV;
+	uint radius;
+} pc;
+
+layout(set = 1, binding = 0, r8) uniform image2D canvas;
+
+void main()
+{
+	if (pc.radius == 0)
+		return;
+	const ivec2 size = imageSize(canvas);
+	const ivec2 brushCenter = ivec2(floor(pc.brushUV * (size - 1.0)));
+	const ivec2 brushMin = brushCenter - ivec2(pc.radius);
+	const ivec2 brushMax = brushCenter + ivec2(pc.radius);
+	
+	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy) + brushMin;
+	
+	if (pixel.x < 0 || pixel.y < 0 || pixel.x >= size.x || pixel.y >= size.y)
+		return;
+	
+	const float dis = length(vec2(pixel - brushCenter));
+	if (dis > float(pc.radius))
+		return;
+	
+	const float old = imageLoad(canvas, pixel).r;
+	
+	const float result = max(1.0 - smoothstep(0.0, float(pc.radius), dis), old);
+	
+	imageStore(canvas, pixel, vec4(result));
+}

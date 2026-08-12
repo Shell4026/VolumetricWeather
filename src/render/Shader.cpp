@@ -77,11 +77,11 @@ auto Shader::AddSet(uint32_t set, std::vector<VkDescriptorSetLayoutBinding> bind
 	return *this;
 }
 
-void Shader::Build(VkDevice device, const std::filesystem::path& computeShaderPath)
+void Shader::Build(VkDevice device, const std::filesystem::path& computeShaderPath, VkPushConstantRange* pushConstant)
 {
 	this->device = device;
 	
-	CreatePipelineLayout(nullptr);
+	CreatePipelineLayout(pushConstant);
 	LoadComputeShaderModule(computeShaderPath);
 }
 

@@ -1,6 +1,7 @@
 ﻿#include "BasisScene.h"
 #include "FPSCamera.h"
 #include "TextureLoader.h"
+#include "CloudEditor.h"
 
 #include "core/Input.h"
 #include "core/Window.h"
@@ -17,6 +18,7 @@
 #include "pass/CloudTRPass.h"
 #include "pass/PostProcessPass.h"
 #include "pass/BlitPass.h"
+#include "pass/CloudPaintPass.h"
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_stdlib.h"
@@ -45,6 +47,8 @@ void BasisScene::Clear()
 	const VkDevice device = ctx.GetDevice();
 	vkDeviceWaitIdle(device);
 
+	cloudEditor.reset();
+
 	for (APass* pass : allPasses)
 		pass->Clear();
 	allPasses.clear();
@@ -69,6 +73,7 @@ void BasisScene::Update(double dt)
 	if (!rmseMeasurement.IsRunning())
 		ControlCamera(dt);
 	DrawDebugGUI();
+	cloudEditor->Update();
 }
 
 void BasisScene::BeginRender(double dt)
@@ -222,6 +227,10 @@ void BasisScene::PrepareResource()
 	if (!texOpt.has_value())
 		throw std::runtime_error{ "textures/BlueNoise.png is not loaded!" };
 	blueNoise = std::make_unique<VulkanImage>(std::move(texOpt.value()));
+
+	// 에디터
+	cloudEditor = std::make_unique<CloudEditor>(*this);
+	allPasses.push_back(cloudEditor->GetPass());
 }
 
 void BasisScene::SetupPass()
@@ -291,6 +300,17 @@ void BasisScene::SetupPass()
 	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
 
 	UpdateSun();
+}
+
+auto BasisScene::GetActivePassList() -> std::vector<APass*>&
+{
+	if (cloudEditor->IsEnable())
+	{
+		activePasses2 = activePasses;
+		activePasses2.insert(activePasses2.begin(), cloudEditor->GetPass());
+		return activePasses2;
+	}
+	return activePasses;
 }
 
 void BasisScene::BeginBuildCommandBuffer()
@@ -550,6 +570,10 @@ void BasisScene::DrawDebugGUI()
 				else
 					setting.modeFlags &= 0b1011;
 				hillairePass->SetSetting(setting);
+			}
+			if (ImGui::Button("Editor"))
+			{
+				cloudEditor->SetEnable(!cloudEditor->IsEnable());
 			}
 			CloudPass::Setting setting = cloudPass->GetSetting();
 			if (ImGui::SliderInt("Steps", reinterpret_cast<int*>(&setting.steps), 1, 128))
