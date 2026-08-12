@@ -45,6 +45,7 @@ layout(set = 1, binding = 3) uniform sampler3D perlin;
 layout(set = 1, binding = 4) uniform sampler2D noiseTex;
 layout(set = 1, binding = 5) uniform sampler2D sceneDepth;
 layout(set = 1, binding = 6) uniform sampler2D transmittanceLUT;
+layout(set = 1, binding = 7) uniform sampler2D cloudMaskTex;
 
 const float CLOUD_HEIGHT = 2000;
 const float CLOUD_THICKNESS = 5000;
@@ -173,9 +174,20 @@ float GetHeightMask(float cloudInnerRadius, float cloudOuterRadius, vec3 sampleP
 	return heightMask;
 }
 
+float GetCloudMask(vec3 samplePos)
+{
+	const float worldSizeMeter = 128 * 1000.0;
+	const vec2 uv = vec2(samplePos.x, samplePos.z) / worldSizeMeter + 0.5;
+	const float mask = texture(cloudMaskTex, uv).r;
+	
+	return smoothstep(0.0, 1.0, mask);
+}
+
+
 float GetCoverage(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
 {
-	float coverage = setting.coverage;
+	const float mask = GetCloudMask(samplePos);
+	float coverage = clamp(setting.coverage - mask * 0.3, 0.0, 1.0);
 	const float height = GetSampleHeightRatio(cloudInnerRadius, cloudOuterRadius, samplePos);
 	coverage = 1.0 - pow(coverage, Remap(height, 0.7, 0.8, 1.0, mix(1.0, 0.5, setting.anvilBias)));
 	return coverage;
@@ -193,7 +205,8 @@ float GetDensity(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
 	
 	const float wfbm = worley.r * 0.625 + worley.g * 0.125 + worley.b * 0.25;
 	float cloud = Remap(perlinWorley, wfbm - 1.0, 1.0, 0.0, 1.0);
-	const float coverage = GetCoverage(cloudInnerRadius, cloudOuterRadius, samplePos);
+	float coverage = GetCoverage(cloudInnerRadius, cloudOuterRadius, samplePos);
+	
 	cloud = clamp(Remap(cloud, coverage, 1.0, 0.0, 1.0), 0.0, 1.0);
 	return cloud * heightMask;
 }
@@ -314,7 +327,8 @@ void SegmentTransmittance(
             break;
 		const float t = segment.x + stepSize * (i + noise.r);
 		const vec3 samplePos = rayOrigin + rayDir * t;
-		const float density = GetDensity(cloudInner, cloudOuter, samplePos);
+		float density = GetDensity(cloudInner, cloudOuter, samplePos);
+		
 		if (density <= 0.001)
 			continue;
 		
@@ -440,6 +454,18 @@ void main()
 		imageStore(outCloudDepth, pixel, vec4(-1.0));
 		return;
 	}
+	
+	// float mask = GetCloudMask(camera.pos + rayDir * cloudSegment0.x);
+		// // imageStore(outImage, pixel, vec4(vec3(mask), 1.0));
+		// // imageStore(outCloudDepth, pixel, vec4(-1.0));
+		// // return;
+	// if (mask < 1e-4)
+	// {
+		// imageStore(outImage, pixel, vec4(0.0, 0.0, 0.0, 1.0));
+		// imageStore(outCloudDepth, pixel, vec4(-1.0));
+		// return;
+	// }
+
 	
 	const vec3 sunDir = setting.sun.xyz;
 	const float mu = dot(rayDir, -sunDir);

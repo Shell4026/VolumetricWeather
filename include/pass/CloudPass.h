@@ -50,6 +50,7 @@ public:
 	void SetSceneDepthTexture(const VulkanImage& img) { sceneDepth = &img; }
 	void SetTransmittanceLUT(const VulkanImage& img, const VulkanSampler& sampler) { transmittanceLUT = &img; transmittanceLUTSampler = &sampler; }
 	void SetNoise(const VulkanImage& tex) { noiseTex = &tex; }
+	void SetCloudMask(const VulkanImage& tex) { cloudMask = &tex; }
 
 	auto GetOutputImage() const -> const VulkanImage* { return output.get(); }
 	auto GetDepthImage() const -> const VulkanImage* { return depth.get(); }
@@ -75,11 +76,13 @@ private:
 	const VulkanImage* noiseTex = nullptr;
 	const VulkanImage* sceneDepth = nullptr;
 	const VulkanImage* transmittanceLUT = nullptr;
+	const VulkanImage* cloudMask = nullptr;
 
 	const VulkanSampler* sampler = nullptr;
 	const VulkanSampler* transmittanceLUTSampler = nullptr;
 	const VulkanSampler* depthSampler = nullptr;
 	const VulkanSampler* pointSampler = nullptr;
+	const VulkanSampler* maskSampler = nullptr;
 
 	Setting setting;
 	uint64_t settingRevision = 0;

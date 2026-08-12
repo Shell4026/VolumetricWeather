@@ -10,6 +10,11 @@ class CloudPaintPass;
 class CloudEditor
 {
 public:
+	struct Setting
+	{
+		uint32_t brushRadius = 10;
+	} setting;
+public:
 	CloudEditor(AScene& scene);
 	~CloudEditor();
 
@@ -21,6 +26,7 @@ public:
 	void SetEnable(bool b) { bEnable = b; }
 	auto IsEnable() const -> bool { return bEnable; }
 	auto GetPass() const -> CloudPaintPass* { return paintPass.get(); }
+	auto GetCloudMap() const -> VulkanImage* { return coverageMap.get(); }
 private:
 	void PrepareResource();
 	auto GetUV(uint32_t mouseX, uint32_t mouseY) const -> glm::vec2;

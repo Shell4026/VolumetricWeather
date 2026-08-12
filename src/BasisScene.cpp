@@ -275,6 +275,7 @@ void BasisScene::SetupPass()
 	cloudPass->SetSceneDepthTexture(*opaquePass->GetOutputImageDepth());
 	cloudPass->SetTransmittanceLUT(*lutPass->GetTransmittanceLUT(), *lutPass->GetTransmittanceLUTSampler());
 	cloudPass->SetNoise(*blueNoise);
+	cloudPass->SetCloudMask(*cloudEditor->GetCloudMap());
 	cloudPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	cloudTRPass = std::make_unique<CloudTRPass>(*cloudPass);
@@ -574,6 +575,11 @@ void BasisScene::DrawDebugGUI()
 			if (ImGui::Button("Editor"))
 			{
 				cloudEditor->SetEnable(!cloudEditor->IsEnable());
+			}
+			if (cloudEditor->IsEnable())
+			{
+				ImGui::SliderInt("Brush Radius", reinterpret_cast<int*>(&cloudEditor->setting.brushRadius), 1, 100);
+				ImGui::Separator();
 			}
 			CloudPass::Setting setting = cloudPass->GetSetting();
 			if (ImGui::SliderInt("Steps", reinterpret_cast<int*>(&setting.steps), 1, 128))

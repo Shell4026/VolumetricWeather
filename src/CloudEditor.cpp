@@ -58,12 +58,12 @@ void CloudEditor::Update()
 	if (!bEnable)
 		return;
 
+	paintPass->pc.radius = setting.brushRadius;
+
 	const ImGuiIO& io = ImGui::GetIO();
 	if (io.MouseDown[0])
 	{
 		paintPass->pc.brushUV = GetUV(io.MousePos.x, io.MousePos.y);
-		paintPass->pc.radius = 2;
-		SH_INFO_FORMAT("mousedown, uv: {}, {}", paintPass->pc.brushUV.x, paintPass->pc.brushUV.y);
 	}
 }
 

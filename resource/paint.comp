@@ -15,7 +15,7 @@ void main()
 	if (pc.radius == 0)
 		return;
 	const ivec2 size = imageSize(canvas);
-	const ivec2 brushCenter = ivec2(floor(pc.brushUV * (size - 1.0)));
+	const ivec2 brushCenter = ivec2(floor(pc.brushUV * size));
 	const ivec2 brushMin = brushCenter - ivec2(pc.radius);
 	const ivec2 brushMax = brushCenter + ivec2(pc.radius);
 	
@@ -29,8 +29,9 @@ void main()
 		return;
 	
 	const float old = imageLoad(canvas, pixel).r;
-	
-	const float result = max(1.0 - smoothstep(0.0, float(pc.radius), dis), old);
+	const float t = clamp(dis / float(pc.radius), 0.0, 1.0);
+	const float newColor = pow(1.0 - t, 8);
+	const float result = max(newColor, old);
 	
 	imageStore(canvas, pixel, vec4(result));
 }
