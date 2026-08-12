@@ -189,7 +189,7 @@ float GetDensity(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
 	
 	const vec2 offset = GetCloudVelocity();
 	const float perlinWorley = textureLod(perlin, uvw0 + vec3(offset.x, 0.0, offset.y), 0).r;
-	const vec3 worley = texture(perlin, uvw1).gba;
+	const vec3 worley = texture(perlin, uvw1 + vec3(offset.x, 0.0, offset.y)).gba;
 	
 	const float wfbm = worley.r * 0.625 + worley.g * 0.125 + worley.b * 0.25;
 	float cloud = Remap(perlinWorley, wfbm - 1.0, 1.0, 0.0, 1.0);
