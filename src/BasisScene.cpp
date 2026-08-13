@@ -904,58 +904,59 @@ void BasisScene::ControlCamera(double dt)
 	if (ImGui::GetIO().WantTextInput)
 		return;
 	FPSCamera& camera = static_cast<FPSCamera&>(*GetCamera());
+	bool bMove = false;
 	if (Input::IsKeyDown(Event::KeyType::Up))
 	{
 		camera.AddPitch(60.0 * dt);
-		camera.UpdateMatrix();
+		bMove = true;
 	}
 	if (Input::IsKeyDown(Event::KeyType::Down))
 	{
 		camera.AddPitch(-60.0 * dt);
-		camera.UpdateMatrix();
+		bMove = true;
 	}
 	if (Input::IsKeyDown(Event::KeyType::Left))
 	{
 		camera.AddYaw(120.0 * dt);
-		camera.UpdateMatrix();
+		bMove = true;
 	}
 	if (Input::IsKeyDown(Event::KeyType::Right))
 	{
 		camera.AddYaw(-120.0 * dt);
-		camera.UpdateMatrix();
+		bMove = true;
 	}
 	if (Input::IsKeyDown(Event::KeyType::W))
 	{
 		const glm::vec3 forward = glm::normalize(camera.GetTo() - camera.GetPos()) * 500.f * static_cast<float>(dt);
 		camera.SetPos(camera.GetPos() + forward);
-		camera.UpdateMatrix();
+		bMove = true;
 	}
 	if (Input::IsKeyDown(Event::KeyType::S))
 	{
 		const glm::vec3 forward = glm::normalize(camera.GetTo() - camera.GetPos()) * 500.f * static_cast<float>(dt);
 		camera.SetPos(camera.GetPos() - forward);
-		camera.UpdateMatrix();
+		bMove = true;
 	}
 	if (Input::IsKeyDown(Event::KeyType::D))
 	{
 		const glm::vec3 forward = glm::normalize(camera.GetTo() - camera.GetPos());
 		const glm::vec3 right = glm::cross(forward, camera.GetUp()) * 500.f * static_cast<float>(dt);
 		camera.SetPos(camera.GetPos() + right);
-		camera.UpdateMatrix();
+		bMove = true;
 	}
 	if (Input::IsKeyDown(Event::KeyType::A))
 	{
 		const glm::vec3 forward = glm::normalize(camera.GetTo() - camera.GetPos());
 		const glm::vec3 right = glm::cross(forward, camera.GetUp()) * 500.f * static_cast<float>(dt);
 		camera.SetPos(camera.GetPos() - right);
-		camera.UpdateMatrix();
+		bMove = true;
 	}
 	if (Input::IsKeyDown(Event::KeyType::Space))
 	{
 		glm::vec3 pos = camera.GetPos();
 		pos.y += 1000.0 * dt;
 		camera.SetPos(pos);
-		camera.UpdateMatrix();
+		bMove = true;
 		lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
 	}
 	if (Input::IsKeyDown(Event::KeyType::LCtrl))
@@ -963,11 +964,18 @@ void BasisScene::ControlCamera(double dt)
 		glm::vec3 pos = camera.GetPos();
 		pos.y -= 1000.0 * dt;
 		camera.SetPos(pos);
-		camera.UpdateMatrix();
+		bMove = true;
 		lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView);
 	}
-	UpdateCameraData();
-	lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective); // 카메라 때문에 매번 업데이트 해야함
+	if (bMove)
+	{
+		camera.UpdatdeMatrix();
+		UpdateCameraData();
+		cloudTRPass->SetHistoryValid(1);
+		lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
+	}
+	else
+		cloudTRPass->SetHistoryValid(2);
 }
 
 void BasisScene::UpdateSun()

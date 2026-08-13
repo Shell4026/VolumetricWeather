@@ -27,6 +27,7 @@ public:
 	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
 	void SetSetting(const Setting& setting);
 	void InvalidateHistory();
+	void SetHistoryValid(uint32_t valid);
 
 	auto GetOutputImage() const -> const VulkanImage* { return curOutput; }
 	auto GetDepthImage() const -> const VulkanImage* { return depth.get(); }
@@ -55,5 +56,4 @@ private:
 
 	Setting setting;
 	uint64_t cloudSettingRevision = 0;
-	bool historyValid = false;
 };

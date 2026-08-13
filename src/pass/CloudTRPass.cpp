@@ -36,8 +36,8 @@ void CloudTRPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	material->UpdateBindingData(0, setting);
 	setting.pos = frame.cameraPtr->GetPos();
 	setting.viewProj = frame.cameraPtr->GetMatrixProj() * frame.cameraPtr->GetMatrixView();
-	historyValid = true;
-	setting.historyValid = 1;
+	if (setting.historyValid == 0)
+		setting.historyValid = 1;
 
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
@@ -79,8 +79,12 @@ void CloudTRPass::SetSetting(const Setting& setting)
 
 void CloudTRPass::InvalidateHistory()
 {
-	historyValid = false;
 	setting.historyValid = 0;
+}
+
+void CloudTRPass::SetHistoryValid(uint32_t valid)
+{
+	setting.historyValid = valid;
 }
 
 void CloudTRPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)

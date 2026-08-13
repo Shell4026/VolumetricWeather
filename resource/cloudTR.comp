@@ -112,27 +112,36 @@ void main()
 	const vec4 curCloud = texelFetch(curCloudTex, pixel, 0);
 	const float curDepth = texelFetch(curCloudDepthTex, pixel, 0).r;
 	imageStore(trDepth, pixel, vec4(curDepth));
+	if (curDepth < 0.0)
+	{
+		imageStore(accumTex, pixel, ivec4(accum / 2));
+		imageStore(trOutput, pixel, curCloud);
+		return;
+	}
 	if (trp.historyValid == 0)
 	{
 		imageStore(accumTex, pixel, ivec4(0));
 		imageStore(trOutput, pixel, curCloud);
 		return;
 	}
-	if (curDepth < 0.0)
-	{
-		imageStore(accumTex, pixel, ivec4(0));
-		imageStore(trOutput, pixel, curCloud);
-		return;
-	}
-	const vec2 historyUV = PreviousCloudUV(rayDir, curDepth);
+	
+	float maxHistoryWeight = clamp(trp.historyWeight, 0.0, 0.99);
+	vec2 historyUV = vec2(1.0);
+	if (trp.historyValid == 1)
+		historyUV = PreviousCloudUV(rayDir, curDepth);
+	else if (trp.historyValid == 2) // 정지 상태 가정
+		historyUV = uv;
+
 	if (historyUV.x < 0.0 || historyUV.x >= 1.0 || historyUV.y < 0.0 || historyUV.y >= 1.0)
 	{
 		imageStore(accumTex, pixel, ivec4(0));
 		imageStore(trOutput, pixel, curCloud);
 		return;
 	}
+	accum = min(accum + 1, 16);
+	
 	vec4 prevCloud = texture(prevCloudTex, historyUV);
-	const float maxHistoryWeight = clamp(trp.historyWeight, 0.0, 0.99);
+
 	float historyWeight = min(accum / float(accum + 1), maxHistoryWeight);
 	
 	vec4 mean, stddev;
@@ -143,20 +152,9 @@ void main()
 	boxMax.a = min(boxMax.a, 1.0);
 	prevCloud = ClipAABB(boxMin, boxMax, prevCloud);
 	
-	// vec4 neighborhoodMin;
-	// vec4 neighborhoodMax;
-	// CurrentNeighborhoodBounds(pixel, neighborhoodMin, neighborhoodMax);
-	// const vec4 neighborhoodPadding = max((neighborhoodMax - neighborhoodMin) * 0.25, vec4(0.01));
-	// neighborhoodMin -= neighborhoodPadding;
-	// neighborhoodMax += neighborhoodPadding;
-	// neighborhoodMin = max(neighborhoodMin, vec4(0.0));
-	// neighborhoodMax.a = min(neighborhoodMax.a, 1.0);
-	// prevCloud = clamp(prevCloud, neighborhoodMin, neighborhoodMax);
-	
 	const vec3 inScattering = mix(curCloud.rgb, prevCloud.rgb, historyWeight);
 	const float transmittance = mix(curCloud.a, prevCloud.a, historyWeight);
 	
-	accum = min(accum + 1, 16);
 	imageStore(accumTex, pixel, ivec4(accum));
 	imageStore(trOutput, pixel, vec4(inScattering, transmittance));
 }
