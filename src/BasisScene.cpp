@@ -20,6 +20,8 @@
 #include "pass/BlitPass.h"
 #include "pass/CloudPaintPass.h"
 
+#include "weather/ParameterMapper.h"
+
 #include "imgui/imgui.h"
 #include "imgui/imgui_stdlib.h"
 #include "glm/gtc/quaternion.hpp"
@@ -32,7 +34,7 @@ BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, S
 {
 	const glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(0.f)) };
 	const glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
-	sun = glm::vec4{ sunDir, sun.w };
+	setting.sun = glm::vec4{ sunDir, setting.sun.w };
 
 	presetManager.LoadPresets("presets.json");
 }
@@ -73,6 +75,7 @@ void BasisScene::Update(double dt)
 	if (!rmseMeasurement.IsRunning())
 		ControlCamera(dt);
 	DrawDebugGUI();
+	DrawArtistGUI();
 	cloudEditor->Update();
 }
 
@@ -203,12 +206,12 @@ void BasisScene::PrepareResource()
 		AddBinding(2, *ctx.GetEmptyImage(), sampler).
 		Build(GetDescriptorPool());
 
-	mountain.data.sun = sun;
+	mountain.data.sun = setting.sun;
 	mountain.material->UpdateBindingData(0, mountain.data);
 
 	// 도시
 	city.model = GLBLoader::LoadGLB(ctx, "models/city.glb");
-	city.data.sun = sun;
+	city.data.sun = setting.sun;
 	for (std::size_t i = 0; i < city.model.textures.size(); ++i)
 	{
 		Material* const matPtr = city.materials.emplace_back(std::make_unique<Material>(ctx, opaqueShader)).get();
@@ -402,7 +405,7 @@ void BasisScene::DrawDebugGUI()
 					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 			}
 
-			if (ImGui::SliderFloat("Sun Illuminance", &sun.w, 0.f, 1000.f))
+			if (ImGui::SliderFloat("Sun Illuminance", &setting.sun.w, 0.f, 1000.f))
 			{
 				UpdateSun();
 			}
@@ -411,7 +414,7 @@ void BasisScene::DrawDebugGUI()
 			{
 				glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(angle)) };
 				glm::vec3 sunDir = glm::normalize(q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f }));
-				sun = glm::vec4(sunDir, sun.w);
+				setting.sun = glm::vec4(sunDir, setting.sun.w);
 
 				UpdateSun();
 			}
@@ -649,6 +652,35 @@ void BasisScene::DrawDebugGUI()
 	ImGui::End();
 }
 
+void BasisScene::DrawArtistGUI()
+{
+	bool bUpdate = false;
+	ImGui::SetNextWindowSize(ImVec2{ 500.f, 500.f }, ImGuiCond_::ImGuiCond_Appearing);
+	if (ImGui::Begin("ArtistControl", nullptr, ImGuiWindowFlags_::ImGuiWindowFlags_MenuBar))
+	{
+		if (ImGui::BeginMenuBar())
+		{
+			if (ImGui::Button("Scene"))
+				artistMenu = 0;
+			ImGui::EndMenuBar();
+		}
+		if (artistMenu == 0)
+		{
+			bUpdate |= ImGui::InputFloat("Planet Rotation Axis", &artistSetting.planetRotationAxis, 0.f, 360.f, "%.2f");
+			bUpdate |= ImGui::InputFloat("Latitude", &artistSetting.latitude, -90.f, 90.f, "%.2f");
+			bUpdate |= ImGui::SliderFloat("Month", &artistSetting.month, 1.f, 12.f, "%.2f");
+			bUpdate |= ImGui::SliderFloat("Hour", &artistSetting.hour, 0.f, 24.f, "%.2f");
+		}
+		
+	}
+	if (bUpdate)
+	{
+		setting = ParameterMapper::ConvertRenderSetting(artistSetting);
+		UpdateSun();
+	}
+	ImGui::End();
+}
+
 void BasisScene::DrawOverlay()
 {
 	FPSCamera& camera = static_cast<FPSCamera&>(*GetCamera());
@@ -724,7 +756,7 @@ void BasisScene::DrawPresetGUI()
 		Preset preset{};
 		preset.camPos = camera.GetPos();
 		preset.camQuat = camera.GetQuat();
-		preset.sun = sun;
+		preset.sun = setting.sun;
 		preset.cloudTile = cloudSetting.tiling;
 		preset.cloudEC = cloudSetting.extinctionCoefficient;
 		preset.cloudCoverage = cloudSetting.coverage;
@@ -746,7 +778,7 @@ void BasisScene::DrawPresetGUI()
 			camera.SetQuat(presetInfo.preset.camQuat);
 			camera.UpdateMatrix();
 
-			sun = presetInfo.preset.sun;
+			setting.sun = presetInfo.preset.sun;
 			CloudPass::Setting cloudSetting = cloudPass->GetSetting();
 			cloudSetting.tiling = presetInfo.preset.cloudTile;
 			cloudSetting.extinctionCoefficient = presetInfo.preset.cloudEC;
@@ -942,7 +974,7 @@ void BasisScene::UpdateSun()
 {
 	const float length = 10'000.f;
 	Camera sunCamera{};
-	sunCamera.SetPos({ -sun.x * length, -sun.y * length, -sun.z * length });
+	sunCamera.SetPos({ -setting.sun.x * length, -setting.sun.y * length, -setting.sun.z * length });
 	sunCamera.SetTo({ 0.f, 0.f, 0.f });
 	sunCamera.SetNear(1000.f);
 	sunCamera.SetFar(100'000.f);
@@ -953,31 +985,31 @@ void BasisScene::UpdateSun()
 
 	const glm::mat4 sunViewProj = sunCamera.GetMatrixProj() * sunCamera.GetMatrixView();;
 
-	mountain.data.sun = sun;
+	mountain.data.sun = setting.sun;
 	mountain.data.viewProj = sunViewProj;
 	mountain.material->UpdateBindingData(0, mountain.data);
-	city.data.sun = sun;
+	city.data.sun = setting.sun;
 	city.data.viewProj = sunViewProj;
 	for (std::unique_ptr<Material>& matPtr : city.materials)
 		matPtr->UpdateBindingData(0, city.data);
 
 	AtmospherePass::Setting atmosphere = atmospherePass->GetSetting();
-	atmosphere.sun = sun;
+	atmosphere.sun = setting.sun;
 	atmosphere.sunViewProj = mountain.data.viewProj;
 	atmospherePass->SetSetting(atmosphere);
 
 	HillairePass::Setting hillaireSetting = hillairePass->GetSetting();
-	hillaireSetting.sun = sun;
+	hillaireSetting.sun = setting.sun;
 	hillairePass->SetSetting(hillaireSetting);
 
-	lutPass->globalSetting.sun = sun;
+	lutPass->globalSetting.sun = setting.sun;
 	lutPass->globalSetting.sunViewProj = sunViewProj;
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::SkyView | LUTPass::LUTType::AerialPerspective);
 
 	shadowPass->SetCamera(sunCamera);
 
 	CloudPass::Setting cloudPassSetting = cloudPass->GetSetting();
-	cloudPassSetting.sun = sun;
+	cloudPassSetting.sun = setting.sun;
 	cloudPass->SetSetting(cloudPassSetting);
 }
 

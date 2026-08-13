@@ -26,6 +26,12 @@ void main()
 	
 	vec3 diffuse = texture(tex, uvs).rgb * ubo.sun.w;
 	float diff = max(0.0, dot(normal, -ubo.sun.xyz));
+	const vec3 up = vec3(0.0, 1.0, 0.0);
+	if (dot(up, -ubo.sun.xyz) < 0.0)
+	{
+		outColor = vec4(0.0, 0.0, 0.0, 1.0);
+		return;
+	}
 	
 	vec3 lightProjCoord = lightProjPos.xyz / lightProjPos.w;
 	vec2 lightProjUV = (lightProjCoord.xy + 1.0) * 0.5;
@@ -38,5 +44,5 @@ void main()
 	
 	float shadow = texture(shadowMap, vec3(lightProjUV, lightProjCoord.z - bias));
 	
-    outColor = vec4((shadow * diff + 0.01) * diffuse, 1.0);
+    outColor = vec4((shadow * diff) * diffuse, 1.0);
 }

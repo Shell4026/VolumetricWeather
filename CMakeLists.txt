@@ -48,13 +48,13 @@ set(PASS_CPPS
 "src/pass/CloudPaintPass.cpp"
 )
 set(WEATHER_HEADERS
-"include/weather/ArtistCloudSetting.h"
+"include/weather/Setting.h"
 "include/weather/AtmosphereRMSEMeasurement.h"
-"include/weather/CloudParameterMapper.h"
+"include/weather/ParameterMapper.h"
 )
 set(WEATHER_CPPS
 "src/weather/AtmosphereRMSEMeasurement.cpp"
-"src/weather/CloudParameterMapper.cpp"
+"src/weather/ParameterMapper.cpp"
 )
 set(RENDER_HEADERS 
 "include/render/BarrierBuilder.h"

@@ -2,7 +2,6 @@
 #include "Scene.h"
 #include "GLBLoader.h"
 #include "Camera.h"
-#include "weather/AtmosphereRMSEMeasurement.h"
 #include "PresetManager.h"
 
 #include "core/CircularQueue.hpp"
@@ -10,6 +9,9 @@
 #include "render/VulkanContext.h"
 #include "render/Drawable.hpp"
 #include "render/Shader.h"
+
+#include "weather/AtmosphereRMSEMeasurement.h"
+#include "weather/Setting.h"
 
 #include <glm/gtc/quaternion.hpp>
 
@@ -51,6 +53,7 @@ protected:
 	void BeginBuildCommandBuffer() override;
 private:
 	void DrawDebugGUI();
+	void DrawArtistGUI();
 	void DrawOverlay();
 	void DrawPresetGUI();
 	void SetAtmosphereModel(bool bHillare);
@@ -104,8 +107,6 @@ private:
 	std::vector<APass*> activePasses2;
 	std::vector<Drawable> drawables;
 
-	glm::vec4 sun{ -1.f, 0.f, -1.f, 15.f };
-
 	CircularQueue<double, 10> shadowPassElapsed;
 	CircularQueue<double, 10> opaquePassElapsed;
 	CircularQueue<double, 10> lowDepthPassElapsed;
@@ -122,6 +123,7 @@ private:
 
 	uint64_t counter = 0;
 	int menu = 0;
+	int artistMenu = 0;
 
 	struct Preset
 	{
@@ -154,5 +156,8 @@ private:
 	std::map<const VulkanImage*, ImageReCreateRequest> imgRecreateRequests;
 
 	std::unique_ptr<CloudEditor> cloudEditor;
+
+	WeatherSetting setting;
+	ArtistSetting artistSetting;
 	bool bCloudEnable = true;
 };
