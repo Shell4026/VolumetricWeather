@@ -22,6 +22,7 @@ public:
 		float atmosphereRadius = 6'460'000.f;
 		float mieCoefficient = 1.f;
 		float mieG = 0.8f;
+		float apDistanceFactor = 3.2f;
 		uint32_t transmittanceLUTSteps = 64;
 		uint32_t skyViewLUTSteps = 64;
 		uint32_t aerialPerspectiveLUTSteps = 5;
@@ -52,7 +53,6 @@ public:
 	void EnablePass(LUTTypeFlags flags) { enableLUTFlags |= flags; }
 	void DisablePass(LUTTypeFlags flags) { enableLUTFlags &= ~flags; }
 	void TogglePass(LUTTypeFlags flags) { enableLUTFlags ^= flags; }
-	void UseLightShadow(bool b) { bUseLightShadow = b; }
 
 	void UpdateLUTFlags(LUTTypeFlags types) { updateLUTFlags |= types; }
 	void ReCreateSkyViewLUT(uint32_t width, uint32_t height);
@@ -66,7 +66,6 @@ public:
 	auto GetAerialPerspectiveLUT() const -> VulkanImage* { return aerialPerspective.lut.get(); }
 	auto GetAerialShadowSampler() const -> const VulkanSampler* { return aerialPerspective.sampler; } // 같은 샘플러
 	auto GetAerialShadowLUT() const -> VulkanImage* { return aerialShadow.lut.get(); }
-	auto IsUseLightShadow() const -> bool { return bUseLightShadow; }
 	auto GetLUTElpasedTimeMs(LUTType type) const -> double;
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
@@ -109,17 +108,17 @@ private:
 		float mieCoefficient = 1.f;
 
 		float mieG = 0.8f;
+		float distanceFactor = 3.2f;
 	} aerialSetting;
 	struct alignas(16) AerialShadowSetting
 	{
 		glm::vec4 sun;
 		glm::mat4 sunViewProj;
+
 		uint32_t steps = 20;
 		float groundRadius = 6'360'000.f;
 		float atmosphereRadius = 6'460'000.f;
-		float mieCoefficient = 1.f;
-
-		float mieG = 0.8f;
+		float apFactor = 3.2f;
 	} shadowSetting;
 
 	struct Transmittance
@@ -161,12 +160,9 @@ private:
 	struct AerialShadow
 	{
 		std::unique_ptr<Shader> shader;
-		std::unique_ptr<Shader> shader2;
 		std::unique_ptr<Material> material;
-		std::unique_ptr<Material> material2;
 		std::unique_ptr<VulkanImage> lut;
 		VkPipeline pipeline = VK_NULL_HANDLE;
-		VkPipeline pipeline2 = VK_NULL_HANDLE;
 		GPUTimer timer;
 	} aerialShadow;
 
@@ -178,6 +174,4 @@ private:
 
 	uint32_t updateLUTFlags = 0;
 	uint32_t enableLUTFlags = LUTType::All;
-	
-	bool bUseLightShadow = false;
 };

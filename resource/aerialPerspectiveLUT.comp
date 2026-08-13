@@ -13,12 +13,14 @@ layout(set = 1, binding = 0) uniform Setting
 {
 	vec4 sun;
 	mat4 sunViewProj;
+	
 	int steps;
 	float groundRadius;
 	float atmosphereRadius;
 	float mieCoefficient;
 	
 	float mieG;
+	float distanceFactor;
 } setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image3D outImage;
 layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
@@ -187,8 +189,9 @@ void main()
 	{
 		// const float sliceBegin = (z - 1) * sliceLength;
 		// const float sliceEnd = z * sliceLength;
-		const float sliceBegin = 32000 * (exp(3.2 * (z - 1) / 31) - 1) / (exp(3.2) - 1);
-		const float sliceEnd = 32000 * (exp(3.2 * z / 31) - 1) / (exp(3.2) - 1);
+		const float factor = setting.distanceFactor;
+		const float sliceBegin = 32000 * (exp(factor * (z - 1) / 31) - 1) / (exp(factor) - 1);
+		const float sliceEnd = 32000 * (exp(factor * z / 31) - 1) / (exp(factor) - 1);
 		const float stepSize = (sliceEnd - sliceBegin) / setting.steps;
 		
 		for (int i = 0; i < setting.steps; ++i)

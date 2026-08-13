@@ -176,6 +176,7 @@ float GetHeightMask(float cloudInnerRadius, float cloudOuterRadius, vec3 sampleP
 
 float GetCloudMask(vec3 samplePos)
 {
+	return 0.f;
 	const float worldSizeMeter = 128 * 1000.0;
 	const vec2 uv = vec2(samplePos.x, samplePos.z) / worldSizeMeter + 0.5;
 	const float mask = texture(cloudMaskTex, uv).r;

@@ -494,6 +494,16 @@ void BasisScene::DrawDebugGUI()
 					ImGui::Text("Steps");
 					if (ImGui::SliderInt("##AerialPerspectiveLUTStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialPerspectiveLUTSteps), 1, 16))
 						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
+					if (ImGui::SliderFloat("Distance Factor", &lutPass->globalSetting.apDistanceFactor, 0.1f, 6.4f))
+					{
+						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
+						if (currentAtmospherePass == hillairePass.get())
+						{
+							HillairePass::Setting setting = hillairePass->GetSetting();
+							setting.apFactor = lutPass->globalSetting.apDistanceFactor;
+							hillairePass->SetSetting(setting);
+						}
+					}
 				}
 
 				if (ImGui::CollapsingHeader("Volumetric Shadow"))
@@ -505,9 +515,6 @@ void BasisScene::DrawDebugGUI()
 						lutPass->TogglePass(LUTPass::LUTType::AerialShadow);
 						hillairePass->SetSetting(setting);
 					}
-					bool IsUseLightShadow = lutPass->IsUseLightShadow();
-					if (ImGui::Checkbox("Light", &IsUseLightShadow))
-						lutPass->UseLightShadow(IsUseLightShadow);
 
 					ImGui::Text("Steps");
 					if (ImGui::SliderInt("##AerialShadowStep", reinterpret_cast<int*>(&lutPass->globalSetting.aerialShadowSteps), 1, 128))

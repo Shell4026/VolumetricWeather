@@ -17,9 +17,7 @@ layout(set = 1, binding = 0) uniform Setting
 	uint steps;
 	float groundRadius;
 	float atmosphereRadius;
-	float mieCoefficient; // 여기선 필요없음
-	
-	float mieG;
+	float apFactor;
 } setting;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
 layout(set = 1, binding = 2) uniform sampler3D aerialPerspectiveLUT;
@@ -72,7 +70,7 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 float GetAerialPerspectiveZ(float depth)
 {
     const float maxDistance = 32000;
-    const float exponent = 3.2;
+    const float exponent = setting.apFactor;
 
     const float x = clamp(depth / maxDistance, 0.0, 1.0);
 
