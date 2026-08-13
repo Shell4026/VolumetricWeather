@@ -49,35 +49,6 @@ vec2 PreviousCloudUV(vec3 rayDir, float cloudDepth)
 	return prevUV;
 }
 
-// void CurrentNeighborhoodBounds(ivec2 pixel, out vec4 neighborhoodMin, out vec4 neighborhoodMax)
-// {
-	// const ivec2 size = textureSize(curCloudTex, 0);
-	// neighborhoodMin = vec4(1e20);
-	// neighborhoodMax = vec4(-1e20);
-	// for (int y = -1; y <= 1; ++y)
-	// {
-		// for (int x = -1; x <= 1; ++x)
-		// {
-			// const ivec2 coord = clamp(pixel + ivec2(x, y), ivec2(0), size - ivec2(1));
-			// const vec4 cloud = texelFetch(curCloudTex, coord, 0);
-			// neighborhoodMin = min(neighborhoodMin, cloud);
-			// neighborhoodMax = max(neighborhoodMax, cloud);
-		// }
-	// }
-// }
-
-vec4 ClipAABB(vec4 boxMin, vec4 boxMax, vec4 historyColor)
-{
-	const vec4 center = (boxMax + boxMin) * 0.5;
-	const vec4 extents = (boxMax - boxMin) * 0.5 + 1e-5;
-
-	const vec4 rayDir = historyColor - center;
-	const vec4 rayDirUnit = abs(rayDir / extents);
-	const float maxUnit = max(max(rayDirUnit.x, rayDirUnit.y), max(rayDirUnit.z, rayDirUnit.w));
-	
-	return (maxUnit > 1.0) ? center + rayDir / maxUnit : historyColor;
-}
-
 void CurrentNeighborhood(ivec2 pixel, out vec4 mean, out vec4 stddev)
 {
     const ivec2 size = textureSize(curCloudTex, 0);
@@ -114,7 +85,7 @@ void main()
 	imageStore(trDepth, pixel, vec4(curDepth));
 	if (curDepth < 0.0)
 	{
-		imageStore(accumTex, pixel, ivec4(accum / 2));
+		imageStore(accumTex, pixel, ivec4(0));
 		imageStore(trOutput, pixel, curCloud);
 		return;
 	}
@@ -144,14 +115,19 @@ void main()
 
 	float historyWeight = min(accum / float(accum + 1), maxHistoryWeight);
 	
-	vec4 mean, stddev;
-	CurrentNeighborhood(pixel, mean, stddev);
-	const vec4 gamma = 1.25 * stddev;
-	vec4 boxMin = max(mean - gamma, vec4(0.0));
-	vec4 boxMax = mean + gamma;
-	boxMax.a = min(boxMax.a, 1.0);
-	prevCloud = ClipAABB(boxMin, boxMax, prevCloud);
-	
+	if (trp.historyValid == 1)
+	{
+		vec4 mean, stddev;
+		CurrentNeighborhood(pixel, mean, stddev);
+		const vec4 gamma = 2.5 * stddev;
+		vec4 boxMin = max(mean - gamma, vec4(0.0));
+		vec4 boxMax = mean + gamma;
+		boxMax.a = min(boxMax.a, 1.0);
+		
+		const vec3 clippedS = clamp(prevCloud.rgb, boxMin.rgb, boxMax.rgb);
+		const float clippedT = clamp(prevCloud.a, boxMin.a, boxMax.a);
+		prevCloud = vec4(clippedS, clippedT);
+	}
 	const vec3 inScattering = mix(curCloud.rgb, prevCloud.rgb, historyWeight);
 	const float transmittance = mix(curCloud.a, prevCloud.a, historyWeight);
 	
