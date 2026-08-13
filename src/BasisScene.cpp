@@ -969,7 +969,7 @@ void BasisScene::ControlCamera(double dt)
 	}
 	if (bMove)
 	{
-		camera.UpdatdeMatrix();
+		camera.UpdateMatrix();
 		UpdateCameraData();
 		cloudTRPass->SetHistoryValid(1);
 		lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialPerspective);
