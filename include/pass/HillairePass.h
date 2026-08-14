@@ -18,7 +18,9 @@ public:
 	struct alignas(16) Setting
 	{
 		glm::vec4 sun;
-		float radius = 6'460'000.f;
+
+		float groundRadius = 6'360'000.f;
+		float atmosphereRadius = 6'460'000.f;
 		uint32_t modeFlags = 0b0111;
 		float apFactor = 3.2f;
 	};

@@ -392,16 +392,19 @@ void BasisScene::DrawDebugGUI()
 			else
 			{
 				HillairePass* const pass = static_cast<HillairePass*>(currentAtmospherePass);
-				LUTPass::GlobalSetting& setting = lutPass->globalSetting;
+				HillairePass::Setting setting = pass->GetSetting();
+				LUTPass::GlobalSetting& lutSetting = lutPass->globalSetting;
 				int atmoRadiusKM = static_cast<int>(lutPass->globalSetting.atmosphereRadius / 1000.f);
 				if (ImGui::SliderInt("Atmosphere Radius(km)", &atmoRadiusKM, 6370, 10000))
 				{
 					setting.atmosphereRadius = atmoRadiusKM * 1000.f;
+					lutSetting.atmosphereRadius = setting.atmosphereRadius;
+					pass->SetSetting(setting);
 					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 				}
-				if (ImGui::SliderFloat("Mie Coefficient", &setting.mieCoefficient, 0.0, 100.0))
+				if (ImGui::SliderFloat("Mie Coefficient", &lutSetting.mieCoefficient, 0.0, 100.0))
 					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
-				if (ImGui::SliderFloat("Mie G", &setting.mieG, 0.0, 1.0))
+				if (ImGui::SliderFloat("Mie G", &lutSetting.mieG, 0.0, 1.0))
 					lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
 			}
 
@@ -545,7 +548,7 @@ void BasisScene::DrawDebugGUI()
 				HillairePass::Setting hillSetting = hillairePass->GetSetting();
 				if (currentAtmospherePass == atmospherePass.get())
 				{
-					hillSetting.radius = atmoSetting.radius;
+					hillSetting.atmosphereRadius = atmoSetting.radius;
 					hillairePass->SetSetting(hillSetting);
 				}
 				else
