@@ -21,15 +21,15 @@ void LowDepthPass::Clear()
 	APass::Clear();
 }
 
-void LowDepthPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void LowDepthPass::SetUsages(const FrameContext& frame)
 {
-	APass::SetUsages(ctx, frame);
+	APass::SetUsages(frame);
 	AddUsage(halfDepth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	AddUsage(quarterDepth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	AddUsage(depthTex->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
-void LowDepthPass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void LowDepthPass::Record(const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);

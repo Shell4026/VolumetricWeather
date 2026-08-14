@@ -65,10 +65,40 @@ void LUTPass::Clear()
 	APass::Clear();
 }
 
-void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void LUTPass::SetUsages(const FrameContext& frame)
+{
+	APass::SetUsages(frame);
+	if (enableLUTFlags == 0)
+		return;
+	if (enableLUTFlags & LUTType::Transmittance)
+		AddUsage(transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	if (enableLUTFlags & LUTType::MultipleScattering)
+		AddUsage(multipleScattering.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	if (enableLUTFlags & LUTType::SkyView)
+		AddUsage(skyView.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	if (enableLUTFlags & LUTType::AerialPerspective)
+	{
+		AddUsage(aerialPerspective.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+		AddUsage(shadowMap->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+	if (enableLUTFlags & LUTType::AerialShadow)
+	{
+		AddUsage(depthTex->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		AddUsage(shadowMap->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		AddUsage(aerialShadow.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+		AddUsage(noiseTex->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	}
+}
+
+void LUTPass::BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos)
+{
+	APass::BeginRecord(frame, barrierInfos);
+	UpdateMaterials();
+}
+
+void LUTPass::Record(const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
-	UpdateMaterials();
 	// Transmittance LUT
 	if ((enableLUTFlags & LUTType::Transmittance) && (updateLUTFlags & LUTType::Transmittance))
 	{
@@ -195,31 +225,6 @@ void LUTPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 		}
 	}
 	updateLUTFlags = 0;
-}
-
-void LUTPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
-{
-	APass::SetUsages(ctx, frame);
-	if (enableLUTFlags == 0)
-		return;
-	if (enableLUTFlags & LUTType::Transmittance)
-		AddUsage(transmittance.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	if (enableLUTFlags & LUTType::MultipleScattering)
-		AddUsage(multipleScattering.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	if (enableLUTFlags & LUTType::SkyView)
-		AddUsage(skyView.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	if (enableLUTFlags & LUTType::AerialPerspective)
-	{
-		AddUsage(aerialPerspective.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-		AddUsage(shadowMap->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	}
-	if (enableLUTFlags & LUTType::AerialShadow)
-	{
-		AddUsage(depthTex->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		AddUsage(shadowMap->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-		AddUsage(aerialShadow.lut->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-		AddUsage(noiseTex->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	}
 }
 
 void LUTPass::ReCreateSkyViewLUT(uint32_t width, uint32_t height)

@@ -16,11 +16,11 @@ public:
 	virtual void Clear();
 	virtual void Update(double dt) {}
 
-	void BeginRecord(const std::vector<BarrierInfo>* barrierInfos = nullptr);
-	virtual void Record(const VulkanContext& ctx, const FrameContext& frame) = 0;
-	void EndRecord(const std::vector<BarrierInfo>* barrierInfos = nullptr);
+	virtual void SetUsages(const FrameContext& frame);
 
-	virtual void SetUsages(const VulkanContext& ctx, const FrameContext& frame);
+	virtual void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos = nullptr);
+	virtual void Record(const FrameContext& frame) = 0;
+	virtual void EndRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos = nullptr);
 
 	void UseTimer(bool bUse) { bUseTimer = bUse; }
 	void CreateFence();

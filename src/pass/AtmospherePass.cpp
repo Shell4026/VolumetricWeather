@@ -30,7 +30,7 @@ void AtmosphereBasePass::Clear()
 	APass::Clear();
 }
 
-void AtmosphereBasePass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void AtmosphereBasePass::Record(const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	const uint32_t width = outputImage->GetInfo().extent.width;
@@ -42,9 +42,9 @@ void AtmosphereBasePass::Record(const VulkanContext& ctx, const FrameContext& fr
 	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 8.f)), static_cast<uint32_t>(std::ceil(height / 8.f)), 1);
 }
 
-void AtmosphereBasePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void AtmosphereBasePass::SetUsages(const FrameContext& frame)
 {
-	APass::SetUsages(ctx, frame);
+	APass::SetUsages(frame);
 	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	AddUsage(
 		opaqueDepthTex->GetImage(), 

@@ -20,8 +20,8 @@ public:
 	~CloudPaintPass();
 
 	void Clear() override;
-	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
-	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	void Record(const FrameContext& frame) override;
+	void SetUsages(const FrameContext& frame) override;
 
 	void SetCanvas(const VulkanImage& img) { canvasImagePtr = &img; }
 	auto GetCanvas() const -> const VulkanImage* { return canvasImagePtr; }

@@ -38,7 +38,7 @@ void BlitPass::Clear()
 	APass::Clear();
 }
 
-void BlitPass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void BlitPass::Record(const FrameContext& frame)
 {
 	std::lock_guard<std::mutex> lock{ mu };
 	if (pendingRequests.empty())
@@ -82,9 +82,9 @@ void BlitPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	bHasRequest.notify_all();
 }
 
-void BlitPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void BlitPass::SetUsages(const FrameContext& frame)
 {
-	APass::SetUsages(ctx, frame);
+	APass::SetUsages(frame);
 	std::lock_guard<std::mutex> lock{ mu };
 	for (BlitRequest& req : pendingRequests)
 	{

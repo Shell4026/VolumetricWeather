@@ -14,9 +14,9 @@ HillairePass::HillairePass(const LowDepthPass& lowDepthPass, const LUTPass& lutP
 {
 }
 
-void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void HillairePass::SetUsages(const FrameContext& frame)
 {
-	AtmosphereBasePass::SetUsages(ctx, frame);
+	AtmosphereBasePass::SetUsages(frame);
 	AddUsage(
 		lutPass.GetTransmittanceLUT()->GetImage(),
 		VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
@@ -51,11 +51,12 @@ void HillairePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame
 		VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
-void HillairePass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void HillairePass::BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos)
 {
+	AtmosphereBasePass::BeginRecord(frame, barrierInfos);
+
 	material->UpdateBindingData(8, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
 	material->UpdateBindingData(9, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler());
-	AtmosphereBasePass::Record(ctx, frame);
 }
 
 void HillairePass::UpdateMaterial()

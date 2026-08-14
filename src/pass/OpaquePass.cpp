@@ -24,7 +24,32 @@ void OpaquePass::Clear()
 	APass::Clear();
 }
 
-void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void OpaquePass::SetUsages(const FrameContext& frame)
+{
+	APass::SetUsages(frame);
+	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	AddUsage(
+		outputImageDepth->GetImage(),
+		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+		VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+	for (const Drawable* drawable : drawables)
+	{
+		if (drawable == nullptr || drawable->mat == nullptr)
+			continue;
+		for (auto& [view, usingTex] : drawable->mat->GetUsingTextures())
+		{
+			if (usingTex.imagePtr == nullptr)
+				continue;
+			VkImageAspectFlags aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT;
+			if (usingTex.imagePtr->GetInfo().format == VkFormat::VK_FORMAT_D32_SFLOAT ||
+				usingTex.imagePtr->GetInfo().format == VkFormat::VK_FORMAT_D24_UNORM_S8_UINT)
+				aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT;
+			AddUsage(usingTex.imagePtr->GetImage(), aspect, usingTex.usage);
+		}
+	}
+}
+
+void OpaquePass::Record(const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	VkRenderingAttachmentInfo colorAttachment{};
@@ -95,31 +120,6 @@ void OpaquePass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdEndRendering(cmd);
 
 	drawables.clear();
-}
-
-void OpaquePass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
-{
-	APass::SetUsages(ctx, frame);
-	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	AddUsage(
-		outputImageDepth->GetImage(), 
-		VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, 
-		VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-	for (const Drawable* drawable : drawables)
-	{
-		if (drawable == nullptr || drawable->mat == nullptr)
-			continue;
-		for (auto& [view, usingTex] : drawable->mat->GetUsingTextures())
-		{
-			if (usingTex.imagePtr == nullptr)
-				continue;
-			VkImageAspectFlags aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT;
-			if (usingTex.imagePtr->GetInfo().format == VkFormat::VK_FORMAT_D32_SFLOAT ||
-				usingTex.imagePtr->GetInfo().format == VkFormat::VK_FORMAT_D24_UNORM_S8_UINT)
-				aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT;
-			AddUsage(usingTex.imagePtr->GetImage(), aspect, usingTex.usage);
-		}
-	}
 }
 
 void OpaquePass::SetImageSize(uint32_t width, uint32_t height)

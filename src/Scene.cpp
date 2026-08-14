@@ -91,7 +91,7 @@ void AScene::Render(double dt)
 	BeginBuildCommandBuffer();
 
 	for (APass* pass : GetActivePassList())
-		pass->SetUsages(ctx, frames[currentFrameIdx]);
+		pass->SetUsages(frames[currentFrameIdx]);
 
 	BuildCommandBuffer();
 	SubmitCommandBuffer();
@@ -230,12 +230,12 @@ void AScene::BuildCommandBuffer()
 	int idx = 0;
 	for (APass* pass : activePassList)
 	{
-		pass->BeginRecord(&barriers[idx]);
-		pass->Record(ctx, frame);
+		pass->BeginRecord(frame, &barriers[idx]);
+		pass->Record(frame);
 		if (idx == activePassList.size() - 1)
-			pass->EndRecord(&endBarrier);
+			pass->EndRecord(frame, &endBarrier);
 		else
-			pass->EndRecord();
+			pass->EndRecord(frame);
 		++idx;
 	}
 }

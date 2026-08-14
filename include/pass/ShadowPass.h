@@ -19,11 +19,12 @@ public:
 	~ShadowPass();
 
 	void Clear() override;
+	
+	void SetUsages(const FrameContext& frame) override;
 
-	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
-
-	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
-
+	void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos = nullptr) override;
+	void Record(const FrameContext& frame) override;
+	
 	/// @brief 넣으면 shadow셰이더로 렌더링 함
 	void PushDrawable(const Drawable& mesh) override { drawables.push_back(&mesh); }
 

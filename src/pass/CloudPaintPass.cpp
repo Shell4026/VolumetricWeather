@@ -24,7 +24,7 @@ void CloudPaintPass::Clear()
 	APass::Clear();
 }
 
-void CloudPaintPass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void CloudPaintPass::Record(const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
 
@@ -38,9 +38,9 @@ void CloudPaintPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1);
 }
 
-void CloudPaintPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void CloudPaintPass::SetUsages(const FrameContext& frame)
 {
-	APass::SetUsages(ctx, frame);
+	APass::SetUsages(frame);
 	if (canvasImagePtr == nullptr)
 		return;
 	AddUsage(canvasImagePtr->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);

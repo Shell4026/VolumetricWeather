@@ -16,6 +16,7 @@ public:
 	{
 		glm::vec3 pos{ 0.f };
 		alignas(16) glm::mat4 viewProj{ 1.f };
+
 		float historyWeight = 0.95f;
 		uint32_t historyValid = 0;
 	};
@@ -23,8 +24,13 @@ public:
 	CloudTRPass(const CloudPass& cloudPass);
 
 	void Clear() override;
-	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
-	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+
+	void SetUsages(const FrameContext& frame) override;
+
+	void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos = nullptr) override;
+	void Record(const FrameContext& frame) override;
+	void EndRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos = nullptr) override;
+	
 	void SetSetting(const Setting& setting);
 	void InvalidateHistory();
 	void SetHistoryValid(uint32_t valid);
@@ -55,5 +61,6 @@ private:
 	const VulkanSampler* sampler = nullptr;
 
 	Setting setting;
+	uint32_t frameIdx = 0;
 	uint64_t cloudSettingRevision = 0;
 };

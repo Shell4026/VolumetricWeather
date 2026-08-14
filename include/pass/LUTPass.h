@@ -42,9 +42,11 @@ public:
 public:
 	void Clear() override;
 
-	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
+	void SetUsages(const FrameContext& frame) override;
 
-	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos = nullptr) override;
+	void Record(const FrameContext& frame) override;
+	
 	void SetShadowMap(const VulkanImage& shadowMap) { this->shadowMap = &shadowMap; }
 	void SetShadowSampler(const VulkanSampler& sampler) { shadowSampler = &sampler; }
 	void SetDepthTexture(const VulkanImage& depthTexture) { depthTex = &depthTexture; }

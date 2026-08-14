@@ -44,8 +44,12 @@ public:
 	};
 public:
 	void Clear() override;
-	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
-	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+
+	void SetUsages(const FrameContext& frame) override;
+
+	void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos) override;
+	void Record(const FrameContext& frame) override;
+	
 	void SetSetting(const Setting& setting);
 	void SetSceneDepthTexture(const VulkanImage& img) { sceneDepth = &img; }
 	void SetTransmittanceLUT(const VulkanImage& img, const VulkanSampler& sampler) { transmittanceLUT = &img; transmittanceLUTSampler = &sampler; }

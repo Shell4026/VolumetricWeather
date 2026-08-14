@@ -31,14 +31,40 @@ void CloudTRPass::Clear()
 		pipeline = VK_NULL_HANDLE;
 	}
 }
-void CloudTRPass::Record(const VulkanContext& ctx, const FrameContext& frame)
-{
-	material->UpdateBindingData(0, setting);
-	setting.pos = frame.cameraPtr->GetPos();
-	setting.viewProj = frame.cameraPtr->GetMatrixProj() * frame.cameraPtr->GetMatrixView();
-	if (setting.historyValid == 0)
-		setting.historyValid = 1;
 
+void CloudTRPass::SetUsages(const FrameContext& frame)
+{
+	APass::SetUsages(frame);
+
+	const VulkanImage* temp = curOutput;
+	curOutput = prevOutput;
+	prevOutput = temp;
+
+	AddUsage(curOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	AddUsage(depth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	AddUsage(cloudPass.GetOutputImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(cloudPass.GetDepthImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(prevOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	AddUsage(accum->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+}
+
+void CloudTRPass::BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos)
+{
+	APass::BeginRecord(frame, barrierInfos);
+
+	if (cloudSettingRevision != cloudPass.GetSettingRevision())
+	{
+		InvalidateHistory();
+		cloudSettingRevision = cloudPass.GetSettingRevision();
+	}
+
+	material->UpdateBindingData(0, setting);
+	material->UpdateBindingData(1, *curOutput, nullptr);
+	material->UpdateBindingData(2, *depth, nullptr);
+	material->UpdateBindingData(5, *prevOutput, sampler->GetSampler());
+}
+void CloudTRPass::Record(const FrameContext& frame)
+{
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 	const uint32_t width = curOutput->GetInfo().extent.width;
@@ -48,28 +74,14 @@ void CloudTRPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1.f);
 }
 
-void CloudTRPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void CloudTRPass::EndRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos)
 {
-	APass::SetUsages(ctx, frame);
-	if (cloudSettingRevision != cloudPass.GetSettingRevision())
-	{
-		InvalidateHistory();
-		cloudSettingRevision = cloudPass.GetSettingRevision();
-	}
-	const VulkanImage* temp = curOutput;
-	curOutput = prevOutput;
-	prevOutput = temp;
+	APass::EndRecord(frame, barrierInfos);
 
-	material->UpdateBindingData(1, *curOutput, nullptr);
-	material->UpdateBindingData(2, *depth, nullptr);
-	material->UpdateBindingData(5, *prevOutput, sampler->GetSampler());
-
-	AddUsage(curOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	AddUsage(depth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	AddUsage(cloudPass.GetOutputImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	AddUsage(cloudPass.GetDepthImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	AddUsage(prevOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-	AddUsage(accum->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
+	setting.pos = frame.cameraPtr->GetPos();
+	setting.viewProj = frame.cameraPtr->GetMatrixProj() * frame.cameraPtr->GetMatrixView();
+	if (setting.historyValid == 0)
+		setting.historyValid = 1;
 }
 
 void CloudTRPass::SetSetting(const Setting& setting)

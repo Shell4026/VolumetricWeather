@@ -20,9 +20,9 @@ public:
 
 	void Clear() override;
 
-	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
+	void Record(const FrameContext& frame) override;
 
-	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	void SetUsages(const FrameContext& frame) override;
 
 	auto RequestBlit(const VulkanImage& img, int32_t x, int32_t y, uint32_t width = 1, uint32_t height = 1) -> std::future<std::vector<glm::vec4>>;
 protected:

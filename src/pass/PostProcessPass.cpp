@@ -29,13 +29,21 @@ void PostProcessPass::Clear()
 	}
 	APass::Clear();
 }
-void PostProcessPass::Record(const VulkanContext& ctx, const FrameContext& frame)
+
+void PostProcessPass::SetUsages(const FrameContext& frame)
+{
+	APass::SetUsages(frame);
+	AddUsage(ctx->GetSwapChainImages()[frame.imgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
+void PostProcessPass::Record(const FrameContext& frame)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	VkRenderingAttachmentInfo colorAttachment{};
 	colorAttachment.sType = VkStructureType::VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	colorAttachment.imageLayout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	colorAttachment.imageView = ctx.GetSwapChainImageViews()[frame.imgIdx];
+	colorAttachment.imageView = ctx->GetSwapChainImageViews()[frame.imgIdx];
 	colorAttachment.clearValue.color = { {0.f, 0.f, 0.f, 1.f} };
 	colorAttachment.loadOp = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachment.storeOp = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE;
@@ -44,13 +52,13 @@ void PostProcessPass::Record(const VulkanContext& ctx, const FrameContext& frame
 	renderingInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_RENDERING_INFO;
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachments = &colorAttachment;
-	renderingInfo.renderArea = { { 0, 0 }, { ctx.GetSwapChainExtent().width, ctx.GetSwapChainExtent().height } };
+	renderingInfo.renderArea = { { 0, 0 }, { ctx->GetSwapChainExtent().width, ctx->GetSwapChainExtent().height } };
 	renderingInfo.layerCount = 1;
 
 	const float x = 0.f;
 	const float y = 0.f;
-	const float w = ctx.GetSwapChainExtent().width;
-	const float h = ctx.GetSwapChainExtent().height;
+	const float w = ctx->GetSwapChainExtent().width;
+	const float h = ctx->GetSwapChainExtent().height;
 
 	vkCmdBeginRendering(cmd, &renderingInfo);
 
@@ -82,12 +90,7 @@ void PostProcessPass::Record(const VulkanContext& ctx, const FrameContext& frame
 
 	vkCmdEndRendering(cmd);
 }
-void PostProcessPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
-{
-	APass::SetUsages(ctx, frame);
-	AddUsage(ctx.GetSwapChainImages()[frame.imgIdx], VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	AddUsage(outputImage->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-}
+
 void PostProcessPass::SetExposure(float exposure)
 {
 	data.exposure = exposure;

@@ -17,8 +17,8 @@ public:
 	~AtmosphereBasePass();
 
 	void Clear() override;
-	void Record(const VulkanContext& ctx, const FrameContext& frame) override;
-	void SetUsages(const VulkanContext& ctx, const FrameContext& frame) override;
+	void Record(const FrameContext& frame) override;
+	void SetUsages(const FrameContext& frame) override;
 	void SetOpaqueDepthTexture(const VulkanImage& opaqueDepthTex) { this->opaqueDepthTex = &opaqueDepthTex; }
 	void SetOpaqueTexture(const VulkanImage& opaqueDepthTex) { this->opaqueTex = &opaqueDepthTex; }
 	void SetShadowMap(const VulkanImage& shadowMap) { this->shadowMap = &shadowMap; }

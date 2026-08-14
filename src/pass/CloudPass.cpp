@@ -21,26 +21,10 @@ void CloudPass::Clear()
 		pipeline = VK_NULL_HANDLE;
 	}
 }
-void CloudPass::Record(const VulkanContext& ctx, const FrameContext& frame)
-{
-	const VkCommandBuffer cmd = GetCommandBuffer();
-	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-	const uint32_t width = output->GetInfo().extent.width;
-	const uint32_t height = output->GetInfo().extent.height;
-	const std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, material->GetVkDescriptorSet() };
-	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, shader->GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
-	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1.f);
-}
 
-void CloudPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
+void CloudPass::SetUsages(const FrameContext& frame)
 {
-	APass::SetUsages(ctx, frame);
-
-	frameIdx = frameIdx + 1;
-	time += frame.dt;
-	setting.frame = frameIdx;
-	setting.time = time;
-	material->UpdateBindingData(0, setting);
+	APass::SetUsages(frame);
 
 	AddUsage(output->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	AddUsage(depth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
@@ -52,10 +36,32 @@ void CloudPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
 	AddUsage(cloudMask->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
+void CloudPass::BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos)
+{
+	APass::BeginRecord(frame, barrierInfos);
+
+	frameIdx = frameIdx + 1;
+	time += frame.dt;
+	setting.frame = frameIdx;
+	setting.time = time;
+	material->UpdateBindingData(0, setting);
+}
+void CloudPass::Record(const FrameContext& frame)
+{
+	const VkCommandBuffer cmd = GetCommandBuffer();
+	vkCmdBindPipeline(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+	const uint32_t width = output->GetInfo().extent.width ;
+	const uint32_t height = output->GetInfo().extent.height;
+	const std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, material->GetVkDescriptorSet() };
+	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, shader->GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
+	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 16.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1.f);
+}
+
 void CloudPass::SetSetting(const Setting& setting)
 {
 	this->setting = setting;
 	++settingRevision;
+	frameIdx = 0;
 }
 
 void CloudPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)

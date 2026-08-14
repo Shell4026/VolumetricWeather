@@ -35,12 +35,23 @@ void ShadowPass::Clear()
 	APass::Clear();
 }
 
-void ShadowPass::Record(const VulkanContext& ctx, const FrameContext& frame)
+void ShadowPass::SetUsages(const FrameContext& frame)
 {
+	APass::SetUsages(frame);
+	AddUsage(sunShadowMap->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+}
+
+void ShadowPass::BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos)
+{
+	APass::BeginRecord(frame, barrierInfos);
+
 	uniformData.pos = cam.GetPos();
 	uniformData.viewProj = cam.GetMatrixProj() * cam.GetMatrixView();
 	material->UpdateBindingData(0, uniformData);
+}
 
+void ShadowPass::Record(const FrameContext& frame)
+{
 	const VkCommandBuffer cmd = GetCommandBuffer();
 
 	VkRenderingAttachmentInfo depthAttachment{};
@@ -99,12 +110,6 @@ void ShadowPass::Record(const VulkanContext& ctx, const FrameContext& frame)
 	vkCmdEndRendering(cmd);
 
 	drawables.clear();
-}
-
-void ShadowPass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
-{
-	APass::SetUsages(ctx, frame);
-	AddUsage(sunShadowMap->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT, VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 }
 
 void ShadowPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)

@@ -44,7 +44,12 @@ void APass::Clear()
 	ctx = nullptr;
 }
 
-void APass::BeginRecord(const std::vector<BarrierInfo>* barrierInfos)
+void APass::SetUsages(const FrameContext& frame)
+{
+	imageUsages.clear();
+}
+
+void APass::BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos)
 {
 	const VkCommandBuffer cmd = GetCommandBuffer();
 	vkResetCommandBuffer(cmd, 0);
@@ -83,7 +88,7 @@ void APass::BeginRecord(const std::vector<BarrierInfo>* barrierInfos)
 		timer.Begin(cmd);
 }
 
-void APass::EndRecord(const std::vector<BarrierInfo>* barrierInfos)
+void APass::EndRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos)
 {
 	if (barrierInfos != nullptr)
 	{
@@ -113,11 +118,6 @@ void APass::EndRecord(const std::vector<BarrierInfo>* barrierInfos)
 	if (bUseTimer)
 		timer.End(cmd);
 	vkEndCommandBuffer(cmd);
-}
-
-void APass::SetUsages(const VulkanContext& ctx, const FrameContext& frame)
-{
-	imageUsages.clear();
 }
 
 void APass::CreateFence()
