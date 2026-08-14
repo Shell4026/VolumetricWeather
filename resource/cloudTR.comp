@@ -15,6 +15,7 @@ layout(set = 1, binding = 0) uniform TRP
 {
 	vec3 pos;
 	mat4 viewProj;
+	
 	float historyWeight;
 	uint historyValid;
 } trp;
@@ -72,6 +73,7 @@ void CurrentNeighborhood(ivec2 pixel, out vec4 mean, out vec4 stddev)
 void main()
 {
 	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	
 	const ivec2 size = imageSize(trOutput);
 	if (pixel.x >= size.x || pixel.y >= size.y)
 		return;
@@ -115,19 +117,17 @@ void main()
 
 	float historyWeight = min(accum / float(accum + 1), maxHistoryWeight);
 	
-	if (trp.historyValid == 1)
-	{
-		vec4 mean, stddev;
-		CurrentNeighborhood(pixel, mean, stddev);
-		const vec4 gamma = 2.5 * stddev;
-		vec4 boxMin = max(mean - gamma, vec4(0.0));
-		vec4 boxMax = mean + gamma;
-		boxMax.a = min(boxMax.a, 1.0);
-		
-		const vec3 clippedS = clamp(prevCloud.rgb, boxMin.rgb, boxMax.rgb);
-		const float clippedT = clamp(prevCloud.a, boxMin.a, boxMax.a);
-		prevCloud = vec4(clippedS, clippedT);
-	}
+	vec4 mean, stddev;
+	CurrentNeighborhood(pixel, mean, stddev);
+	const vec4 gamma = 2.5 * stddev;
+	vec4 boxMin = max(mean - gamma, vec4(0.0));
+	vec4 boxMax = mean + gamma;
+	boxMax.a = min(boxMax.a, 1.0);
+	
+	const vec3 clippedS = clamp(prevCloud.rgb, boxMin.rgb, boxMax.rgb);
+	const float clippedT = clamp(prevCloud.a, boxMin.a, boxMax.a);
+	prevCloud = vec4(clippedS, clippedT);
+	
 	const vec3 inScattering = mix(curCloud.rgb, prevCloud.rgb, historyWeight);
 	const float transmittance = mix(curCloud.a, prevCloud.a, historyWeight);
 	

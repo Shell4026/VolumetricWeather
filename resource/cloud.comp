@@ -410,6 +410,10 @@ int ClipCloudSegments(float maxDistance, inout vec2 segment0, inout vec2 segment
 void main()
 {
 	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	if ((setting.frameIdx & 1) == 0)
+		pixel.x = pixel.x * 2;
+	else
+		pixel.x = pixel.x * 2 + 1;
 	ivec2 size = imageSize(outImage);
 	if (pixel.x >= size.x || pixel.y >= size.y)
 		return;
