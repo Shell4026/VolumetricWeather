@@ -91,6 +91,8 @@ set(HEADERS
 "include/TextureLoader.h"
 "include/SceneManager.h"
 "include/CloudEditor.h" 
+"include/CurveEditor.h"
+"include/Bezier.hpp"
 )
 set(CPPS
 "src/Camera.cpp"
@@ -103,6 +105,7 @@ set(CPPS
 "src/SceneManager.cpp"
 "src/CloudEditor.cpp"
 )
+"src/CurveEditor.cpp")
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS} ${WEATHER_CPPS} ${WEATHER_HEADERS})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
