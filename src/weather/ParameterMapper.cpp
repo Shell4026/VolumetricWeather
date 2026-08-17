@@ -7,28 +7,11 @@
 auto ParameterMapper::ConvertRenderSetting(const ArtistSetting& artistSetting) -> WeatherSetting
 {
 	WeatherSetting setting{};
-	setting.lighting.sun = glm::vec4{ GetSunDirection(artistSetting), 15.f };
-
-	//const float amount = glm::clamp(artistSetting.amount, 0.0f, 1.0f);
-	//const float size = glm::clamp(artistSetting.size, 0.0f, 1.0f);
-	//const float detail = glm::clamp(artistSetting.detail, 0.0f, 1.0f);
-	//const float density = glm::clamp(artistSetting.density, 0.0f, 1.0f);
-	//const float verticalDevelopment = glm::clamp(artistSetting.verticalDevelopment, 0.0f, 1.0f);
-	//const float darkness = glm::clamp(artistSetting.darkness, 0.0f, 1.0f);
-	//const float softness = glm::clamp(artistSetting.softness, 0.0f, 1.0f);
-
-	//result.coverage = glm::mix(0.8f, 0.02f, glm::smoothstep(0.0f, 1.0f, amount));
-	//result.tiling = glm::mix(10'000.0f, 150'000.0f, size);
-	//result.tiling2 = glm::mix(10'000.0f, 500.0f, detail);
-	//result.extinctionCoefficient = glm::mix(10.0f, 500.0f, density * density);
-	//result.anvilBias = glm::smoothstep(0.55f, 1.0f, verticalDevelopment);
-	//result.darkStrength = glm::mix(0.2f, 4.0f, darkness);
-	//result.darkHeight = glm::mix(0.95f, 0.45f, darkness);
-	//result.powderStrength = softness;
-
-	//const float directionRadians = glm::radians(artistSetting.windDirectionDegrees);
-	//const float speedKmh = glm::max(artistSetting.windSpeedKmh, 0.0f);
-	//result.windVelKmh = glm::vec2{ std::cos(directionRadians), std::sin(directionRadians) } * speedKmh;
+	setting.atmosphere.atmosphereRadius = setting.atmosphere.groundRadius + 100'000.f * artistSetting.atmosphereThickness;
+	setting.atmosphere.rayleighColor *= glm::clamp(artistSetting.rayleighScatteringStrength, 0.f, 4.f);
+	setting.atmosphere.mieCoefficient = artistSetting.mieScatteringStrength;
+	setting.atmosphere.mieG = glm::clamp(artistSetting.mieAnisotropy, 0.f, 0.99f);
+	setting.lighting.sun = glm::vec4{ GetSunDirection(artistSetting), 15.f * artistSetting.sunIntensity };
 
 	return setting;
 }
@@ -36,17 +19,22 @@ auto ParameterMapper::ConvertRenderSetting(const ArtistSetting& artistSetting) -
 auto ParameterMapper::ConvertCloudSetting(const ArtistSetting& artistSetting) -> CloudPass::Setting
 {
 	CloudPass::Setting result{};
-	{
-		Bezier bezier{};
-		bezier.a = { 0.f, 0.f };
-		bezier.b = { 0.1f, 0.1f };
-		const glm::vec2 center{ 0.5f, 0.1f };
-		bezier.c = { 2.f * center - bezier.b };
-		bezier.d = { 1.f, 0.2f };
-		result.coverage = glm::mix(0.f, 0.2f, artistSetting.cloudAmount);//bezier.GetSample(artistSetting.cloudAmount).y;
-	}
-	result.brightnessStrength = glm::clamp(artistSetting.cloudBrightness, 0.f, 1.f);
+	const float amount = glm::clamp(artistSetting.cloudAmount, 0.f, 1.f);
+	const float sizeKM = glm::clamp(artistSetting.cloudSizeKM, 10.f, 100.f);
+	const float detail = glm::clamp(artistSetting.cloudDetail, 0.f, 1.f);
+	const float density = glm::clamp(artistSetting.cloudDensity, 0.f, 1.f);
+
+	result.coverage = glm::mix(0.f, 0.2f, amount);
+	result.tiling = sizeKM * 1'000.f;
+	result.tiling2 = glm::mix(10'000.f, 500.f, detail);
+	result.extinctionCoefficient = glm::mix(10.f, 500.f, density * density);
+	result.anvilBias = (artistSetting.cloudVerticalAmount + 1.f) / 2.f; // -1~1 -> 0~1
+	result.brightnessStrength = glm::clamp(artistSetting.cloudBrightness, 0.f, 4.f);
 	result.brightnessCurve = artistSetting.cloudBrightnessBezier;
+	result.powderStrength = glm::clamp(artistSetting.cloudSoftness, 0.f, 1.f);
+
+	const float directionRadians = glm::radians(artistSetting.windDirectionDegrees);
+	result.windVelKmh = glm::vec2{ std::cos(directionRadians), std::sin(directionRadians) } * artistSetting.windSpeedKmh;
 
 	return result;
 }

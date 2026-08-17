@@ -6,22 +6,23 @@ struct ArtistSetting
 {
 	float planetRotationAxis = 23.4f; // 지구 자전축
 	float atmosphereThickness = 1.f;
+	float rayleighScatteringStrength = 1.f;
+	float mieScatteringStrength = 1.f;
+	float mieAnisotropy = 0.8f;
 
 	float latitude = 37.f; // 대한민국 위도
 	float hour = 12.f;
 	float month = 6.f;
+	float sunIntensity = 1.f;
 	
 	float cloudAmount = 0.35f;
 	float cloudSizeKM = 100.f;
 	float cloudBrightness = 1.0f;
 	Bezier cloudBrightnessBezier;
-
-	float detail = 0.5f;
-	float density = 0.4f;
-	float verticalDevelopment = 0.4f;
-
-	
-	float softness = 0.5f;
+	float cloudDetail = 0.5f;
+	float cloudDensity = 0.75f;
+	float cloudVerticalAmount = 0.0f;
+	float cloudSoftness = 0.5f;
 
 	float windDirectionDegrees = 0.0f;
 	float windSpeedKmh = 10.0f;

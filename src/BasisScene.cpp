@@ -40,6 +40,7 @@ BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, S
 	
 	settingDirtyFlags |= WeatherDirtyFlag::Atmosphere;
 	settingDirtyFlags |= WeatherDirtyFlag::Lighting;
+	settingDirtyFlags |= WeatherDirtyFlag::Cloud;
 
 	presetManager.LoadPresets("presets.json");
 
@@ -586,11 +587,10 @@ void BasisScene::DrawDebugGUI()
 				ImGui::Separator();
 			}
 			CloudPass::Setting setting = cloudPass->GetSetting();
-			if (ImGui::SliderInt("Steps", reinterpret_cast<int*>(&setting.steps), 1, 128))
-			{
-				setting.steps = std::max(static_cast<int>(setting.steps), 1);
+			if (ImGui::SliderInt("MinSteps", reinterpret_cast<int*>(&setting.minSteps), 1, 128))
 				cloudPass->SetSetting(setting);
-			}
+			if (ImGui::SliderInt("MaxSteps", reinterpret_cast<int*>(&setting.maxSteps), setting.minSteps, 128))
+				cloudPass->SetSetting(setting);
 			if (ImGui::SliderInt("LightView Steps", reinterpret_cast<int*>(&setting.lightViewSteps), 1, 128))
 			{
 				setting.lightViewSteps = std::max(static_cast<int>(setting.lightViewSteps), 1);

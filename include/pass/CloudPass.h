@@ -16,25 +16,28 @@ class CloudPass : public APass, public IWeatherPass
 public:
 	struct Setting
 	{
-		uint32_t steps = 64;
+		uint32_t minSteps = 10;
+		uint32_t maxSteps = 64;
 		uint32_t lightViewSteps = 6;
 		uint32_t modeFlags = 1;
+		
 		uint32_t frame = 0;
-
 		float time = 0.0f;
 		float tiling = 90'000.f;
 		float tiling2 = 3'000.f;
-		float extinctionCoefficient = 200.f;
 
+		float extinctionCoefficient = 200.f;
 		float coverage = 0.05f;
 		float powderStrength = 0.5f;
 		float anvilBias = 0.0f;
-		float brightnessStrength = 1.0f;
 		
 		Bezier brightnessCurve;
 
+		float brightnessStrength = 1.0f;
 		float densityPMin = 0.3f;
 		float densityPFactor = 0.8f;
+		char padding0[4];
+
 		glm::vec2 windVelKmh{ 1.f, 0.f };
 	};
 	enum ModeFlag

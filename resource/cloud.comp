@@ -21,25 +21,27 @@ struct Bezier
 
 layout(set = 1, binding = 0) uniform Setting
 {
-	uint steps;
+	uint minSteps;
+	uint maxSteps;
 	uint lightViewSteps;
 	uint modeFlags;
-	uint frameIdx;
 	
+	uint frameIdx;
 	float time;
 	float tiling;
 	float tiling2;
-	float extinctionCoefficient;
 	
+	float extinctionCoefficient;
 	float coverage;
 	float powderStrength;
 	float anvilBias;
-	float brightness;
 	
 	Bezier brightnessHeight;
 	
+	float brightness;
 	float densityPMin;
 	float densityPFactor;
+	
 	vec2 windVelKmh;
 } setting;
 layout(set = 1, binding = 1) uniform Atmosphere
@@ -236,8 +238,10 @@ float GetCoverage(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos
 {
 	const float mask = GetCloudMask(samplePos);
 	float coverage = clamp(setting.coverage - mask * 0.3, 0.0, 1.0);
-	const float height = GetSampleHeightRatio(cloudInnerRadius, cloudOuterRadius, samplePos);
-	coverage = 1.0 - pow(coverage, Remap(height, 0.7, 0.8, 1.0, mix(1.0, 0.5, setting.anvilBias)));
+	const float height = smoothstep(0.0, 1.0, GetSampleHeightRatio(cloudInnerRadius, cloudOuterRadius, samplePos));
+	const float verticalBias = clamp(setting.anvilBias, 0.0, 1.0) * 2.0 - 1.0; // -1 ~ 1
+	const float verticalCoverage = clamp(1.0 + verticalBias * (height * 2.0 - 1.0), 0.0, 1.0);
+	coverage = 1.0 - coverage * verticalCoverage;
 	return coverage;
 }
 
@@ -347,7 +351,6 @@ void SegmentTransmittance(
 	vec3 rayOrigin, 
 	vec3 rayDir, 
 	vec2 segment, 
-	float steps, 
 	vec2 noise,
 	vec3 sunDir, 
 	float phase,
@@ -362,9 +365,10 @@ void SegmentTransmittance(
 	const float cloudOuter = cloudInner + CLOUD_THICKNESS;
 	const float segmentLength = segment.y - segment.x;
 	const float targetStepLength = 1000.0;
-	const uint maxStep = max(uint(steps), 1u);
-	const uint minStep = min(5u, maxStep);
-	steps = clamp(uint(ceil(segmentLength / targetStepLength)), minStep, maxStep);
+	const uint minStep = min(5u, setting.minSteps);
+	const uint maxStep = max(setting.maxSteps, minStep);
+	
+	const uint steps = clamp(uint(ceil(segmentLength / targetStepLength)), minStep, maxStep);
 	const float stepSize = segmentLength / steps;
 	const bool lightViewLimit = (setting.modeFlags & 1) == 1;
 	const float isotropicPhase = 1.0 / (4.0 * PI);
@@ -530,18 +534,18 @@ void main()
 	if (cloudSegmentCount == 1)
 	{
 		SegmentTransmittance(
-			camera.pos, rayDir, cloudSegment0, setting.steps, noise,
+			camera.pos, rayDir, cloudSegment0, noise,
 			sunDir, phase, mu, 
 			inScattering, transmittance, depthSum, weightSum);
 	}
 	else if (cloudSegmentCount == 2)
 	{
 		SegmentTransmittance(
-			camera.pos, rayDir, cloudSegment0, setting.steps, noise,
+			camera.pos, rayDir, cloudSegment0, noise,
 			sunDir, phase, mu,
 			inScattering, transmittance, depthSum, weightSum);
 		SegmentTransmittance(
-			camera.pos, rayDir, cloudSegment1, setting.steps, noise,
+			camera.pos, rayDir, cloudSegment1, noise,
 			sunDir, phase, mu,
 			inScattering, transmittance, depthSum, weightSum);
 	}

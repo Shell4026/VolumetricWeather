@@ -84,7 +84,7 @@ float Visible(vec3 worldPos)
 
 vec3 RayleighScattering(float y)
 {
-	const vec3 rayleigh = vec3(5.802, 13.558, 33.1) * 1e-6;
+	const vec3 rayleigh = atmosphere.rayleighColor * 1e-6;
 	return rayleigh * exp(-y / 8000.0);
 }
 
