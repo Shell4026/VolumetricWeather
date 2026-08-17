@@ -12,6 +12,8 @@ file(GLOB pngFiles "${CMAKE_SOURCE_DIR}/resource/*.png")
 file(COPY ${pngFiles} DESTINATION ${CMAKE_BINARY_DIR}/textures)
 file(GLOB binFiles "${CMAKE_SOURCE_DIR}/resource/*.bin")
 file(COPY ${binFiles} DESTINATION ${CMAKE_BINARY_DIR}/textures)
+file(GLOB fontFiles "${CMAKE_SOURCE_DIR}/resource/*.otf")
+file(COPY ${fontFiles} DESTINATION ${CMAKE_BINARY_DIR}/fonts)
 message("Asset copy is completed")
 
 set(CMAKE_CXX_STANDARD 20)

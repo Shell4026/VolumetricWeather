@@ -35,6 +35,16 @@ void ImGUI::Init()
 	ImGui::CreateContext();
 	ImGui_ImplWin32_Init(window.GetHWND());
 
+	static const ImWchar ranges[] =
+	{
+		0x0020, 0x00FF, // Basic Latin + Latin Supplement
+		0x1100, 0x11FF, // 한글 자모
+		0x3130, 0x318F, // 한글 호환 자모
+		0xAC00, 0xD7AF, // 한글 음절
+		0x0000
+	};
+	ImGui::GetIO().Fonts->AddFontFromFileTTF("fonts/Pretendard-Medium.otf", 16.0f, nullptr, ranges);
+
 	ImGui_ImplVulkan_InitInfo initInfo{};
 	initInfo.Instance = ctx.GetInstance();
 	initInfo.PhysicalDevice = ctx.GetPhysicalDevice();

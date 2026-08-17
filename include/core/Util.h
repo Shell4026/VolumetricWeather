@@ -11,4 +11,8 @@ namespace util
 	{
 		return v1 ^= v2 + 0x9e3779b9 + (v1 << 6) + (v1 >> 2);
 	}
+	inline auto U8Str(const char8_t* u8) -> const char*
+	{
+		return reinterpret_cast<const char*>(u8);
+	}
 }
