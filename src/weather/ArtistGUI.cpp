@@ -43,14 +43,13 @@ void ArtistGUI::RenderGUI()
 			bCloudUpdate |= 
 				ImGui::SliderFloat("Cloud Amount", &setting.cloudAmount, 0.f, 1.f, "%.2f");
 			bCloudUpdate |=
-				ImGui::SliderFloat("Cloud Darkness", &setting.cloudDarkness, 0.f, 1.f, "%.2f");
-			ImGui::SameLine();
-			if (ImGui::Button("C##CloudDarkness"))
+				ImGui::SliderFloat("Cloud Brightness", &setting.cloudBrightness, 0.f, 4.f, "%.2f");
+			if (ImGui::Button("Curve##CloudBrightness"))
 			{
 				bCloudUpdate = true;
 				bCurveEditorOpen = true;
-				curBezier = &setting.cloudDarknessBezier;
-				curveEditor.SetControlPoint(setting.cloudDarknessBezier);
+				curBezier = &setting.cloudBrightnessBezier;
+				curveEditor.SetControlPoint(setting.cloudBrightnessBezier);
 			}
 		}
 	}
@@ -64,7 +63,7 @@ void ArtistGUI::RenderGUI()
 			if (curveEditor.Draw("CurveEditor"))
 			{
 				*curBezier = curveEditor.GetControlPointsAsBezier();
-				if (curBezier == &setting.cloudDarknessBezier)
+				if (curBezier == &setting.cloudBrightnessBezier)
 					bCloudUpdate = true;
 			}
 			ImGui::End();

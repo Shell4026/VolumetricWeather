@@ -618,7 +618,7 @@ void BasisScene::DrawDebugGUI()
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Anvil bias", &setting.anvilBias, 0.f, 1.f))
 				cloudPass->SetSetting(setting);
-			if (ImGui::SliderFloat("Dark Strength", &setting.darkStrength, 0.f, 4.f))
+			if (ImGui::SliderFloat("Bright Strength", &setting.brightnessStrength, 0.f, 4.f))
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderFloat("Density Probability Min", &setting.densityPMin, 0.f, 4.f))
 				cloudPass->SetSetting(setting);

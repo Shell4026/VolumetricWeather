@@ -13,8 +13,8 @@ struct ArtistSetting
 	
 	float cloudAmount = 0.35f;
 	float cloudSizeKM = 100.f;
-	float cloudDarkness = 0.2f;
-	Bezier cloudDarknessBezier;
+	float cloudBrightness = 1.0f;
+	Bezier cloudBrightnessBezier;
 
 	float detail = 0.5f;
 	float density = 0.4f;

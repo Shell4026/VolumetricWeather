@@ -45,8 +45,8 @@ auto ParameterMapper::ConvertCloudSetting(const ArtistSetting& artistSetting) ->
 		bezier.d = { 1.f, 0.2f };
 		result.coverage = glm::mix(0.f, 0.2f, artistSetting.cloudAmount);//bezier.GetSample(artistSetting.cloudAmount).y;
 	}
-	result.darkStrength = glm::clamp(artistSetting.cloudDarkness, 0.f, 1.f);
-	result.darkCurve = artistSetting.cloudDarknessBezier;
+	result.brightnessStrength = glm::clamp(artistSetting.cloudBrightness, 0.f, 1.f);
+	result.brightnessCurve = artistSetting.cloudBrightnessBezier;
 
 	return result;
 }

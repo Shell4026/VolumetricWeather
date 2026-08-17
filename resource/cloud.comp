@@ -34,9 +34,9 @@ layout(set = 1, binding = 0) uniform Setting
 	float coverage;
 	float powderStrength;
 	float anvilBias;
-	float darkness;
+	float brightness;
 	
-	Bezier darknessHeight;
+	Bezier brightnessHeight;
 	
 	float densityPMin;
 	float densityPFactor;
@@ -432,7 +432,7 @@ void SegmentTransmittance(
 		lightingSource += 0.2 * pow(max(lightViewT, 1e-4), 0.3) * isotropicPhase * lighting.sun.w;
 		
 		const float heightRatio = GetSampleHeightRatio(cloudInner, cloudOuter, samplePos);
-		const float verticalP = setting.darkness * BezierCurve(setting.darknessHeight, heightRatio);
+		const float verticalP = setting.brightness * BezierCurve(setting.brightnessHeight, heightRatio);
 		const float densityP = setting.densityPMin + pow(density, setting.densityPFactor);
 		inScattering += transmittance * stepTransmittanceAlpha * powder * (cloudT * lightingSource * verticalP * densityP);
 		transmittance *= stepTransmittance;

@@ -29,9 +29,9 @@ public:
 		float coverage = 0.05f;
 		float powderStrength = 0.5f;
 		float anvilBias = 0.0f;
-		float darkStrength = 1.5f;
+		float brightnessStrength = 1.0f;
 		
-		Bezier darkCurve;
+		Bezier brightnessCurve;
 
 		float densityPMin = 0.3f;
 		float densityPFactor = 0.8f;
