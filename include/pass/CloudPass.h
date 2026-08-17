@@ -16,7 +16,7 @@ class CloudPass : public APass, public IWeatherPass
 public:
 	struct Setting
 	{
-		uint32_t steps = 20;
+		uint32_t steps = 64;
 		uint32_t lightViewSteps = 6;
 		uint32_t modeFlags = 1;
 		uint32_t frame = 0;

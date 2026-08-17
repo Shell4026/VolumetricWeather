@@ -159,7 +159,7 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		const vec3 sigmaS = ScatteringCoefficient(sampleHeight);
 		const vec3 sigmaT = sigmaS + AbsorptionCoefficient(sampleHeight);
 		transmittance = exp(-sigmaSum);
-		sigmaSum += sigmaT * stepSize * 0.5;
+		sigmaSum += sigmaT * stepSize;
 		
 		float near = 0.0;
 		float far = 0.0;

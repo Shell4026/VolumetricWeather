@@ -361,7 +361,7 @@ void SegmentTransmittance(
 	const float cloudInner = atmosphere.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuter = cloudInner + CLOUD_THICKNESS;
 	const float segmentLength = segment.y - segment.x;
-	const float targetStepLength = 100.0;
+	const float targetStepLength = 1000.0;
 	const uint maxStep = max(uint(steps), 1u);
 	const uint minStep = min(5u, maxStep);
 	steps = clamp(uint(ceil(segmentLength / targetStepLength)), minStep, maxStep);
@@ -417,7 +417,7 @@ void SegmentTransmittance(
 		const vec3 cloudT = TransmittanceUsingLUT(samplePos, -sunDir);
 		const float sigmaA = 4.4 * 1e-6 * setting.extinctionCoefficient;
 		const float sigmaT = density * sigmaA;
-		const float stepTransmittance = exp(-sigmaT * stepSize);
+		const float stepTransmittance = exp(-sigmaT * (stepSize));
 		const float stepTransmittanceAlpha = 1.0 - stepTransmittance;
 		const float depthWeight = transmittance * stepTransmittanceAlpha;
 		depthSum += t * depthWeight;
@@ -434,7 +434,7 @@ void SegmentTransmittance(
 		const float heightRatio = GetSampleHeightRatio(cloudInner, cloudOuter, samplePos);
 		const float verticalP = setting.darkness * BezierCurve(setting.darknessHeight, heightRatio);
 		const float densityP = setting.densityPMin + pow(density, setting.densityPFactor);
-		inScattering += transmittance * stepTransmittanceAlpha * powder * cloudT * lightingSource * (verticalP * densityP);
+		inScattering += transmittance * stepTransmittanceAlpha * powder * (cloudT * lightingSource * verticalP * densityP);
 		transmittance *= stepTransmittance;
 	}
 }
