@@ -31,7 +31,7 @@ set(PASS_HEADERS
 "include/pass/CloudPass.h"
 "include/pass/CloudTRPass.h"
 "include/pass/LowDepthPass.h"
-"include/pass/CloudPaintPass.h" 
+"include/pass/CloudPaintPass.h"
  )
 set(PASS_CPPS 
 "src/pass/APass.cpp"
@@ -51,11 +51,13 @@ set(WEATHER_HEADERS
 "include/weather/Setting.h"
 "include/weather/AtmosphereRMSEMeasurement.h"
 "include/weather/ParameterMapper.h"
+"include/weather/ArtistGUI.h"
 "include/weather/IWeatherPass.h"
 )
 set(WEATHER_CPPS
 "src/weather/AtmosphereRMSEMeasurement.cpp"
 "src/weather/ParameterMapper.cpp"
+"src/weather/ArtistGUI.cpp"
 )
 set(RENDER_HEADERS 
 "include/render/BarrierBuilder.h"
@@ -92,6 +94,7 @@ set(HEADERS
 "include/TextureLoader.h"
 "include/SceneManager.h"
 "include/CloudEditor.h" 
+"include/GUIBase.h" "include/IGUI.h" 
 "include/CurveEditor.h"
 "include/Bezier.hpp"
 )
@@ -105,7 +108,7 @@ set(CPPS
 "src/TextureLoader.cpp"
 "src/SceneManager.cpp"
 "src/CloudEditor.cpp"
-)
+"src/GUIBase.cpp"
 "src/CurveEditor.cpp")
 add_executable (VolumetricWeather "main.cpp" "include/PCH.h" ${CORE_CPPS} ${CORE_HEADERS} ${CPPS} ${HEADERS} ${PASS_CPPS} ${PASS_HEADERS} ${RENDER_CPPS} ${RENDER_HEADERS} ${WEATHER_CPPS} ${WEATHER_HEADERS})
 

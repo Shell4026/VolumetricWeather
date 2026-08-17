@@ -3,6 +3,7 @@
 #include "GLBLoader.h"
 #include "Camera.h"
 #include "PresetManager.h"
+#include "GUIBase.h"
 
 #include "core/CircularQueue.hpp"
 
@@ -12,6 +13,7 @@
 
 #include "weather/AtmosphereRMSEMeasurement.h"
 #include "weather/Setting.h"
+#include "weather/ArtistGUI.h"
 
 #include <glm/gtc/quaternion.hpp>
 
@@ -159,5 +161,8 @@ private:
 	WeatherSetting setting;
 	ArtistSetting artistSetting;
 	WeatherDirtyFlags settingDirtyFlags = 0;
+
+	GUIBase gui;
+	ArtistGUI artistGUI;
 	bool bCloudEnable = true;
 };

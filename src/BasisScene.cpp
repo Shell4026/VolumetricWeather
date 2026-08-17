@@ -30,7 +30,9 @@
 #include <string>
 #include <format>
 BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, SamplerManager& samplerManager) :
-	AScene(ctx, imgui, window, samplerManager)
+	AScene(ctx, imgui, window, samplerManager),
+	gui("GUI", 400, 400),
+	artistGUI(artistSetting)
 {
 	const glm::quat q = glm::quat{ glm::vec3(0.f, 0.f, glm::radians(0.f)) };
 	const glm::vec3 sunDir = q * glm::normalize(glm::vec3{ -1.f, 0.f, -1.f });
@@ -40,6 +42,8 @@ BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, S
 	settingDirtyFlags |= WeatherDirtyFlag::Lighting;
 
 	presetManager.LoadPresets("presets.json");
+
+	gui.AddChild(artistGUI, GUIBase::DisplayType::Menu);
 }
 
 BasisScene::~BasisScene()
@@ -77,6 +81,9 @@ void BasisScene::Update(double dt)
 	// 메모) 이 시점에선 아직 GPU에서 쓰고 있을 수 있기 때문에 렌더링 리소스를 업데이트 해서는 안 됨
 	if (!rmseMeasurement.IsRunning())
 		ControlCamera(dt);
+
+	gui.RenderGUI();
+	const WeatherDirtyFlags artistSettingDirty = artistGUI.GetDirtyFlags();
 	if (artistSettingDirty != 0)
 	{
 		setting = ParameterMapper::ConvertRenderSetting(artistSetting);
@@ -84,7 +91,6 @@ void BasisScene::Update(double dt)
 	}
 
 	DrawDebugGUI();
-	DrawArtistGUI();
 	cloudEditor->Update();
 }
 
