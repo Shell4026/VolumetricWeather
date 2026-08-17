@@ -7,7 +7,7 @@
 auto ParameterMapper::ConvertRenderSetting(const ArtistSetting& artistSetting) -> WeatherSetting
 {
 	WeatherSetting setting{};
-	setting.sun = glm::vec4{ GetSunDirection(artistSetting), 15.f };
+	setting.lighting.sun = glm::vec4{ GetSunDirection(artistSetting), 15.f };
 
 	//const float amount = glm::clamp(artistSetting.amount, 0.0f, 1.0f);
 	//const float size = glm::clamp(artistSetting.size, 0.0f, 1.0f);
@@ -31,6 +31,24 @@ auto ParameterMapper::ConvertRenderSetting(const ArtistSetting& artistSetting) -
 	//result.windVelKmh = glm::vec2{ std::cos(directionRadians), std::sin(directionRadians) } * speedKmh;
 
 	return setting;
+}
+
+auto ParameterMapper::ConvertCloudSetting(const ArtistSetting& artistSetting) -> CloudPass::Setting
+{
+	CloudPass::Setting result{};
+	{
+		Bezier bezier{};
+		bezier.a = { 0.f, 0.f };
+		bezier.b = { 0.1f, 0.1f };
+		const glm::vec2 center{ 0.5f, 0.1f };
+		bezier.c = { 2.f * center - bezier.b };
+		bezier.d = { 1.f, 0.2f };
+		result.coverage = glm::mix(0.f, 0.2f, artistSetting.cloudAmount);//bezier.GetSample(artistSetting.cloudAmount).y;
+	}
+	result.darkStrength = glm::clamp(artistSetting.cloudDarkness, 0.f, 1.f);
+	result.darkCurve = artistSetting.cloudDarknessBezier;
+
+	return result;
 }
 
 auto ParameterMapper::GetSunDirection(const ArtistSetting& artistSetting) -> glm::vec3

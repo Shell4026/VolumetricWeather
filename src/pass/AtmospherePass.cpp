@@ -85,6 +85,16 @@ void AtmosphereBasePass::BuildPipeline(const VulkanContext& ctx)
 	VK_RESULT_CHECK(vkCreateComputePipelines(ctx.GetDevice(), nullptr, 1, &ci, nullptr, &pipeline));
 }
 
+void AtmospherePass::SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting)
+{
+	material->UpdateBindingData(1, atmosphereSetting);
+}
+
+void AtmospherePass::SetSetting(const WeatherSetting::Lighting & lightingSetting)
+{
+	material->UpdateBindingData(2, lightingSetting);
+}
+
 void AtmospherePass::SetSetting(const Setting& setting)
 {
 	this->setting = setting;
@@ -94,32 +104,15 @@ void AtmospherePass::SetSetting(const Setting& setting)
 auto AtmospherePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSetLayout) -> Shader
 {
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-	set1Bindings.reserve(5);
-	VkDescriptorSetLayoutBinding& binding0 = set1Bindings.emplace_back();
-	binding0.binding = 0;
-	binding0.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-	binding0.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	binding0.descriptorCount = 1;
-	VkDescriptorSetLayoutBinding& binding1 = set1Bindings.emplace_back();
-	binding1.binding = 1;
-	binding1.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-	binding1.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	binding1.descriptorCount = 1;
-	VkDescriptorSetLayoutBinding& binding2 = set1Bindings.emplace_back();
-	binding2.binding = 2;
-	binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-	binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	binding2.descriptorCount = 1;
-	VkDescriptorSetLayoutBinding& binding3 = set1Bindings.emplace_back();
-	binding3.binding = 3;
-	binding3.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-	binding3.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	binding3.descriptorCount = 1;
-	VkDescriptorSetLayoutBinding& binding4 = set1Bindings.emplace_back();
-	binding4.binding = 4;
-	binding4.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-	binding4.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	binding4.descriptorCount = 1;
+	set1Bindings.reserve(7);
+
+	AddDescSetLayoutBinding(set1Bindings, 0, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 2, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 3, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 4, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 5, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 6, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 
 	Shader shader{};
 	shader.
@@ -136,10 +129,12 @@ void AtmospherePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool
 	material = std::make_unique<Material>(ctx, *GetShader());
 	material->
 		AddBinding<Setting>(0).
-		AddBinding(1, *outputImage).
-		AddBinding(2, *opaqueDepthTex, opaqueSampler->GetSampler()).
-		AddBinding(3, *opaqueTex, opaqueSampler->GetSampler()).
-		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
+		AddBinding<WeatherSetting::Atmosphere>(1).
+		AddBinding<WeatherSetting::Lighting>(2).
+		AddBinding(3, *outputImage).
+		AddBinding(4, *opaqueDepthTex, opaqueSampler->GetSampler()).
+		AddBinding(5, *opaqueTex, opaqueSampler->GetSampler()).
+		AddBinding(6, *shadowMap, shadowSampler->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, setting);

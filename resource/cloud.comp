@@ -10,6 +10,15 @@ layout(set = 0, binding = 0) uniform Camera
 	mat4 invView;
 	mat4 invProj;
 } camera;
+
+struct Bezier
+{
+	vec2 a;
+	vec2 b;
+	vec2 c;
+	vec2 d;
+};
+
 layout(set = 1, binding = 0) uniform Setting
 {
 	uint steps;
@@ -18,34 +27,44 @@ layout(set = 1, binding = 0) uniform Setting
 	uint frameIdx;
 	
 	float time;
-	float groundRadius;
-	float atmosphereRadius;
 	float tiling;
-	
 	float tiling2;
 	float extinctionCoefficient;
+	
 	float coverage;
 	float powderStrength;
-	
 	float anvilBias;
-	float darkHeight;
-	float darkStrength;
+	float darkness;
+	
+	Bezier darknessHeight;
+	
 	float densityPMin;
-	
 	float densityPFactor;
-	
 	vec2 windVelKmh;
-	
-	vec4 sun;
 } setting;
-
-layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
-layout(set = 1, binding = 2, r32f) uniform writeonly image2D outCloudDepth;
-layout(set = 1, binding = 3) uniform sampler3D perlin;
-layout(set = 1, binding = 4) uniform sampler2D noiseTex;
-layout(set = 1, binding = 5) uniform sampler2D sceneDepth;
-layout(set = 1, binding = 6) uniform sampler2D transmittanceLUT;
-layout(set = 1, binding = 7) uniform sampler2D cloudMaskTex;
+layout(set = 1, binding = 1) uniform Atmosphere
+{
+	float groundRadius;
+	float atmosphereRadius;
+	float mieCoefficient;
+	float mieG;
+	
+	vec3 mieColor; // 3.996, 3.996, 3.996
+	
+	vec3 rayleighColor; // 5.802, 13.558, 33.1
+} atmosphere;
+layout(set = 1, binding = 2) uniform Lighting
+{
+	vec4 sun; // dir, illuminance
+	mat4 sunViewProj;
+} lighting;
+layout(set = 1, binding = 3, rgba16f) uniform writeonly image2D outImage;
+layout(set = 1, binding = 4, r32f) uniform writeonly image2D outCloudDepth;
+layout(set = 1, binding = 5) uniform sampler3D perlin;
+layout(set = 1, binding = 6) uniform sampler2D noiseTex;
+layout(set = 1, binding = 7) uniform sampler2D sceneDepth;
+layout(set = 1, binding = 8) uniform sampler2D transmittanceLUT;
+layout(set = 1, binding = 9) uniform sampler2D cloudMaskTex;
 
 const float CLOUD_HEIGHT = 2000;
 const float CLOUD_THICKNESS = 5000;
@@ -115,7 +134,7 @@ int RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float inner
 	// 여기서부터 내부구를 볼 수 있는 상태
 	float groundNear;
 	float groundFar;
-	const bool bGroundHit = RaySphereIntersect(rayOrigin, rayDir, center, setting.groundRadius, groundNear, groundFar);
+	const bool bGroundHit = RaySphereIntersect(rayOrigin, rayDir, center, atmosphere.groundRadius, groundNear, groundFar);
 	if (innerNear > 0.0)
 	{
 		segment0 = vec2(outerNear, innerNear);
@@ -146,6 +165,34 @@ float RemapClamp(float value, float originalMin, float originalMax, float newMin
 	return clamp(Remap(value, originalMin, originalMax, newMin, newMax), newMin, newMax);
 }
 
+float BezierCurve(Bezier bezier, float t)
+{
+	const vec2 a = bezier.a;
+	const vec2 b = bezier.b;
+	const vec2 c = bezier.c;
+	const vec2 d = bezier.d;
+	
+	vec2 center = (b + c) * 0.5;
+	if (t < 0.5)
+	{
+		const float s = t * 2.0;
+		const float ss = s * s;
+		const float u = 1.0 - s;
+		const float uu = u * u;
+		
+		return (uu * a + 2.0 * u * s * b + ss * center).y;
+	}
+	else
+	{
+		const float s = (t - 0.5) * 2.0;
+		const float ss = s * s;
+		const float u = 1.0 - s;
+		const float uu = u * u;
+		
+		return (uu * center + 2.0 * u * s * c + ss * d).y;
+	}
+}
+
 vec2 GetCloudVelocity()
 {
 	const float delta = 0.2777777777; // km/h -> m/sec
@@ -158,7 +205,7 @@ vec2 GetCloudVelocity()
 float GetSampleHeightRatio(float cloudInnerRadius, float cloudOuterRadius, vec3 samplePos)
 {
 	const float cloudThickness = cloudOuterRadius - cloudInnerRadius;
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	const float sampleRadius = length(samplePos - PLANET_CENTER);
 	const float heightRatio = clamp((sampleRadius - cloudInnerRadius) / cloudThickness, 0.0, 1.0);
 	return heightRatio;
@@ -263,22 +310,22 @@ float CloudToSunTransmittance(vec3 a, vec3 b, float distance, uint steps, float 
 
 vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
 {
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	
 	const float sampleLength = length(samplePos - PLANET_CENTER);
-	const float height = sampleLength - setting.groundRadius;
+	const float height = sampleLength - atmosphere.groundRadius;
 	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
 	const float mu = dot(up, dir);
 	
-	const float r = height + setting.groundRadius;
+	const float r = height + atmosphere.groundRadius;
 	// 지평선에서 대기까지의 거리 H
-	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
+	const float H = sqrt(atmosphere.atmosphereRadius * atmosphere.atmosphereRadius - atmosphere.groundRadius * atmosphere.groundRadius);
 	// 지평선 거리 rho
-	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);
+	const float rho = sqrt(r * r - atmosphere.groundRadius * atmosphere.groundRadius);
 	
-	const float dMin = setting.atmosphereRadius - r; // 머리 위의 대기까지의 거리
+	const float dMin = atmosphere.atmosphereRadius - r; // 머리 위의 대기까지의 거리
 	const float dMax = rho + H; // 지평선 너머의 대기까지의 거리
-	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + setting.atmosphereRadius * setting.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
+	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + atmosphere.atmosphereRadius * atmosphere.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
 	d = max(d, 0.0);
 	
 	float u = (d - dMin) / (dMax - dMin); // 0(머리위) ~ 1(지평선)
@@ -310,8 +357,8 @@ void SegmentTransmittance(
 	inout float depthSum,
 	inout float weightSum)
 {
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
-	const float cloudInner = setting.groundRadius + CLOUD_HEIGHT;
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
+	const float cloudInner = atmosphere.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuter = cloudInner + CLOUD_THICKNESS;
 	const float segmentLength = segment.y - segment.x;
 	const float targetStepLength = 100.0;
@@ -337,7 +384,7 @@ void SegmentTransmittance(
 		float groundNear;
 		float groundFar;
 		
-		if (RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, setting.groundRadius, groundNear, groundFar))
+		if (RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, atmosphere.groundRadius, groundNear, groundFar))
 			lightViewT = 0.0;
 		else
 		{
@@ -381,13 +428,13 @@ void SegmentTransmittance(
 		powder = mix(powder, 1.0, (mu + 1.0) * 0.5);
 		powder = mix(1.0, powder, setting.powderStrength);
 		
-		float lighting = lightViewT * phase * setting.sun.w;
-		lighting += 0.2 * pow(max(lightViewT, 1e-4), 0.3) * isotropicPhase * setting.sun.w;
+		float lightingSource = lightViewT * phase * lighting.sun.w;
+		lightingSource += 0.2 * pow(max(lightViewT, 1e-4), 0.3) * isotropicPhase * lighting.sun.w;
 		
 		const float heightRatio = GetSampleHeightRatio(cloudInner, cloudOuter, samplePos);
-		const float verticalP = pow(RemapClamp(heightRatio, 0.0, setting.darkHeight, 0.1, 1.0), setting.darkStrength);
+		const float verticalP = setting.darkness * BezierCurve(setting.darknessHeight, heightRatio);
 		const float densityP = setting.densityPMin + pow(density, setting.densityPFactor);
-		inScattering += transmittance * stepTransmittanceAlpha * powder * cloudT * lighting * (verticalP * densityP);
+		inScattering += transmittance * stepTransmittanceAlpha * powder * cloudT * lightingSource * (verticalP * densityP);
 		transmittance *= stepTransmittance;
 	}
 }
@@ -430,9 +477,9 @@ void main()
 	
 	const vec3 viewRay = PixelToViewPos(uv, 1.0);
 	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
-	const float cloudInnerRadius = setting.groundRadius + CLOUD_HEIGHT;
+	const float cloudInnerRadius = atmosphere.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuterRadius = cloudInnerRadius + CLOUD_THICKNESS;
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	const ivec2 noisePixel = pixel % textureSize(noiseTex, 0);
 	const vec2 bluseNoise = texelFetch(noiseTex, noisePixel, 0).rg;
 
@@ -472,7 +519,7 @@ void main()
 	// }
 
 	
-	const vec3 sunDir = setting.sun.xyz;
+	const vec3 sunDir = lighting.sun.xyz;
 	const float mu = dot(rayDir, -sunDir);
 	const float phase = mix(MiePhase(mu, 0.8), MiePhase(mu, -0.2), 0.5);
 

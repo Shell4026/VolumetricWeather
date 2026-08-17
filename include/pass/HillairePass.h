@@ -17,10 +17,6 @@ class HillairePass : public AtmosphereBasePass
 public:
 	struct alignas(16) Setting
 	{
-		glm::vec4 sun;
-
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
 		uint32_t modeFlags = 0b0111;
 		float apFactor = 3.2f;
 	};
@@ -29,8 +25,11 @@ public:
 	void SetUsages(const FrameContext& frame) override;
 
 	void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos = nullptr) override;
+
 	void UpdateMaterial();
 
+	void SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting) override;
+	void SetSetting(const WeatherSetting::Lighting& lightingSetting) override;
 	void SetSetting(const Setting& setting);
 	auto GetSetting() const -> const Setting& { return setting; }
 protected:

@@ -3,6 +3,8 @@
 
 #include "render/VulkanContext.h"
 
+#include "weather/IWeatherPass.h"
+
 #include "glm/vec4.hpp"
 #include "glm/mat4x4.hpp"
 
@@ -11,24 +13,18 @@ class VulkanImage;
 class VulkanSampler;
 class Material;
 class Shader;
-class LUTPass : public APass
+class LUTPass : public APass, public IWeatherPass
 {
 public:
 	struct GlobalSetting
 	{
-		glm::vec4 sun;
-		glm::mat4 sunViewProj;
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
-		float mieCoefficient = 1.f;
-		float mieG = 0.8f;
-		float apDistanceFactor = 3.2f;
 		uint32_t transmittanceLUTSteps = 64;
 		uint32_t skyViewLUTSteps = 64;
 		uint32_t aerialPerspectiveLUTSteps = 5;
 		uint32_t aerialShadowSteps = 64;
 		uint32_t msLUTSteps = 64;
-	} globalSetting;
+		float apFactor = 3.2f;
+	};
 	enum LUTType
 	{
 		SkyView = 1,
@@ -44,8 +40,11 @@ public:
 
 	void SetUsages(const FrameContext& frame) override;
 
-	void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos = nullptr) override;
 	void Record(const FrameContext& frame) override;
+
+	void SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting) override;
+	void SetSetting(const WeatherSetting::Lighting& lightingSetting) override;
+	void SetSetting(const GlobalSetting& setting);
 	
 	void SetShadowMap(const VulkanImage& shadowMap) { this->shadowMap = &shadowMap; }
 	void SetShadowSampler(const VulkanSampler& sampler) { shadowSampler = &sampler; }
@@ -60,6 +59,7 @@ public:
 	void ReCreateSkyViewLUT(uint32_t width, uint32_t height);
 	void ReCreateShadowLUT(uint32_t width, uint32_t height);
 
+	auto GetSetting() const -> const GlobalSetting& { return setting; }
 	auto GetTransmittanceLUTSampler() const -> const VulkanSampler* { return transmittance.sampler; }
 	auto GetTransmittanceLUT() const -> VulkanImage* { return transmittance.lut.get(); }
 	auto GetSkyViewLUTSampler() const -> const VulkanSampler* { return skyView.sampler; }
@@ -74,52 +74,26 @@ protected:
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
 	void BuildPipeline(const VulkanContext& ctx) override;
 private:
-	void UpdateMaterials();
-private:
 	struct alignas(16) TransmittanceSetting
 	{
-		uint32_t steps = 40;
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
-		float mieCoefficient = 1.f;
+		uint32_t steps = 32;
 	} transmitSetting;
 	struct alignas(16) MultipleScatteringSetting
 	{
 		uint32_t steps = 32;
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
-		float mieCoefficient = 1.f;
 	} msSetting;
 	struct alignas(16) SkyViewSetting
 	{
-		glm::vec4 sun;
-		uint32_t steps = 40;
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
-		float mieCoefficient = 1.f;
-
-		float mieG = 0.8f;
+		uint32_t steps = 32;
 	} skyViewSetting;
 	struct alignas(16) AerialPerspectiveSetting
 	{
-		glm::vec4 sun;
-		glm::mat4 sunViewProj;
-		uint32_t steps = 20;
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
-		float mieCoefficient = 1.f;
-
-		float mieG = 0.8f;
+		uint32_t steps = 4;
 		float distanceFactor = 3.2f;
 	} aerialSetting;
 	struct alignas(16) AerialShadowSetting
 	{
-		glm::vec4 sun;
-		glm::mat4 sunViewProj;
-
 		uint32_t steps = 20;
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
 		float apFactor = 3.2f;
 	} shadowSetting;
 
@@ -167,6 +141,8 @@ private:
 		VkPipeline pipeline = VK_NULL_HANDLE;
 		GPUTimer timer;
 	} aerialShadow;
+
+	GlobalSetting setting;
 
 	const VulkanImage* shadowMap = nullptr;
 	const VulkanSampler* shadowSampler = nullptr;

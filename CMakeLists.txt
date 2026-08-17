@@ -51,6 +51,7 @@ set(WEATHER_HEADERS
 "include/weather/Setting.h"
 "include/weather/AtmosphereRMSEMeasurement.h"
 "include/weather/ParameterMapper.h"
+"include/weather/IWeatherPass.h"
 )
 set(WEATHER_CPPS
 "src/weather/AtmosphereRMSEMeasurement.cpp"

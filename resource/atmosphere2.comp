@@ -11,25 +11,37 @@ layout(set = 0, binding = 0) uniform Camera
 } camera;
 layout(set = 1, binding = 0) uniform Setting
 {
-	vec4 sun; // dir, illuminance
-	
-	float groundRadius;
-	float atmosphereRadius;
 	uint modeFlags;
 	float apFactor;
 } setting;
-layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D atmosphereResult;
-layout(set = 1, binding = 2) uniform sampler2D depth;
-layout(set = 1, binding = 3) uniform sampler2D opaque;
-layout(set = 1, binding = 4) uniform sampler2DShadow shadowMap;
-layout(set = 1, binding = 5) uniform sampler2D skyViewLUT;
-layout(set = 1, binding = 6) uniform sampler3D aerialPerspectiveLUT;
-layout(set = 1, binding = 7) uniform sampler2D aerialShadowLUT;
-layout(set = 1, binding = 8) uniform sampler2D cloudTex;
-layout(set = 1, binding = 9) uniform sampler2D cloudDepthTex;
-layout(set = 1, binding = 10) uniform sampler2D halfDepth;
-layout(set = 1, binding = 11) uniform sampler2D quarterDepth;
-layout(set = 1, binding = 12) uniform sampler2D transmittanceLUT;
+layout(set = 1, binding = 1) uniform Atmosphere
+{
+	float groundRadius;
+	float atmosphereRadius;
+	float mieCoefficient;
+	float mieG;
+	
+	vec3 mieColor; // 3.996, 3.996, 3.996
+	
+	vec3 rayleighColor; // 5.802, 13.558, 33.1
+} atmosphere;
+layout(set = 1, binding = 2) uniform Lighting
+{
+	vec4 sun; // dir, illuminance
+	mat4 sunViewProj;
+} lighting;
+layout(set = 1, binding = 3, rgba16f) uniform writeonly image2D atmosphereResult;
+layout(set = 1, binding = 4) uniform sampler2D depth;
+layout(set = 1, binding = 5) uniform sampler2D opaque;
+layout(set = 1, binding = 6) uniform sampler2DShadow shadowMap;
+layout(set = 1, binding = 7) uniform sampler2D transmittanceLUT;
+layout(set = 1, binding = 8) uniform sampler2D skyViewLUT;
+layout(set = 1, binding = 9) uniform sampler3D aerialPerspectiveLUT;
+layout(set = 1, binding = 10) uniform sampler2D aerialShadowLUT;
+layout(set = 1, binding = 11) uniform sampler2D cloudTex;
+layout(set = 1, binding = 12) uniform sampler2D cloudDepthTex;
+layout(set = 1, binding = 13) uniform sampler2D halfDepth;
+layout(set = 1, binding = 14) uniform sampler2D quarterDepth;
 const float CLOUD_HEIGHT = 2000;
 const float CLOUD_THICKNESS = 5000;
 const float PI = 3.14159265359;
@@ -89,8 +101,8 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 
 vec4 SkyViewLUT(vec3 rayDir)
 {
-	const vec3 planetCenter = vec3(0.0, -setting.groundRadius, 0.0);
-	const vec3 camToSun = -setting.sun.xyz;
+	const vec3 planetCenter = vec3(0.0, -atmosphere.groundRadius, 0.0);
+	const vec3 camToSun = -lighting.sun.xyz;
 	const vec3 up = normalize(camera.pos - planetCenter);
 	const vec3 forward = normalize(camToSun - up * dot(camToSun, up));
 	const vec3 right = cross(forward, up);
@@ -181,7 +193,7 @@ int RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float inner
 	// 여기서부터 내부구를 볼 수 있는 상태
 	float groundNear;
 	float groundFar;
-	const bool bGroundHit = RaySphereIntersect(rayOrigin, rayDir, center, setting.groundRadius, groundNear, groundFar);
+	const bool bGroundHit = RaySphereIntersect(rayOrigin, rayDir, center, atmosphere.groundRadius, groundNear, groundFar);
 	if (innerNear > 0.0)
 	{
 		segment0 = vec2(outerNear, innerNear);
@@ -200,15 +212,15 @@ int RayCloudShellIntersect(vec3 rayOrigin, vec3 rayDir, vec3 center, float inner
 
 vec3 RenderSun(vec3 worldRayDir, vec3 viewRayDir)
 {
-	const vec3 planetCenter = vec3(0.0, -setting.groundRadius, 0.0);
-	const vec3 toSunDir = -setting.sun.xyz;
+	const vec3 planetCenter = vec3(0.0, -atmosphere.groundRadius, 0.0);
+	const vec3 toSunDir = -lighting.sun.xyz;
 	const vec3 sunViewDir = normalize(mat3(camera.view) * toSunDir);
-	if (RaySphereIntersect(camera.pos, worldRayDir, planetCenter, setting.groundRadius))
+	if (RaySphereIntersect(camera.pos, worldRayDir, planetCenter, atmosphere.groundRadius))
 		return vec3(0.0);
 	
 	const float cosAngle = dot(viewRayDir, sunViewDir);
 	const float sunMask = step(cos(radians(0.52)), cosAngle);
-	const vec3 sunColor = vec3(setting.sun.w) * sunMask;
+	const vec3 sunColor = vec3(lighting.sun.w) * sunMask;
 	return sunColor;
 }
 
@@ -268,22 +280,22 @@ float GetAerialPerspectiveZ(float depth)
 
 vec2 GetTransmittanceUV(vec3 samplePos, vec3 toLightDir)
 {
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	
 	const float sampleLength = length(samplePos - PLANET_CENTER);
-	const float height = sampleLength - setting.groundRadius;
+	const float height = sampleLength - atmosphere.groundRadius;
 	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
 	const float mu = dot(up, toLightDir);
 	
-	const float r = height + setting.groundRadius;
+	const float r = height + atmosphere.groundRadius;
 	// 지평선에서 대기까지의 거리 H
-	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
+	const float H = sqrt(atmosphere.atmosphereRadius * atmosphere.atmosphereRadius - atmosphere.groundRadius * atmosphere.groundRadius);
 	// 지평선 거리 rho
-	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);
+	const float rho = sqrt(r * r - atmosphere.groundRadius * atmosphere.groundRadius);
 	
-	const float dMin = setting.atmosphereRadius - r; // 머리 위의 대기까지의 거리
+	const float dMin = atmosphere.atmosphereRadius - r; // 머리 위의 대기까지의 거리
 	const float dMax = rho + H; // 지평선 너머의 대기까지의 거리
-	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + setting.atmosphereRadius * setting.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
+	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + atmosphere.atmosphereRadius * atmosphere.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
 	d = max(d, 0.0);
 	
 	float u = (d - dMin) / (dMax - dMin); // 0(머리위) ~ 1(지평선)
@@ -311,11 +323,11 @@ void main()
 	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
 	const vec3 viewRay = PixelToViewPos(uv, 1.0);
 	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
-	const vec3 planetCenter = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 planetCenter = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	
 	float nearAtmo = 0.0;
 	float farAtmo = 1.0;
-	if (!RaySphereIntersect(camera.pos, rayDir, planetCenter, setting.atmosphereRadius, nearAtmo, farAtmo))
+	if (!RaySphereIntersect(camera.pos, rayDir, planetCenter, atmosphere.atmosphereRadius, nearAtmo, farAtmo))
 	{
 		imageStore(atmosphereResult, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
 		return;
@@ -357,7 +369,7 @@ void main()
 		background += RenderSun(rayDir, normalize(viewPos));
 	}
 	
-	const float cloudInnerRadius = setting.groundRadius + CLOUD_HEIGHT;
+	const float cloudInnerRadius = atmosphere.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuterRadius = cloudInnerRadius + CLOUD_THICKNESS;
 	vec3 result = background;
 

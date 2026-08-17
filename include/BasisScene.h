@@ -53,13 +53,13 @@ protected:
 	void BeginBuildCommandBuffer() override;
 private:
 	void DrawDebugGUI();
-	void DrawArtistGUI();
 	void DrawOverlay();
 	void DrawPresetGUI();
 	void SetAtmosphereModel(bool bHillare);
 	void CreateDrawables();
 	void CreateCityDrawables();
 	void ControlCamera(double dt);
+	void UploadSettingsToGPU();
 	void UpdateSun();
 private:
 	VkSampler sampler = VK_NULL_HANDLE;
@@ -133,7 +133,6 @@ private:
 		float cloudTile;
 		float cloudEC;
 		float cloudCoverage;
-		float cloudDarkHeight;
 		float cloudAnvil;
 		glm::vec2 windVel;
 		auto Serialize() const -> Json;
@@ -159,5 +158,6 @@ private:
 
 	WeatherSetting setting;
 	ArtistSetting artistSetting;
+	WeatherDirtyFlags settingDirtyFlags = 0;
 	bool bCloudEnable = true;
 };

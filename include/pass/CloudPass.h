@@ -1,14 +1,17 @@
 ﻿#pragma once
 #include "pass/APass.h"
+#include "Bezier.hpp"
 
-#include "glm/glm.hpp"
+#include "weather/IWeatherPass.h"
+
+#include <glm/glm.hpp>
 
 #include <memory>
 #include <vector>
 class Shader;
 class Material;
 
-class CloudPass : public APass
+class CloudPass : public APass, public IWeatherPass
 {
 public:
 	struct Setting
@@ -19,24 +22,20 @@ public:
 		uint32_t frame = 0;
 
 		float time = 0.0f;
-		float groundRadius = 6'360'000.f;
-		float atmosphereRadius = 6'460'000.f;
-		float tiling = 96'000.f;
-
+		float tiling = 90'000.f;
 		float tiling2 = 3'000.f;
 		float extinctionCoefficient = 200.f;
+
 		float coverage = 0.05f;
 		float powderStrength = 0.5f;
-
 		float anvilBias = 0.0f;
-		float darkHeight = 0.8f;
 		float darkStrength = 1.5f;
+		
+		Bezier darkCurve;
+
 		float densityPMin = 0.3f;
-
 		float densityPFactor = 0.8f;
-		alignas(8) glm::vec2 windVelKmh{ 1.f, 0.f };
-
-		alignas(16) glm::vec4 sun{ 0.f };
+		glm::vec2 windVelKmh{ 1.f, 0.f };
 	};
 	enum ModeFlag
 	{
@@ -50,6 +49,8 @@ public:
 	void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos) override;
 	void Record(const FrameContext& frame) override;
 	
+	void SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting) override;
+	void SetSetting(const WeatherSetting::Lighting& lightingSetting) override;
 	void SetSetting(const Setting& setting);
 	void SetSceneDepthTexture(const VulkanImage& img) { sceneDepth = &img; }
 	void SetTransmittanceLUT(const VulkanImage& img, const VulkanSampler& sampler) { transmittanceLUT = &img; transmittanceLUTSampler = &sampler; }

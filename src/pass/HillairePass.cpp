@@ -55,17 +55,28 @@ void HillairePass::BeginRecord(const FrameContext& frame, const std::vector<Barr
 {
 	AtmosphereBasePass::BeginRecord(frame, barrierInfos);
 
-	material->UpdateBindingData(8, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
-	material->UpdateBindingData(9, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler());
+	material->UpdateBindingData(11, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
+	material->UpdateBindingData(12, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler());
 }
 
 void HillairePass::UpdateMaterial()
 {
-	material->UpdateBindingData(5, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler());
-	material->UpdateBindingData(6, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler());
-	material->UpdateBindingData(7, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler());
-	material->UpdateBindingData(8, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
-	material->UpdateBindingData(9, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler());
+	material->UpdateBindingData(7, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler());
+	material->UpdateBindingData(8, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler());
+	material->UpdateBindingData(9, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler());
+	material->UpdateBindingData(10, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler());
+	material->UpdateBindingData(11, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler());
+	material->UpdateBindingData(12, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler());
+}
+
+void HillairePass::SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting)
+{
+	material->UpdateBindingData(1, atmosphereSetting);
+}
+
+void HillairePass::SetSetting(const WeatherSetting::Lighting & lightingSetting)
+{
+	material->UpdateBindingData(2, lightingSetting);
 }
 
 void HillairePass::SetSetting(const Setting& setting)
@@ -78,90 +89,22 @@ auto HillairePass::CreateShader(VkDevice device, VkDescriptorSetLayout cameraSet
 {
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
 	set1Bindings.reserve(11);
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 0;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 1;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 2;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 3;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 4;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 5;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 6;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 7;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 8;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 9;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 10;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 11;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
+	AddDescSetLayoutBinding(set1Bindings, 0, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 2, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 3, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 4, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 5, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 6, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 7, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 8, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 9, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 10, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 11, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 12, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 13, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 14, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+
 	Shader shader{};
 	shader.
 		AddSet(0, cameraSetLayout).
@@ -175,17 +118,20 @@ void HillairePass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool d
 	material = std::make_unique<Material>(ctx, *GetShader());
 	material->
 		AddBinding<Setting>(0).
-		AddBinding(1, *outputImage).
-		AddBinding(2, *opaqueDepthTex, opaqueDepthSampler->GetSampler()).
-		AddBinding(3, *opaqueTex, opaqueSampler->GetSampler()).
-		AddBinding(4, *shadowMap, shadowSampler->GetSampler()).
-		AddBinding(5, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler()).
-		AddBinding(6, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler()).
-		AddBinding(7, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler()).
-		AddBinding(8, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler()).
-		AddBinding(9, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler()).
-		AddBinding(10, *lowDepthPass.GetHalfDepthTexture(), opaqueDepthSampler->GetSampler()).
-		AddBinding(11, *lowDepthPass.GetQuarterDepthTexture(), opaqueDepthSampler->GetSampler()).
+		AddBinding<WeatherSetting::Atmosphere>(1).
+		AddBinding<WeatherSetting::Lighting>(2).
+		AddBinding(3, *outputImage).
+		AddBinding(4, *opaqueDepthTex, opaqueDepthSampler->GetSampler()).
+		AddBinding(5, *opaqueTex, opaqueSampler->GetSampler()).
+		AddBinding(6, *shadowMap, shadowSampler->GetSampler()).
+		AddBinding(7, *lutPass.GetTransmittanceLUT(), lutPass.GetTransmittanceLUTSampler()->GetSampler()).
+		AddBinding(8, *lutPass.GetSkyViewLUT(), lutPass.GetSkyViewLUTSampler()->GetSampler()).
+		AddBinding(9, *lutPass.GetAerialPerspectiveLUT(), lutPass.GetAerialPerspectiveSampler()->GetSampler()).
+		AddBinding(10, *lutPass.GetAerialShadowLUT(), lutPass.GetAerialShadowSampler()->GetSampler()).
+		AddBinding(11, *cloudTRPass.GetOutputImage(), cloudTRPass.GetSampler()->GetSampler()).
+		AddBinding(12, *cloudTRPass.GetDepthImage(), cloudTRPass.GetSampler()->GetSampler()).
+		AddBinding(13, *lowDepthPass.GetHalfDepthTexture(), opaqueDepthSampler->GetSampler()).
+		AddBinding(14, *lowDepthPass.GetQuarterDepthTexture(), opaqueDepthSampler->GetSampler()).
 		Build(descPool);
 
 	material->UpdateBindingData(0, setting);

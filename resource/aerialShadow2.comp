@@ -11,19 +11,31 @@ layout(set = 0, binding = 0) uniform Camera
 } camera;
 layout(set = 1, binding = 0) uniform Setting
 {
-	vec4 sun; // dir, illuminance
-	mat4 sunViewProj;
-	
 	uint steps;
-	float groundRadius;
-	float atmosphereRadius;
 	float apFactor;
 } setting;
-layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
-layout(set = 1, binding = 2) uniform sampler3D aerialPerspectiveLUT;
-layout(set = 1, binding = 3) uniform sampler2DShadow shadowMap;
-layout(set = 1, binding = 4) uniform sampler2D depth;
-layout(set = 1, binding = 5) uniform sampler2D noiseTex;
+
+layout(set = 1, binding = 1) uniform Atmosphere
+{
+	float groundRadius;
+	float atmosphereRadius;
+	float mieCoefficient;
+	float mieG;
+	
+	vec3 mieColor; // 3.996, 3.996, 3.996
+	
+	vec3 rayleighColor; // 5.802, 13.558, 33.1
+} atmosphere;
+layout(set = 1, binding = 2) uniform Lighting
+{
+	vec4 sun; // dir, illuminance
+	mat4 sunViewProj;
+} lighting;
+layout(set = 1, binding = 3, rgba16f) uniform writeonly image2D outImage;
+layout(set = 1, binding = 4) uniform sampler3D aerialPerspectiveLUT;
+layout(set = 1, binding = 5) uniform sampler2DShadow shadowMap;
+layout(set = 1, binding = 6) uniform sampler2D depth;
+layout(set = 1, binding = 7) uniform sampler2D noiseTex;
 const float PI = 3.141592;
 
 vec3 PixelToViewPos(vec2 uv, float z)
@@ -37,7 +49,7 @@ vec3 PixelToViewPos(vec2 uv, float z)
 
 float Visible(vec3 worldPos)
 {
-	const vec4 sunProjCoord = setting.sunViewProj * vec4(worldPos, 1.0);
+	const vec4 sunProjCoord = lighting.sunViewProj * vec4(worldPos, 1.0);
 	vec2 uv = (sunProjCoord.xy / sunProjCoord.w + 1.0) * 0.5;
 	uv.y = 1.0 - uv.y;
 	const float z = sunProjCoord.z / sunProjCoord.w;
@@ -92,8 +104,8 @@ void main()
 	float rayStart;
 	float rayEnd;
 	
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
-	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.atmosphereRadius, rayStart, rayEnd))
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
+	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, atmosphere.atmosphereRadius, rayStart, rayEnd))
 	{
 		imageStore(outImage, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
 		return;
@@ -103,7 +115,7 @@ void main()
 	
     float nearGround = 0.0;
     float farGround = 0.0;
-	if (RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, setting.groundRadius, nearGround, farGround))
+	if (RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, atmosphere.groundRadius, nearGround, farGround))
 		rayEnd = min(rayEnd, nearGround); // 땅에 닿으면 땅까지만 raymarching
 	
 	const float z = texture(depth, uv).r;
@@ -122,7 +134,7 @@ void main()
         return;
     }
 	
-	const vec3 sunDir = setting.sun.xyz;
+	const vec3 sunDir = lighting.sun.xyz;
 	const float distance = rayEnd - rayStart;
 	const ivec2 noisePixel = pixel % textureSize(noiseTex, 0);
 	const float noise = texelFetch(noiseTex, noisePixel, 0).r;
@@ -141,7 +153,7 @@ void main()
 		
 		// const float sampleT = mix(t0, t1, noise);
 		// const vec3 samplePos = camera.pos + rayDir * sampleT;
-		// const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
+		// const float sampleHeight = length(samplePos - PLANET_CENTER) - atmosphere.groundRadius;
 		// if (sampleHeight < 0.0)
 			// break;
 		
@@ -167,7 +179,7 @@ void main()
 		const float sampleT = mix(segmentT0, segmentT1, noise);
 		
 		const vec3 samplePos = camera.pos + rayDir * sampleT;
-		const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
+		const float sampleHeight = length(samplePos - PLANET_CENTER) - atmosphere.groundRadius;
 		if (sampleHeight < 0.0)
 		{
 			t0 = segmentT0;

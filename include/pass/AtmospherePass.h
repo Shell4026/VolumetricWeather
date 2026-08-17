@@ -2,7 +2,10 @@
 #include "APass.h"
 #include "render/VulkanImage.h"
 
-#include "glm/glm.hpp"
+#include "weather/Setting.h"
+#include "weather/IWeatherPass.h"
+
+#include <glm/glm.hpp>
 
 #include <vector>
 #include <memory>
@@ -10,7 +13,7 @@
 class Shader;
 class Material;
 
-class AtmosphereBasePass : public APass
+class AtmosphereBasePass : public APass, public IWeatherPass
 {
 public:
 	AtmosphereBasePass() { bUseSwapchainImage = false; }
@@ -57,14 +60,11 @@ class AtmospherePass : public AtmosphereBasePass
 public:
 	struct alignas(16) Setting
 	{
-		glm::vec4 sun; // dir, illuminance
-		glm::mat4 sunViewProj{ 1.f };
 		glm::ivec2 steps = { 64, 20 };
-		float radius = 6'460'000.f;
-		float mieCoefficient = 1.f;
-		float mieG = 0.8f;
 	};
 public:
+	void SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting) override;
+	void SetSetting(const WeatherSetting::Lighting& lightingSetting) override;
 	void SetSetting(const Setting& setting);
 	auto GetSetting() const -> const Setting& { return setting; }
 protected:

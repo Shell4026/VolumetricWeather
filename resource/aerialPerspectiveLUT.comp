@@ -11,21 +11,29 @@ layout(set = 0, binding = 0) uniform Camera
 } camera;
 layout(set = 1, binding = 0) uniform Setting
 {
-	vec4 sun;
-	mat4 sunViewProj;
-	
-	int steps;
+	uint steps;
+	float distanceFactor;
+} setting;
+layout(set = 1, binding = 1) uniform Atmosphere
+{
 	float groundRadius;
 	float atmosphereRadius;
 	float mieCoefficient;
-	
 	float mieG;
-	float distanceFactor;
-} setting;
-layout(set = 1, binding = 1, rgba16f) uniform writeonly image3D outImage;
-layout(set = 1, binding = 2) uniform sampler2D transmittanceLUT;
-layout(set = 1, binding = 3) uniform sampler2D multipleScatteringLUT;
-layout(set = 1, binding = 4) uniform sampler2DShadow shadowMap;
+	
+	vec3 mieColor; // 3.996, 3.996, 3.996
+	
+	vec3 rayleighColor; // 5.802, 13.558, 33.1
+} atmosphere;
+layout(set = 1, binding = 2) uniform Lighting
+{
+	vec4 sun; // dir, illuminance
+	mat4 sunViewProj;
+} lighting;
+layout(set = 1, binding = 3, rgba16f) uniform writeonly image3D outImage;
+layout(set = 1, binding = 4) uniform sampler2D transmittanceLUT;
+layout(set = 1, binding = 5) uniform sampler2D multipleScatteringLUT;
+layout(set = 1, binding = 6) uniform sampler2DShadow shadowMap;
 
 vec3 projToWorldPos(vec2 pixel)
 {
@@ -38,7 +46,7 @@ vec3 projToWorldPos(vec2 pixel)
 
 float Visible(vec3 worldPos)
 {
-	vec4 sunProjCoord = setting.sunViewProj * vec4(worldPos, 1.0);
+	vec4 sunProjCoord = lighting.sunViewProj * vec4(worldPos, 1.0);
 	vec2 uv = (sunProjCoord.xy / sunProjCoord.w + 1.0) * 0.5;
 	uv.y = 1.0 - uv.y;
 	const float z = sunProjCoord.z / sunProjCoord.w;
@@ -59,7 +67,7 @@ vec3 RayleighScattering(float y)
 
 vec3 MieScattering(float y)
 {
-	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6 * setting.mieCoefficient;
+	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6 * atmosphere.mieCoefficient;
 	return mie * exp(-y / 1200.0);
 }
 
@@ -71,7 +79,7 @@ vec3 ScatteringCoefficient(float y)
 
 vec3 AbsorptionCoefficient(float y)
 {
-	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6 * setting.mieCoefficient;
+	const vec3 mie = vec3(4.4, 4.4, 4.4) * 1e-6 * atmosphere.mieCoefficient;
 	const vec3 ozone = vec3(0.65, 1.881, 0.085) * 1e-6;
 	return mie * exp(-y / 1200.0) + ozone * max(0.0, 1.0 - abs(y - 25000.0) / 15000.0);
 }
@@ -105,22 +113,22 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 
 vec2 GetTransmittanceUV(vec3 samplePos, vec3 dir)
 {
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	
 	const float sampleLength = length(samplePos - PLANET_CENTER);
-	const float height = sampleLength - setting.groundRadius;
+	const float height = sampleLength - atmosphere.groundRadius;
 	const vec3 up = (samplePos - PLANET_CENTER) / sampleLength;
 	const float mu = dot(up, dir);
 	
-	const float r = height + setting.groundRadius;
+	const float r = height + atmosphere.groundRadius;
 	// 지평선에서 대기까지의 거리 H
-	const float H = sqrt(setting.atmosphereRadius * setting.atmosphereRadius - setting.groundRadius * setting.groundRadius);
+	const float H = sqrt(atmosphere.atmosphereRadius * atmosphere.atmosphereRadius - atmosphere.groundRadius * atmosphere.groundRadius);
 	// 지평선 거리 rho
-	const float rho = sqrt(r * r - setting.groundRadius * setting.groundRadius);
+	const float rho = sqrt(r * r - atmosphere.groundRadius * atmosphere.groundRadius);
 	
-	const float dMin = setting.atmosphereRadius - r; // 머리 위의 대기까지의 거리
+	const float dMin = atmosphere.atmosphereRadius - r; // 머리 위의 대기까지의 거리
 	const float dMax = rho + H; // 지평선 너머의 대기까지의 거리
-	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + setting.atmosphereRadius * setting.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
+	float d = -r * mu + sqrt(r * r * (mu * mu - 1) + atmosphere.atmosphereRadius * atmosphere.atmosphereRadius); // 샘플에서 ray방향으로의 대기권까지의 거리
 	d = max(d, 0.0);
 	
 	float u = (d - dMin) / (dMax - dMin); // 0(머리위) ~ 1(지평선)
@@ -140,13 +148,13 @@ vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
 
 vec3 MultipleScatteringUsingLUT(vec3 samplePos, float sampleHeight, vec3 toSunDir)
 {
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
-	const vec3 up = (samplePos - PLANET_CENTER) / (sampleHeight + setting.groundRadius);
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
+	const vec3 up = (samplePos - PLANET_CENTER) / (sampleHeight + atmosphere.groundRadius);
 	const float mu = dot(up, toSunDir);
 	
 	vec2 uv;
 	uv.x = mu * 0.5 + 0.5;
-	uv.y = max(0, min(sampleHeight / (setting.atmosphereRadius - setting.groundRadius), 1.0));
+	uv.y = max(0, min(sampleHeight / (atmosphere.atmosphereRadius - atmosphere.groundRadius), 1.0));
 	
 	return texture(multipleScatteringLUT, uv).rgb;
 }
@@ -171,15 +179,15 @@ void main()
 	vec2 uv = vec2(pixel + 0.5) / size.xy;
 	uv.y = 1.0 - uv.y;
 	
-	const vec3 sunDir = setting.sun.xyz;
+	const vec3 sunDir = lighting.sun.xyz;
 	const vec3 worldPos = projToWorldPos(uv);
 	const vec3 ray = normalize(worldPos - camera.pos);
 	const float sliceLength = 1000; // 1000m
-	const vec3 PLANET_CENTER = vec3(0.0, -setting.groundRadius, 0.0);
+	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	const float mu = dot(ray, -sunDir); // cos, 태양빛이 카메라로 산란될 확률 계산에 쓰임
 	
 	const float rayleighPhase = RayleighPhase(mu);
-	const float miePhase = MiePhase(mu, setting.mieG);
+	const float miePhase = MiePhase(mu, atmosphere.mieG);
 	
 	vec3 sigmaSum = vec3(0.0); // 소멸률
 	vec3 inScattering = vec3(0.0);
@@ -199,7 +207,7 @@ void main()
 			const float t = (i + 0.5) * stepSize;
 			const float dis = sliceBegin + t;
 			const vec3 samplePos = camera.pos + ray * dis;
-			const float sampleHeight = length(samplePos - PLANET_CENTER) - setting.groundRadius;
+			const float sampleHeight = length(samplePos - PLANET_CENTER) - atmosphere.groundRadius;
 			if (sampleHeight < 0.0)
 				break;
 			
@@ -211,10 +219,10 @@ void main()
 			
 			float near, far;
 			vec3 lightViewTransmittance = vec3(1.0, 1.0, 1.0); // L_scat의 S(x, l_i)
-			const bool groundHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, setting.groundRadius, near, far);
+			const bool groundHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, atmosphere.groundRadius, near, far);
 			if (groundHit)
 				continue;
-			const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, setting.atmosphereRadius, near, far);
+			const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, atmosphere.atmosphereRadius, near, far);
 			if (atmosphereHit)
 				lightViewTransmittance = TransmittanceUsingLUT(samplePos, -sunDir);
 			
@@ -229,7 +237,7 @@ void main()
 			
 			const vec3 single = visibility * lightViewTransmittance * phase;
 			const vec3 multi = sigmaS * MultipleScatteringUsingLUT(samplePos, sampleHeight, -sunDir);
-			const vec3 stepScat = (single + multi) * setting.sun.w * stepSize;
+			const vec3 stepScat = (single + multi) * lighting.sun.w * stepSize;
 		
 		inScattering += transmittance * stepScat;
 		}

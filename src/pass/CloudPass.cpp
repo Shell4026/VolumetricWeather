@@ -57,6 +57,16 @@ void CloudPass::Record(const FrameContext& frame)
 	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 32.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1.f);
 }
 
+void CloudPass::SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting)
+{
+	material->UpdateBindingData(1, atmosphereSetting);
+}
+
+void CloudPass::SetSetting(const WeatherSetting::Lighting & lightingSetting)
+{
+	material->UpdateBindingData(2, lightingSetting);
+}
+
 void CloudPass::SetSetting(const Setting& setting)
 {
 	this->setting = setting;
@@ -90,13 +100,15 @@ void CloudPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool desc
 	material = std::make_unique<Material>(ctx, *shader);
 	material->
 		AddBinding<Setting>(0).
-		AddBinding(1, *output).
-		AddBinding(2, *depth).
-		AddBinding(3, *perlin, sampler->GetSampler()).
-		AddBinding(4, *noiseTex, pointSampler->GetSampler()).
-		AddBinding(5, *sceneDepth, depthSampler->GetSampler()).
-		AddBinding(6, *transmittanceLUT, transmittanceLUTSampler->GetSampler()).
-		AddBinding(7, *cloudMask, maskSampler->GetSampler()).
+		AddBinding<WeatherSetting::Atmosphere>(1).
+		AddBinding<WeatherSetting::Lighting>(2).
+		AddBinding(3, *output).
+		AddBinding(4, *depth).
+		AddBinding(5, *perlin, sampler->GetSampler()).
+		AddBinding(6, *noiseTex, pointSampler->GetSampler()).
+		AddBinding(7, *sceneDepth, depthSampler->GetSampler()).
+		AddBinding(8, *transmittanceLUT, transmittanceLUTSampler->GetSampler()).
+		AddBinding(9, *cloudMask, maskSampler->GetSampler()).
 		Build(descPool);
 	material->UpdateBindingData(0, setting);
 }
@@ -113,15 +125,17 @@ void CloudPass::BuildPipeline(const VulkanContext& ctx)
 void CloudPass::CreateCloudShader(VkDescriptorSetLayout cameraSetLayout)
 {
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-	set1Bindings.reserve(8);
+	set1Bindings.reserve(10);
 	AddDescSetLayoutBinding(set1Bindings, 0, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
-	AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
-	AddDescSetLayoutBinding(set1Bindings, 2, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
-	AddDescSetLayoutBinding(set1Bindings, 3, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
-	AddDescSetLayoutBinding(set1Bindings, 4, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 1, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 2, VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 3, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 4, VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 	AddDescSetLayoutBinding(set1Bindings, 5, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 	AddDescSetLayoutBinding(set1Bindings, 6, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 	AddDescSetLayoutBinding(set1Bindings, 7, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 8, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
+	AddDescSetLayoutBinding(set1Bindings, 9, VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT);
 
 	shader = std::make_unique<Shader>();
 	shader->

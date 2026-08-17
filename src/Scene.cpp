@@ -81,13 +81,14 @@ void AScene::BeginRender(double dt)
 	waitInfo.pSemaphores = &timelineSemaphore;
 	waitInfo.pValues = &recentlyValue;
 	vkWaitSemaphores(ctx.GetDevice(), &waitInfo, UINT64_MAX);
+
+	cameraUniformBuffers->SetData(&cameraUniformData, sizeof(cameraUniformData));
 }
 
 void AScene::Render(double dt)
 {
 	frames[currentFrameIdx].dt = static_cast<float>(dt);
-	cameraUniformBuffers->SetData(&cameraUniformData, sizeof(cameraUniformData));
-
+	
 	BeginBuildCommandBuffer();
 
 	for (APass* pass : GetActivePassList())

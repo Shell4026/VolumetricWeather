@@ -9,24 +9,30 @@ layout(set = 0, binding = 0) uniform Camera
 	mat4 invView;
 	mat4 invProj;
 } camera;
-layout(set = 1, binding = 0) uniform Atmosphere
+layout(set = 1, binding = 0) uniform Setting
+{
+	ivec2 steps; // view step, sky-view step
+} setting;
+layout(set = 1, binding = 1) uniform Atmosphere
+{
+	float groundRadius;
+	float atmosphereRadius;
+	float mieCoefficient;
+	float mieG;
+	
+	vec3 mieColor; // 3.996, 3.996, 3.996
+	
+	vec3 rayleighColor; // 5.802, 13.558, 33.1
+} atmosphere;
+layout(set = 1, binding = 2) uniform Lighting
 {
 	vec4 sun; // dir, illuminance
 	mat4 sunViewProj;
-	ivec2 steps; // view step, sky-view step
-	float radius;
-	float mieCoefficient;
-	
-	float mieG;
-} atmosphere;
-layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D outImage;
-layout(set = 1, binding = 2) uniform sampler2D depth;
-layout(set = 1, binding = 3) uniform sampler2D opaque;
-layout(set = 1, binding = 4) uniform sampler2DShadow shadowMap;
-
-const float GROUND_RADIUS = 6360 * 1000.0;
-const float ATMOSPHERE_RADIUS = 6460 * 1000.0;
-const vec3 PLANET_CENTER = vec3(0.0, -GROUND_RADIUS, 0.0);
+} lighting;
+layout(set = 1, binding = 3, rgba16f) uniform writeonly image2D outImage;
+layout(set = 1, binding = 4) uniform sampler2D depth;
+layout(set = 1, binding = 5) uniform sampler2D opaque;
+layout(set = 1, binding = 6) uniform sampler2DShadow shadowMap;
 
 vec3 PixelToViewPos(vec2 uv, float z)
 {
@@ -39,7 +45,7 @@ vec3 PixelToViewPos(vec2 uv, float z)
 
 float Visible(vec3 worldPos)
 {
-	vec4 sunProjCoord = atmosphere.sunViewProj * vec4(worldPos, 1.0);
+	vec4 sunProjCoord = lighting.sunViewProj * vec4(worldPos, 1.0);
 	vec2 uv = (sunProjCoord.xy / sunProjCoord.w + 1.0) * 0.5;
 	uv.y = 1.0 - uv.y;
 	const float z = sunProjCoord.z / sunProjCoord.w;
@@ -130,6 +136,7 @@ bool RaySphereIntersect(vec3 rayOrigin, vec3 rayDir, vec3 sphereOrigin, float ra
 
 vec3 Transmittance(vec3 a, vec3 b, float distance, uint steps)
 {
+	const vec3 planetCenter = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	const float stepSize = distance / steps;
 	const vec3 dir = (b - a) / distance;
 	
@@ -137,7 +144,7 @@ vec3 Transmittance(vec3 a, vec3 b, float distance, uint steps)
 	for (uint i = 0; i < steps; ++i)
 	{
 		const vec3 samplePos = a + dir * stepSize * (i + 0.5);
-		const float sampleHeight = length(samplePos - PLANET_CENTER) - GROUND_RADIUS;
+		const float sampleHeight = length(samplePos - planetCenter) - atmosphere.groundRadius;
 		if (sampleHeight < 0.0)
 			break;
 		
@@ -147,9 +154,10 @@ vec3 Transmittance(vec3 a, vec3 b, float distance, uint steps)
 	return exp(-sigmaSum);
 }
 
-vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float illuminance, uvec2 steps, out vec3 sigmaSum)
+vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float illuminance, out vec3 sigmaSum)
 {
-	const float stepSize = distance / steps.x;
+	const vec3 planetCenter = vec3(0.0, -atmosphere.groundRadius, 0.0);
+	const float stepSize = distance / setting.steps.x;
 	const vec3 dir = (b - a) / distance;
 	
 	const float rayleighPhase = RayleighPhase(mu);
@@ -157,10 +165,10 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 	
 	vec3 inScattering = vec3(0.0, 0.0, 0.0);
 	sigmaSum = vec3(0.0, 0.0, 0.0);
-	for (uint i = 0; i < steps.x; ++i)
+	for (uint i = 0; i < setting.steps.x; ++i)
 	{
 		const vec3 samplePos = a + dir * stepSize * (i + 0.5);
-		const float sampleHeight = length(samplePos - PLANET_CENTER) - GROUND_RADIUS;
+		const float sampleHeight = length(samplePos - planetCenter) - atmosphere.groundRadius;
 		if (sampleHeight < 0.0)
 			break;
 
@@ -173,15 +181,15 @@ vec3 InScattering(vec3 a, vec3 b, float distance, vec3 sunDir, float mu, float i
 		float near = 0.0;
 		float far = 0.0;
 		
-		const bool groundHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, GROUND_RADIUS, near, far);
+		const bool groundHit = RaySphereIntersect(samplePos, -sunDir, planetCenter, atmosphere.groundRadius, near, far);
 		if (groundHit)
 			continue;
 		const float visibility = Visible(samplePos);
 
 		vec3 lightViewTransmittance = vec3(1.0, 1.0, 1.0); // L_scat의 S(x, l_i)
-		const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, PLANET_CENTER, atmosphere.radius, near, far);
+		const bool atmosphereHit = RaySphereIntersect(samplePos, -sunDir, planetCenter, atmosphere.atmosphereRadius, near, far);
 		if (atmosphereHit)
-			lightViewTransmittance = Transmittance(samplePos, samplePos - sunDir * far, far, steps.y);
+			lightViewTransmittance = Transmittance(samplePos, samplePos - sunDir * far, far, setting.steps.y);
 		
 		const vec3 phase = 
 		(
@@ -204,10 +212,11 @@ void main()
 	vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
 	const vec3 viewRay = PixelToViewPos(uv, 1.0);
 	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
+	const vec3 planetCenter = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	
 	float nearAtmo = 0.0;
 	float farAtmo = 1.0;
-	if (!RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, atmosphere.radius, nearAtmo, farAtmo))
+	if (!RaySphereIntersect(camera.pos, rayDir, planetCenter, atmosphere.atmosphereRadius, nearAtmo, farAtmo))
 	{
 		imageStore(outImage, pixel, vec4(0, 0, 0, 1)); // 대기와 교차하지 않는 경우(우주)
 		return;
@@ -218,7 +227,7 @@ void main()
 	
     float nearGround = 0.0;
     float farGround = 0.0;
-	if (RaySphereIntersect(camera.pos, rayDir, PLANET_CENTER, GROUND_RADIUS, nearGround, farGround))
+	if (RaySphereIntersect(camera.pos, rayDir, planetCenter, atmosphere.groundRadius, nearGround, farGround))
 		rayEnd = min(rayEnd, nearGround); // 땅에 닿으면 땅까지만 raymarching
 	
 	const float z = texture(depth, uv).r;
@@ -239,13 +248,13 @@ void main()
         return;
     }
 	
-	const vec3 sunDir = atmosphere.sun.xyz;
+	const vec3 sunDir = lighting.sun.xyz;
 	const float mu = dot(-rayDir, sunDir); // cos, 태양빛이 카메라로 산란될 확률 계산에 쓰임
 	
     const vec3 start = camera.pos + rayDir * rayStart;
     const vec3 end   = camera.pos + rayDir * rayEnd;
 	vec3 sigmaSum; // start에서 end까지 누적된 소멸 계수(sigmaT)
-	vec3 result = InScattering(start, end, rayEnd - rayStart, sunDir, mu, atmosphere.sun.w, atmosphere.steps, sigmaSum);
+	vec3 result = InScattering(start, end, rayEnd - rayStart, sunDir, mu, lighting.sun.w, sigmaSum);
 	if (surfaceHit)
 		result += exp(-sigmaSum) * texture(opaque, uv).rgb;
 	
