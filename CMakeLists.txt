@@ -14,6 +14,8 @@ file(GLOB binFiles "${CMAKE_SOURCE_DIR}/resource/*.bin")
 file(COPY ${binFiles} DESTINATION ${CMAKE_BINARY_DIR}/textures)
 file(GLOB fontFiles "${CMAKE_SOURCE_DIR}/resource/*.otf")
 file(COPY ${fontFiles} DESTINATION ${CMAKE_BINARY_DIR}/fonts)
+file(GLOB presetFiles "${CMAKE_SOURCE_DIR}/resource/*.json")
+file(COPY ${presetFiles} DESTINATION ${CMAKE_BINARY_DIR})
 message("Asset copy is completed")
 
 set(CMAKE_CXX_STANDARD 20)
