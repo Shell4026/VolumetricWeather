@@ -169,9 +169,12 @@ void main()
 		// scattering0 = scattering1;
 	// }
 	
-	bool wasShadowed = false;
+	bool wasShadowed = Visible(camera.pos) < 0.5;
+	float shadowSum = 0.0;
+	float weightSum = 0.0;
 	//scattering0 그림자 시작 부분
 	//scattering1 그림자 끝 부분
+
 	for (uint i = 0; i < steps; ++i)
 	{
 		const float segmentT0 = rayStart + float(i) * stepSize;

@@ -531,6 +531,7 @@ void BasisScene::DrawDebugGUI()
 						lutPass->UpdateLUTFlags(LUTPass::LUTType::AerialShadow);
 					}
 				}
+				lutPass->SetSetting(lutSetting);
 			}
 
 			ImGui::Separator();
@@ -751,6 +752,8 @@ void BasisScene::DrawPresetGUI()
 
 			UpdateSun();
 			UpdateCameraData();
+
+			settingDirtyFlags = WeatherDirtyFlag::Atmosphere | WeatherDirtyFlag::Lighting | WeatherDirtyFlag::Cloud;
 		}
 		ImGui::SameLine();
 		if (ImGui::Button(std::format("Delete##{}", presetInfo.name).c_str()))
