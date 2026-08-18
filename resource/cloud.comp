@@ -43,6 +43,8 @@ layout(set = 1, binding = 0) uniform Setting
 	float densityPFactor;
 	
 	vec2 windVelKmh;
+	
+	vec4 cloudColor;
 } setting;
 layout(set = 1, binding = 1) uniform Atmosphere
 {
@@ -554,6 +556,8 @@ void main()
 	const float weightedDepth = depthSum / max(weightSum, 1e-5);
 	const float depthReliability = smoothstep(0.005, 0.05, weightSum);
 	const float depth = mix(fallbackDepth, weightedDepth, depthReliability);
+	
+	inScattering *= vec3(setting.cloudColor);
 	
 	imageStore(outImage, pixel, vec4(inScattering, transmittance));
 	imageStore(outCloudDepth, pixel, vec4(depth));

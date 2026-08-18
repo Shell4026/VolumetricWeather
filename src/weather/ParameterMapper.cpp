@@ -1,7 +1,9 @@
-﻿#include "weather/ParameterMapper.h"
+﻿#define GLM_ENABLE_EXPERIMENTAL
+#include "weather/ParameterMapper.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/quaternion.hpp"
+#include "glm/gtx/vec_swizzle.hpp"
 #include <cmath>
 
 auto ParameterMapper::ConvertRenderSetting(const ArtistSetting& artistSetting) -> WeatherSetting
@@ -11,6 +13,8 @@ auto ParameterMapper::ConvertRenderSetting(const ArtistSetting& artistSetting) -
 	setting.atmosphere.rayleighColor *= glm::clamp(artistSetting.rayleighScatteringStrength, 0.f, 4.f);
 	setting.atmosphere.mieCoefficient = artistSetting.mieScatteringStrength;
 	setting.atmosphere.mieG = glm::clamp(artistSetting.mieAnisotropy, 0.f, 0.99f);
+	setting.atmosphere.mieColor = glm::vec3{ 3.996f,  3.996f, 3.996f } * glm::vec3{ artistSetting.mieColor };
+
 	setting.lighting.sun = glm::vec4{ GetSunDirection(artistSetting), 15.f * artistSetting.sunIntensity };
 
 	return setting;

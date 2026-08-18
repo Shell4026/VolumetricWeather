@@ -9,6 +9,7 @@ struct ArtistSetting
 	float rayleighScatteringStrength = 1.f;
 	float mieScatteringStrength = 1.f;
 	float mieAnisotropy = 0.8f;
+	glm::vec4 mieColor{ 1.f, 1.f, 1.f, 1.f };
 
 	float latitude = 37.f; // 대한민국 위도
 	float hour = 12.f;

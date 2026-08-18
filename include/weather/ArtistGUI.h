@@ -23,5 +23,7 @@ private:
 	CurveEditor curveEditor;
 
 	Bezier* curBezier = nullptr;
+	glm::vec4* curColor = nullptr;
+	bool bColorEditorOpen = false;
 	bool bCurveEditorOpen = false;
 };
