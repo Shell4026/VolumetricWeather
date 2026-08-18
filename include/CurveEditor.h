@@ -32,6 +32,8 @@ public:
     auto GetControlPointsAsBezier() const -> Bezier;
     auto GetSamples() const -> const std::vector<glm::vec2>& { return m_samples; }
     auto GetSampleCount() const -> int { return m_sampleCount; }
+
+    static auto CurveButton(const char* id, const Bezier& bezier, ImVec2 size = ImVec2(0.0f, 100.0f)) -> bool;
 private:
     auto HandleInput(const ImVec2& canvasMin, const ImVec2& canvasMax, bool canvasHovered) -> bool;
     auto FindPointUnderMouse(const ImVec2& mouse, const ImVec2& canvasMin, const ImVec2& canvasMax) const -> int;

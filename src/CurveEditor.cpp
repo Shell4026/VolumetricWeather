@@ -1,5 +1,6 @@
 ﻿#include "CurveEditor.h"
 
+#include <array>
 CurveEditor::CurveEditor()
 {
     m_controlPoints[0] = glm::vec2(0.0f, 0.0f);
@@ -170,6 +171,78 @@ auto CurveEditor::GetControlPointsAsBezier() const -> Bezier
     const glm::vec2& d = m_controlPoints[3];
     return Bezier{ a,b,c,d };
 }
+
+auto CurveEditor::CurveButton(const char* id, const Bezier& bezier, ImVec2 size) -> bool
+{
+    const ImVec2 available = ImGui::GetContentRegionAvail();
+
+    if (size.x <= 0.0f)
+        size.x = available.x;
+
+    std::array<glm::vec2, 100> samples;
+    for (int i = 0; i < samples.size(); ++i)
+    {
+        const float t = static_cast<float>(i) / static_cast<float>(samples.size() - 1);
+
+        samples[i] = bezier.GetSample(t);
+    }
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    const ImVec2 canvasMin = ImGui::GetCursorScreenPos();
+    const ImVec2 canvasMax =
+    {
+        canvasMin.x + size.x,
+        canvasMin.y + size.y
+    };
+    const ImU32 curveColor = IM_COL32(80, 220, 120, 255);
+
+    auto toScreenFn =
+        [&](const glm::vec2& sample) -> ImVec2
+        {
+            return 
+            {
+                 canvasMin.x + sample.x * (canvasMax.x - canvasMin.x),
+                 canvasMax.y - sample.y * (canvasMax.y - canvasMin.y)
+            };
+        };
+
+    ImVec2 previous = toScreenFn(samples[0]);
+
+    drawList->PushClipRect(canvasMin, canvasMax, true);
+
+    ImGui::InvisibleButton(id, size, ImGuiButtonFlags_::ImGuiButtonFlags_MouseButtonLeft);
+    const bool bHovered = ImGui::IsItemHovered();
+    const bool bActive = ImGui::IsItemActive();
+
+    const ImU32 backgroundColor =
+        bActive
+        ? IM_COL32(55, 55, 60, 255)
+        : bHovered
+        ? IM_COL32(45, 45, 50, 255)
+        : IM_COL32(35, 35, 40, 255);
+
+    const ImU32 borderColor =
+        bHovered
+        ? IM_COL32(100, 220, 140, 255)
+        : IM_COL32(80, 80, 90, 255);
+
+    // 배경
+    drawList->AddRectFilled(canvasMin, canvasMax, backgroundColor, 4.f);
+
+    // 테두리
+    drawList->AddRect(canvasMin, canvasMax, borderColor, 4.f, 0, 1.f);
+
+    for (size_t i = 1; i < samples.size(); ++i)
+    {
+        const ImVec2 current = toScreenFn(samples[i]);
+        drawList->AddLine(previous, current, curveColor, 2.f);
+        previous = current;
+    }
+    drawList->PopClipRect();
+
+    return ImGui::IsItemClicked(ImGuiMouseButton_::ImGuiMouseButton_Left);
+}
+
 
 auto CurveEditor::HandleInput(const ImVec2& canvasMin, const ImVec2& canvasMax, bool canvasHovered) -> bool
 {
@@ -559,9 +632,7 @@ void CurveEditor::DrawCurve(ImDrawList* drawList, const ImVec2& min, const ImVec
     // 이렇게 하면 Dear ImGui 버전별
     // AddPolyline 파라미터 순서 차이에도
     // 영향을 덜 받는다.
-    for (size_t i = 1;
-        i < m_samples.size();
-        ++i)
+    for (size_t i = 1; i < m_samples.size(); ++i)
     {
         const ImVec2 current =
             GraphToScreen(
