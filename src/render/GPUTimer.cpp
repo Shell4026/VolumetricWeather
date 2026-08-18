@@ -13,6 +13,7 @@ void GPUTimer::Create(const VulkanContext& ctx)
 {
     this->ctx = &ctx;
     timestampPeriod = ctx.GetPhysicalDeviceProp().limits.timestampPeriod;
+    bHasMeasurement = false;
 
     VkQueryPoolCreateInfo ci{};
     ci.sType = VkStructureType::VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
@@ -27,6 +28,7 @@ void GPUTimer::Clear()
         return;
     vkDestroyQueryPool(ctx->GetDevice(), queryPool, nullptr);
     queryPool = VK_NULL_HANDLE;
+    bHasMeasurement = false;
 }
 
 void GPUTimer::Begin(VkCommandBuffer cmd)
@@ -38,10 +40,14 @@ void GPUTimer::Begin(VkCommandBuffer cmd)
 void GPUTimer::End(VkCommandBuffer cmd)
 {
     vkCmdWriteTimestamp(cmd, VkPipelineStageFlagBits::VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, 1);
+    bHasMeasurement = true;
 }
 
 auto GPUTimer::GetElapsedMs() const -> double
 {
+    if (!bHasMeasurement)
+        return 0.0;
+
     uint64_t timestamps[2]{};
 
     VkResult result = vkGetQueryPoolResults(

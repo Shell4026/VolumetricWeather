@@ -218,7 +218,7 @@ void LUTPass::Record(const FrameContext& frame)
 			aerialShadow.timer.End(cmd);
 		}
 	}
-	//updateLUTFlags = 0;
+	updateLUTFlags = 0;
 }
 
 void LUTPass::SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting)

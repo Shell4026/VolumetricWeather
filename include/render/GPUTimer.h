@@ -19,4 +19,5 @@ private:
 	float timestampPeriod = 1.f;
 
 	VkQueryPool queryPool = VK_NULL_HANDLE;
+	bool bHasMeasurement = false;
 };

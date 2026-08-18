@@ -205,6 +205,11 @@ void BasisScene::PrepareResource()
 	binding2.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
 	binding2.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	binding2.descriptorCount = 1;
+	VkDescriptorSetLayoutBinding& binding3 = set1Bindings.emplace_back();
+	binding3.binding = 3;
+	binding3.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+	binding3.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	binding3.descriptorCount = 1;
 
 	VkPushConstantRange pc{};
 	pc.size = sizeof(glm::mat4);
@@ -223,6 +228,7 @@ void BasisScene::PrepareResource()
 		AddBinding<Mountain::MaterialData>(0).
 		AddBinding(1, mountain.model.textures[0], sampler).
 		AddBinding(2, *ctx.GetEmptyImage(), sampler).
+		AddBinding(3, *ctx.GetEmptyImage(), sampler).
 		Build(GetDescriptorPool());
 
 	mountain.data.sun = setting.lighting.sun;
@@ -238,6 +244,7 @@ void BasisScene::PrepareResource()
 			AddBinding<City::MaterialData>(0).
 			AddBinding(1, city.model.textures[i], sampler).
 			AddBinding(2, *ctx.GetEmptyImage(), sampler).
+			AddBinding(3, *ctx.GetEmptyImage(), sampler).
 			Build(GetDescriptorPool());
 		matPtr->UpdateBindingData(0, city.data);
 	}
@@ -284,6 +291,15 @@ void BasisScene::SetupPass()
 	lutPass->SetNoiseTexture(*blueNoise);
 	lutPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 	lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
+	lutPass->DisablePass(LUTPass::LUTType::All);
+	lutPass->EnablePass(LUTPass::LUTType::Transmittance);
+	mountain.material->UpdateBindingData(3, *lutPass->GetTransmittanceLUT(), lutPass->GetTransmittanceLUTSampler()->GetSampler());
+	for (std::unique_ptr<Material>& matPtr : city.materials)
+	{
+		if (matPtr == nullptr)
+			continue;
+		matPtr->UpdateBindingData(3, *lutPass->GetTransmittanceLUT(), lutPass->GetTransmittanceLUTSampler()->GetSampler());
+	}
 
 	atmospherePass = std::make_unique<AtmospherePass>();
 	atmospherePass->SetOpaqueTexture(*opaquePass->GetOutputImage());
@@ -311,7 +327,7 @@ void BasisScene::SetupPass()
 	hillairePass->SetImageSize(width, height);
 	hillairePass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	currentAtmospherePass = atmospherePass.get();
+	currentAtmospherePass = hillairePass.get();
 
 	postProcessPass = std::make_unique<PostProcessPass>(*currentAtmospherePass->GetOutputImage());
 	postProcessPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
@@ -320,9 +336,7 @@ void BasisScene::SetupPass()
 	blitPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
 	allPasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), cloudTRPass.get(), postProcessPass.get(), blitPass.get()};
-	activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
-
-	UpdateSun();
+	SetAtmosphereModel(currentAtmospherePass == hillairePass.get());
 }
 
 auto BasisScene::GetActivePassList() -> std::vector<APass*>&
@@ -770,6 +784,12 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 	if (useHillaire)
 	{
 		SH_INFO("Change to Hillaire");
+		lutPass->EnablePass(LUTPass::LUTType::Transmittance | LUTPass::LUTType::MultipleScattering | LUTPass::LUTType::SkyView);
+		const uint32_t modeFlags = hillairePass->GetSetting().modeFlags;
+		if (modeFlags & 0b01)
+			lutPass->EnablePass(LUTPass::LUTType::AerialPerspective);
+		if (modeFlags & 0b10)
+			lutPass->EnablePass(LUTPass::LUTType::AerialShadow);
 		if (bCloudEnable)
 			activePasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), cloudPass.get(), cloudTRPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get()};
 		else
@@ -779,7 +799,9 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 	else
 	{
 		SH_INFO("Change to default");
-		activePasses = { shadowPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
+		lutPass->DisablePass(LUTPass::LUTType::All);
+		lutPass->EnablePass(LUTPass::LUTType::Transmittance);
+		activePasses = { shadowPass.get(), lutPass.get(), opaquePass.get(), atmospherePass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*atmospherePass->GetOutputImage());
 	}
 	UpdateSun();
@@ -941,6 +963,7 @@ void BasisScene::UploadSettingsToGPU()
 		hillairePass->SetSetting(setting.atmosphere);
 		lutPass->SetSetting(setting.atmosphere);
 		cloudPass->SetSetting(setting.atmosphere);
+		UpdateOpaqueMaterialData();
 	}
 	if (settingDirtyFlags & WeatherDirtyFlag::Lighting)
 	{
@@ -975,15 +998,25 @@ void BasisScene::UpdateSun()
 	const glm::mat4 sunViewProj = sunCamera.GetMatrixProj() * sunCamera.GetMatrixView();
 	setting.lighting.sunViewProj = sunViewProj;
 
-	mountain.data.sun = sun;
 	mountain.data.viewProj = sunViewProj;
-	mountain.material->UpdateBindingData(0, mountain.data);
-	city.data.sun = sun;
 	city.data.viewProj = sunViewProj;
-	for (std::unique_ptr<Material>& matPtr : city.materials)
-		matPtr->UpdateBindingData(0, city.data);
+	UpdateOpaqueMaterialData();
 
 	shadowPass->SetCamera(sunCamera);
+}
+
+void BasisScene::UpdateOpaqueMaterialData()
+{
+	mountain.data.sun = setting.lighting.sun;
+	mountain.data.atmosphereRadius = setting.atmosphere.atmosphereRadius;
+	mountain.data.groundRadius = setting.atmosphere.groundRadius;
+	mountain.material->UpdateBindingData(0, mountain.data);
+
+	city.data.sun = setting.lighting.sun;
+	city.data.atmosphereRadius = setting.atmosphere.atmosphereRadius;
+	city.data.groundRadius = setting.atmosphere.groundRadius;
+	for (std::unique_ptr<Material>& matPtr : city.materials)
+		matPtr->UpdateBindingData(0, city.data);
 }
 
 auto BasisScene::Preset::Serialize() const -> Json

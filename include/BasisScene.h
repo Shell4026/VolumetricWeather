@@ -63,6 +63,7 @@ private:
 	void ControlCamera(double dt);
 	void UploadSettingsToGPU();
 	void UpdateSun();
+	void UpdateOpaqueMaterialData();
 private:
 	VkSampler sampler = VK_NULL_HANDLE;
 
@@ -89,6 +90,8 @@ private:
 		{
 			alignas(16) glm::vec4 sun;
 			alignas(16) glm::mat4 viewProj;
+			float atmosphereRadius = 6'460'000.f;
+			float groundRadius = 6'360'000.f;
 		} data;
 		std::unique_ptr<Material> material;
 	} mountain;
@@ -99,6 +102,8 @@ private:
 		{
 			alignas(16) glm::vec4 sun;
 			alignas(16) glm::mat4 viewProj;
+			float atmosphereRadius = 6'460'000.f;
+			float groundRadius = 6'360'000.f;
 		} data;
 		std::vector<std::unique_ptr<Material>> materials;
 	} city;
