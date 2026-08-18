@@ -61,13 +61,13 @@ void ArtistGUI::RenderGUI()
 			DrawTooltip(U8("산란광이 태양 방향에 얼마나 집중되는지를 정합니다. 0은 모든 방향이 비슷하고, 1에 가까울수록 태양 주변에 빛이 집중됩니다."));
 			
 			float mieColor[3] = { setting.mieColor.r, setting.mieColor.g, setting.mieColor.b };
-			if (ImGui::ColorButton(U8("에어로졸 색"), { mieColor[0], mieColor[1], mieColor[2], 1.f }, ImGuiColorEditFlags_::ImGuiColorEditFlags_InputRGB))
+			if (ImGui::ColorButton(U8("에어로졸 색"), { mieColor[0], mieColor[1], mieColor[2], 1.f }))
 			{
 				curColor = &setting.mieColor;
 				bColorEditorOpen = true;
 			}
 			ImGui::SameLine();
-			ImGui::Text(U8("색"));
+			ImGui::Text(U8("색상"));
 
 			ImGui::SeparatorText(U8("태양"));
 			bSunUpdate |=
@@ -87,6 +87,15 @@ void ArtistGUI::RenderGUI()
 		}
 		if (menu == 1)
 		{
+			float cloudColor[3] = { setting.cloudColor.r, setting.cloudColor.g, setting.cloudColor.b };
+			if (ImGui::ColorButton(U8("구름 색"), { cloudColor[0], cloudColor[1], cloudColor[2], 1.f }))
+			{
+				curColor = &setting.cloudColor;
+				bColorEditorOpen = true;
+			}
+			ImGui::SameLine();
+			ImGui::Text(U8("색상"));
+
 			ImGui::SeparatorText(U8("모양"));
 			bCloudUpdate |=
 				ImGui::SliderFloat(U8("구름 양"), &setting.cloudAmount, 0.f, 1.f, "%.2f");
@@ -156,6 +165,8 @@ void ArtistGUI::RenderGUI()
 				*curColor = { col[0], col[1], col[2], col[3] };
 				if (curColor == &setting.mieColor)
 					bPlanetUpdate = true;
+				else if (curColor == &setting.cloudColor)
+					bCloudUpdate = true;
 			}
 			ImGui::End();
 		}

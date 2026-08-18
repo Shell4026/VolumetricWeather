@@ -24,6 +24,7 @@ struct ArtistSetting
 	float cloudDensity = 0.75f;
 	float cloudVerticalAmount = 0.0f;
 	float cloudSoftness = 0.5f;
+	glm::vec4 cloudColor{ 1.f, 1.f, 1.f, 1.f };
 
 	float windDirectionDegrees = 0.0f;
 	float windSpeedKmh = 10.0f;

@@ -36,6 +36,7 @@ auto ParameterMapper::ConvertCloudSetting(const ArtistSetting& artistSetting) ->
 	result.brightnessStrength = glm::clamp(artistSetting.cloudBrightness, 0.f, 4.f);
 	result.brightnessCurve = artistSetting.cloudBrightnessBezier;
 	result.powderStrength = glm::clamp(artistSetting.cloudSoftness, 0.f, 1.f);
+	result.cloudColor = artistSetting.cloudColor;
 
 	const float directionRadians = glm::radians(artistSetting.windDirectionDegrees);
 	result.windVelKmh = glm::vec2{ std::cos(directionRadians), std::sin(directionRadians) } * artistSetting.windSpeedKmh;

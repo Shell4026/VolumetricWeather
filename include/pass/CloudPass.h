@@ -39,6 +39,9 @@ public:
 		char padding0[4];
 
 		glm::vec2 windVelKmh{ 1.f, 0.f };
+		char padding1[2];
+
+		glm::vec4 cloudColor{ 1.f, 1.f, 1.f, 1.f };
 	};
 	enum ModeFlag
 	{
