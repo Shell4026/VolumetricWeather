@@ -65,6 +65,7 @@ public:
 
 	auto GetOutputImage() const -> const VulkanImage* { return output.get(); }
 	auto GetDepthImage() const -> const VulkanImage* { return depth.get(); }
+	auto GetSceneDepthImage() const -> const VulkanImage* { return sceneDepth; }
 	auto GetSampler() const -> const VulkanSampler* { return sampler; }
 	auto GetSetting() const -> const Setting& { return setting; }
 	auto GetSettingRevision() const -> uint64_t { return settingRevision; }

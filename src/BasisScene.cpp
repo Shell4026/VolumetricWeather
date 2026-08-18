@@ -635,6 +635,8 @@ void BasisScene::DrawDebugGUI()
 			CloudTRPass::Setting trSetting = cloudTRPass->GetSetting();
 			if (ImGui::SliderFloat("History Weight", &trSetting.historyWeight, 0.0f, 1.0f, "%.2f"))
 				cloudTRPass->SetSetting(trSetting);
+			if (ImGui::SliderFloat("NeighboorHood Gamma", &trSetting.nhGamma, 0.0f, 5.0f, "%.2f"))
+				cloudTRPass->SetSetting(trSetting);
 		}
 		if (menu == 5)
 		{

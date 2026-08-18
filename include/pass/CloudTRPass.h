@@ -15,10 +15,13 @@ public:
 	struct alignas(16) Setting
 	{
 		glm::vec3 pos{ 0.f };
-		alignas(16) glm::mat4 viewProj{ 1.f };
+		char padding0[4];
+		glm::mat4 viewProj{ 1.f };
 
 		float historyWeight = 0.95f;
 		uint32_t historyValid = 0;
+		float nhGamma = 2.5f;
+		uint32_t frameIdx = 0;
 	};
 public:
 	CloudTRPass(const CloudPass& cloudPass);
@@ -58,7 +61,7 @@ private:
 	const VulkanImage* curOutput = nullptr;
 	const VulkanImage* prevOutput = nullptr;
 	const VulkanSampler* sampler = nullptr;
-	const VulkanSampler* depthSampler = nullptr;
+	const VulkanSampler* pointSampler = nullptr;
 	Setting setting;
 	uint32_t frameIdx = 0;
 	uint64_t cloudSettingRevision = 0;
