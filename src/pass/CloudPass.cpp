@@ -54,7 +54,8 @@ void CloudPass::Record(const FrameContext& frame)
 	const uint32_t height = output->GetInfo().extent.height;
 	const std::array<VkDescriptorSet, 2> descSets = { frame.cameraSet, material->GetVkDescriptorSet() };
 	vkCmdBindDescriptorSets(cmd, VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE, shader->GetPipelineLayout(), 0, descSets.size(), descSets.data(), 0, nullptr);
-	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / 32.f)), static_cast<uint32_t>(std::ceil(height / 16.f)), 1.f);
+	const float groups = 16.f * 2.f;
+	vkCmdDispatch(cmd, static_cast<uint32_t>(std::ceil(width / groups)), static_cast<uint32_t>(std::ceil(height / groups)), 1.f);
 }
 
 void CloudPass::SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting)

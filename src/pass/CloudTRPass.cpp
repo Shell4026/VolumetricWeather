@@ -22,7 +22,6 @@ void CloudTRPass::Clear()
 	shader.reset();
 	output.reset();
 	output2.reset();
-	depth.reset();
 	InvalidateHistory();
 
 	if (pipeline != VK_NULL_HANDLE)
@@ -41,7 +40,6 @@ void CloudTRPass::SetUsages(const FrameContext& frame)
 	prevOutput = temp;
 
 	AddUsage(curOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
-	AddUsage(depth->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_GENERAL);
 	AddUsage(cloudPass.GetOutputImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(cloudPass.GetDepthImage()->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 	AddUsage(prevOutput->GetImage(), VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -60,8 +58,7 @@ void CloudTRPass::BeginRecord(const FrameContext& frame, const std::vector<Barri
 
 	material->UpdateBindingData(0, setting);
 	material->UpdateBindingData(1, *curOutput, nullptr);
-	material->UpdateBindingData(2, *depth, nullptr);
-	material->UpdateBindingData(5, *prevOutput, sampler->GetSampler());
+	material->UpdateBindingData(4, *prevOutput, sampler->GetSampler());
 }
 void CloudTRPass::Record(const FrameContext& frame)
 {
@@ -99,6 +96,11 @@ void CloudTRPass::SetHistoryValid(uint32_t valid)
 	setting.historyValid = valid;
 }
 
+auto CloudTRPass::GetDepthImage() const -> const VulkanImage*
+{
+	return cloudPass.GetDepthImage();
+}
+
 void CloudTRPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout)
 {
 	VkImageCreateInfo ci = VulkanImage::GetCreateInfo();
@@ -108,8 +110,6 @@ void CloudTRPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayou
 	ci.usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
 	output = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	output2 = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	ci.format = VkFormat::VK_FORMAT_R32_SFLOAT;
-	depth = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	ci.format = VkFormat::VK_FORMAT_R8_UINT;
 	accum = std::make_unique<VulkanImage>(ctx, ci, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
@@ -120,6 +120,7 @@ void CloudTRPass::PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayou
 	cloudSettingRevision = cloudPass.GetSettingRevision();
 	
 	sampler = &samplerManager->GetLinearClamp();
+	depthSampler = &samplerManager->GetPointClampWhite();
 }
 
 void CloudTRPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool)
@@ -128,11 +129,10 @@ void CloudTRPass::SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool de
 	material->
 		AddBinding<Setting>(0).
 		AddBinding(1, *curOutput).
-		AddBinding(2, *depth).
-		AddBinding(3, *cloudPass.GetOutputImage(), sampler->GetSampler()).
-		AddBinding(4, *cloudPass.GetDepthImage(), sampler->GetSampler()).
-		AddBinding(5, *prevOutput, sampler->GetSampler()).
-		AddBinding(6, *accum).
+		AddBinding(2, *cloudPass.GetOutputImage(), sampler->GetSampler()).
+		AddBinding(3, *cloudPass.GetDepthImage(), depthSampler->GetSampler()).
+		AddBinding(4, *prevOutput, sampler->GetSampler()).
+		AddBinding(5, *accum).
 		Build(descPool);
 	material->UpdateBindingData(0, setting);
 }
@@ -149,7 +149,7 @@ void CloudTRPass::BuildPipeline(const VulkanContext& ctx)
 void CloudTRPass::CreateTRShader(VkDescriptorSetLayout cameraSetLayout)
 {
 	std::vector<VkDescriptorSetLayoutBinding> set1Bindings;
-	set1Bindings.reserve(7);
+	set1Bindings.reserve(6);
 	{
 		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
 		binding.binding = 0;
@@ -168,7 +168,7 @@ void CloudTRPass::CreateTRShader(VkDescriptorSetLayout cameraSetLayout)
 		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
 		binding.binding = 2;
 		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		binding.descriptorCount = 1;
 	}
 	{
@@ -188,13 +188,6 @@ void CloudTRPass::CreateTRShader(VkDescriptorSetLayout cameraSetLayout)
 	{
 		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
 		binding.binding = 5;
-		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
-		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		binding.descriptorCount = 1;
-	}
-	{
-		VkDescriptorSetLayoutBinding& binding = set1Bindings.emplace_back();
-		binding.binding = 6;
 		binding.stageFlags = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
 		binding.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		binding.descriptorCount = 1;

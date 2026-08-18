@@ -36,7 +36,7 @@ public:
 	void SetHistoryValid(uint32_t valid);
 
 	auto GetOutputImage() const -> const VulkanImage* { return curOutput; }
-	auto GetDepthImage() const -> const VulkanImage* { return depth.get(); }
+	auto GetDepthImage() const -> const VulkanImage*;
 	auto GetSampler() const -> const VulkanSampler* { return sampler; }
 	auto GetSetting() const -> const Setting& { return setting; }
 protected:
@@ -50,7 +50,6 @@ private:
 
 	std::unique_ptr<VulkanImage> output;
 	std::unique_ptr<VulkanImage> output2;
-	std::unique_ptr<VulkanImage> depth;
 	std::unique_ptr<VulkanImage> accum;
 	std::unique_ptr<Shader> shader;
 	std::unique_ptr<Material> material;
@@ -59,7 +58,7 @@ private:
 	const VulkanImage* curOutput = nullptr;
 	const VulkanImage* prevOutput = nullptr;
 	const VulkanSampler* sampler = nullptr;
-
+	const VulkanSampler* depthSampler = nullptr;
 	Setting setting;
 	uint32_t frameIdx = 0;
 	uint64_t cloudSettingRevision = 0;

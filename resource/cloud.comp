@@ -366,7 +366,7 @@ void SegmentTransmittance(
 	const float cloudInner = atmosphere.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuter = cloudInner + CLOUD_THICKNESS;
 	const float segmentLength = segment.y - segment.x;
-	const float targetStepLength = 1000.0;
+	const float targetStepLength = 50.0;
 	const uint minStep = min(5u, setting.minSteps);
 	const uint maxStep = max(setting.maxSteps, minStep);
 	
@@ -375,16 +375,22 @@ void SegmentTransmittance(
 	const bool lightViewLimit = (setting.modeFlags & 1) == 1;
 	const float isotropicPhase = 1.0 / (4.0 * PI);
 	
-	for (uint i = 0; i < steps; ++i)
+	float t = segment.x;
+	for (uint i = 0; i < steps && t < segment.y; ++i)
 	{
 		if (transmittance <= 0.01)
             break;
-		const float t = segment.x + stepSize * (i + noise.r);
-		const vec3 samplePos = rayOrigin + rayDir * t;
+		
+		const float sampleT = t + stepSize * noise.r;
+		const vec3 samplePos = rayOrigin + rayDir * sampleT;
 		float density = GetDensity(cloudInner, cloudOuter, samplePos);
 		
 		if (density <= 0.001)
+		{
+			t += stepSize;
 			continue;
+		}
+		t += stepSize;
 		
 		float lightViewT = 1.0;
 		float groundNear;
@@ -462,11 +468,39 @@ int ClipCloudSegments(float maxDistance, inout vec2 segment0, inout vec2 segment
 
 void main()
 {
-	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
-	if ((setting.frameIdx & 1) == 0)
-		pixel.x = pixel.x * 2;
-	else
-		pixel.x = pixel.x * 2 + 1;
+	// const ivec2 bayer44[16] = ivec2[]
+	// (
+		// ivec2(0, 0), // 0
+		// ivec2(2, 2), // 1
+		// ivec2(2, 0), // 2
+		// ivec2(0, 2), // 3
+
+		// ivec2(1, 1), // 4
+		// ivec2(3, 3), // 5
+		// ivec2(3, 1), // 6
+		// ivec2(1, 3), // 7
+
+		// ivec2(1, 0), // 8
+		// ivec2(3, 2), // 9
+		// ivec2(3, 0), // 10
+		// ivec2(1, 2), // 11
+
+		// ivec2(0, 1), // 12
+		// ivec2(2, 3), // 13
+		// ivec2(2, 1), // 14
+		// ivec2(0, 3)  // 15
+	// );
+	const ivec2 bayer22[4] = ivec2[]
+	(
+		ivec2(0, 0), 
+		ivec2(1, 1),
+		ivec2(1, 0),
+		ivec2(0, 1)
+	);
+	
+	const uint idx = setting.frameIdx % 4;
+	ivec2 pixel = ivec2(gl_GlobalInvocationID.xy) * 2 + bayer22[idx];
+
 	ivec2 size = imageSize(outImage);
 	if (pixel.x >= size.x || pixel.y >= size.y)
 		return;
@@ -487,9 +521,9 @@ void main()
 	const float cloudOuterRadius = cloudInnerRadius + CLOUD_THICKNESS;
 	const vec3 PLANET_CENTER = vec3(0.0, -atmosphere.groundRadius, 0.0);
 	const ivec2 noisePixel = pixel % textureSize(noiseTex, 0);
-	const vec2 bluseNoise = texelFetch(noiseTex, noisePixel, 0).rg;
+	const vec2 blueNoise = texelFetch(noiseTex, noisePixel, 0).rg;
 
-	const vec2 noise = fract(bluseNoise + setting.frameIdx * 0.61803398875);
+	const vec2 noise = fract(blueNoise + setting.frameIdx * 0.61803398875);
 	vec2 cloudSegment0 ;
 	vec2 cloudSegment1;
 	int cloudSegmentCount = 

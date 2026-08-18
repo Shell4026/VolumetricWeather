@@ -21,11 +21,10 @@ layout(set = 1, binding = 0) uniform TRP
 } trp;
 
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D trOutput;
-layout(set = 1, binding = 2, r32f) uniform writeonly image2D trDepth;
-layout(set = 1, binding = 3) uniform sampler2D curCloudTex;
-layout(set = 1, binding = 4) uniform sampler2D curCloudDepthTex;
-layout(set = 1, binding = 5) uniform sampler2D prevCloudTex;
-layout(set = 1, binding = 6, r8ui) uniform uimage2D accumTex;
+layout(set = 1, binding = 2) uniform sampler2D curCloudTex;
+layout(set = 1, binding = 3) uniform sampler2D curCloudDepthTex;
+layout(set = 1, binding = 4) uniform sampler2D prevCloudTex;
+layout(set = 1, binding = 5, r8ui) uniform uimage2D accumTex;
 
 vec3 PixelToViewPos(vec2 uv, float z)
 {
@@ -36,12 +35,10 @@ vec3 PixelToViewPos(vec2 uv, float z)
 	return viewPos.xyz;
 }
 
-vec2 PreviousCloudUV(vec3 rayDir, float cloudDepth)
+vec2 PreviousUV(vec3 rayDir)
 {
-	if (cloudDepth < 0.0 || isnan(cloudDepth) || isinf(cloudDepth))
-		return vec2(-1.0);
-	const vec3 curCloudPos = camera.pos + rayDir * cloudDepth;
-	const vec4 prevClip = trp.viewProj * vec4(curCloudPos, 1.0);
+	const vec3 curPos = camera.pos + rayDir * 100000;
+	const vec4 prevClip = trp.viewProj * vec4(curPos, 1.0);
 	if (prevClip.w <= 0.0)
 		return vec2(-1.0);
 	const vec2 prevNDC = prevClip.xy / prevClip.w;
@@ -57,7 +54,7 @@ void CurrentNeighborhood(ivec2 pixel, out vec4 mean, out vec4 stddev)
     vec4 m2 = vec4(0.0);
     for (int y = -1; y <= 1; ++y)
 	{
-    for (int x = -1; x <= 1; ++x)
+		for (int x = -1; x <= 1; ++x)
 		{
 			const ivec2 coord = clamp(pixel + ivec2(x, y), ivec2(0), size - ivec2(1));
 			const vec4 c = texelFetch(curCloudTex, coord, 0);
@@ -84,7 +81,6 @@ void main()
 	
 	const vec4 curCloud = texelFetch(curCloudTex, pixel, 0);
 	const float curDepth = texelFetch(curCloudDepthTex, pixel, 0).r;
-	imageStore(trDepth, pixel, vec4(curDepth));
 	if (curDepth < 0.0)
 	{
 		imageStore(accumTex, pixel, ivec4(0));
@@ -99,11 +95,9 @@ void main()
 	}
 	
 	float maxHistoryWeight = clamp(trp.historyWeight, 0.0, 0.99);
-	vec2 historyUV = vec2(1.0);
-	if (trp.historyValid == 1)
-		historyUV = PreviousCloudUV(rayDir, curDepth);
-	else if (trp.historyValid == 2) // 정지 상태 가정
-		historyUV = uv;
+	vec2 historyUV = PreviousUV(rayDir);
+	if (trp.historyValid == 1) // 움직이는 상태
+		maxHistoryWeight = max(0.0, maxHistoryWeight - 0.1);
 
 	if (historyUV.x < 0.0 || historyUV.x >= 1.0 || historyUV.y < 0.0 || historyUV.y >= 1.0)
 	{
