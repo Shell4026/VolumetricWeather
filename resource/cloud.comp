@@ -366,7 +366,7 @@ void SegmentTransmittance(
 	const float cloudInner = atmosphere.groundRadius + CLOUD_HEIGHT;
 	const float cloudOuter = cloudInner + CLOUD_THICKNESS;
 	const float segmentLength = segment.y - segment.x;
-	const float targetStepLength = 50.0;
+	const float targetStepLength = 200.0;
 	const uint minStep = min(5u, setting.minSteps);
 	const uint maxStep = max(setting.maxSteps, minStep);
 	

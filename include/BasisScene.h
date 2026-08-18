@@ -131,12 +131,7 @@ private:
 	{
 		glm::vec3 camPos;
 		glm::quat camQuat;
-		glm::vec4 sun;
-		float cloudTile;
-		float cloudEC;
-		float cloudCoverage;
-		float cloudAnvil;
-		glm::vec2 windVel;
+		Json artistSetting;
 		auto Serialize() const -> Json;
 		void Deserialize(const Json& json);
 	};

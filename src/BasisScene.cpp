@@ -720,12 +720,7 @@ void BasisScene::DrawPresetGUI()
 		Preset preset{};
 		preset.camPos = camera.GetPos();
 		preset.camQuat = camera.GetQuat();
-		preset.sun = setting.lighting.sun;
-		preset.cloudTile = cloudSetting.tiling;
-		preset.cloudEC = cloudSetting.extinctionCoefficient;
-		preset.cloudCoverage = cloudSetting.coverage;
-		preset.windVel = cloudSetting.windVelKmh;
-		preset.cloudAnvil = cloudSetting.anvilBias;
+		preset.artistSetting = artistSetting.Serialize();
 		presetManager.AddPreset(presetName, preset);
 		presetName.clear();
 	}
@@ -741,19 +736,13 @@ void BasisScene::DrawPresetGUI()
 			camera.SetQuat(presetInfo.preset.camQuat);
 			camera.UpdateMatrix();
 
-			setting.lighting.sun = presetInfo.preset.sun;
-			CloudPass::Setting cloudSetting = cloudPass->GetSetting();
-			cloudSetting.tiling = presetInfo.preset.cloudTile;
-			cloudSetting.extinctionCoefficient = presetInfo.preset.cloudEC;
-			cloudSetting.coverage = presetInfo.preset.cloudCoverage;
-			cloudSetting.windVelKmh = presetInfo.preset.windVel;
-			cloudSetting.anvilBias = presetInfo.preset.cloudAnvil;
-			cloudPass->SetSetting(cloudSetting);
+			artistSetting.Deserialize(presetInfo.preset.artistSetting);
+			setting = ParameterMapper::ConvertRenderSetting(artistSetting);
 
 			UpdateSun();
 			UpdateCameraData();
 
-			settingDirtyFlags = WeatherDirtyFlag::Atmosphere | WeatherDirtyFlag::Lighting | WeatherDirtyFlag::Cloud;
+			settingDirtyFlags = (WeatherDirtyFlag::Atmosphere | WeatherDirtyFlag::Lighting | WeatherDirtyFlag::Cloud);
 		}
 		ImGui::SameLine();
 		if (ImGui::Button(std::format("Delete##{}", presetInfo.name).c_str()))
@@ -1000,8 +989,7 @@ auto BasisScene::Preset::Serialize() const -> Json
 	Json json;
 	json["camPos"] = { camPos.x, camPos.y, camPos.z };
 	json["camQuat"] = { camQuat.x, camQuat.y, camQuat.z, camQuat.w };
-	json["sun"] = { sun.x, sun.y, sun.z, sun.w };
-	json["cloud"] = { cloudTile, cloudEC, cloudCoverage, windVel.x, windVel.y, 0, cloudAnvil };
+	json["artistSetting"] = artistSetting;
 	return json;
 }
 
@@ -1015,19 +1003,8 @@ void BasisScene::Preset::Deserialize(const Json& json)
 	{
 		camQuat.x = it.value()[0]; camQuat.y = it.value()[1]; camQuat.z = it.value()[2]; camQuat.w = it.value()[3];
 	}
-	if (auto it = json.find("sun"); it != json.end())
+	if (auto it = json.find("artistSetting"); it != json.end())
 	{
-		sun.x = it.value()[0]; sun.y = it.value()[1]; sun.z = it.value()[2]; sun.w = it.value()[3];
-	}
-	if (auto it = json.find("cloud"); it != json.end())
-	{
-		const std::size_t size = it.value().size();
-		cloudTile = it.value()[0];
-		cloudEC = it.value()[1];
-		cloudCoverage = it.value()[2];
-		windVel.x = it.value()[3];
-		windVel.y = it.value()[4];
-		if (size >= 7)
-			cloudAnvil = it.value()[6];
+		artistSetting = it.value();
 	}
 }

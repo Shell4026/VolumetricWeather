@@ -1,8 +1,11 @@
 ﻿#pragma once
 #include "Bezier.hpp"
-#include "glm/glm.hpp"
 
-struct ArtistSetting
+#include "core/ISerializable.h"
+
+#include <glm/glm.hpp>
+
+struct ArtistSetting : public ISerializable
 {
 	float planetRotationAxis = 23.4f; // 지구 자전축
 	float atmosphereThickness = 1.f;
@@ -28,6 +31,9 @@ struct ArtistSetting
 
 	float windDirectionDegrees = 0.0f;
 	float windSpeedKmh = 10.0f;
+
+	auto Serialize() const -> Json override;
+	void Deserialize(const Json& json) override;
 };
 
 struct WeatherSetting
