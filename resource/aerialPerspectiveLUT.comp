@@ -67,7 +67,7 @@ vec3 RayleighScattering(float y)
 
 vec3 MieScattering(float y)
 {
-	const vec3 mie = vec3(3.996, 3.996, 3.996) * 1e-6 * atmosphere.mieCoefficient;
+	const vec3 mie = atmosphere.mieColor * 1e-6 * atmosphere.mieCoefficient;
 	return mie * exp(-y / 1200.0);
 }
 
