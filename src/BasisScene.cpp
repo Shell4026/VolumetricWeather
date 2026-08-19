@@ -177,7 +177,7 @@ auto BasisScene::CreateSceneCamera() -> std::unique_ptr<Camera>
 	camPtr->SetWidth(window.GetWidth());
 	camPtr->SetHeight(window.GetHeight());
 	camPtr->SetFar(100000.0f);
-	camPtr->SetPos(glm::vec3{ 0.f, 100.f, 0.f });
+	camPtr->SetPos(glm::vec3{ -168.f, 423.f, -160.f });
 	camPtr->SetYaw(-90.f);
 	camPtr->SetPitch(0.f);
 	camPtr->UpdateMatrix();
@@ -254,8 +254,8 @@ void BasisScene::PrepareResource()
 			Build(GetDescriptorPool());
 		matPtr->UpdateBindingData(0, city.data);
 	}
-	CreateCityDrawables();
-	//CreateDrawables();
+	//CreateCityDrawables();
+	CreateDrawables();
 
 	// 텍스쳐
 	std::optional<VulkanImage> texOpt = TextureLoader::Load(ctx, "textures/BlueNoise.png");
@@ -296,9 +296,7 @@ void BasisScene::SetupPass()
 	lutPass->SetShadowSampler(*shadowPass->GetShadowSampler());
 	lutPass->SetNoiseTexture(*blueNoise);
 	lutPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
-	lutPass->UpdateLUTFlags(LUTPass::LUTType::Transmittance);
-	lutPass->DisablePass(LUTPass::LUTType::All);
-	lutPass->EnablePass(LUTPass::LUTType::Transmittance);
+	lutPass->UpdateLUTFlags(LUTPass::LUTType::All);
 	mountain.material->UpdateBindingData(3, *lutPass->GetTransmittanceLUT(), lutPass->GetTransmittanceLUTSampler()->GetSampler());
 	for (std::unique_ptr<Material>& matPtr : city.materials)
 	{
@@ -343,6 +341,9 @@ void BasisScene::SetupPass()
 
 	allPasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), cloudTRPass.get(), postProcessPass.get(), blitPass.get()};
 	SetAtmosphereModel(currentAtmospherePass == hillairePass.get());
+
+	UpdateCameraData();
+	UpdateSun();
 }
 
 auto BasisScene::GetActivePassList() -> std::vector<APass*>&
@@ -816,7 +817,7 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 void BasisScene::CreateDrawables()
 {
 	glm::mat4 rootMatrix = glm::translate(glm::mat4{ 1.f }, glm::vec3{ 0.f, 0.f, 0.f });
-	rootMatrix = glm::scale(rootMatrix, glm::vec3{ 10.f, 10.f, 10.f });
+	rootMatrix = glm::scale(rootMatrix, glm::vec3{ 10.f, 5.f, 10.f });
 
 	struct BFSInfo
 	{
