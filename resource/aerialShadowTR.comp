@@ -1,0 +1,135 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform Camera
+{
+	vec3 pos;
+	mat4 view;
+	mat4 proj;
+	mat4 invView;
+	mat4 invProj;
+} camera;
+
+layout(set = 1, binding = 0) uniform TRP
+{
+	vec3 pos;
+	mat4 viewProj;
+	
+	float historyWeight;
+	uint historyValid;
+} trp;
+
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D trOutput;
+layout(set = 1, binding = 3) uniform sampler2D curTex;
+layout(set = 1, binding = 4) uniform sampler2D curDepthTex;
+layout(set = 1, binding = 5) uniform sampler2D prevTex;
+layout(set = 1, binding = 6, r8ui) uniform uimage2D accumTex;
+
+vec3 PixelToViewPos(vec2 uv, float z)
+{
+	vec3 ndc = vec3(uv * 2.0 - 1.0, z);
+	ndc.y = -ndc.y;
+	vec4 viewPos = camera.invProj * vec4(ndc, 1.0);
+	viewPos /= viewPos.w;
+	return viewPos.xyz;
+}
+
+vec2 PreviousShadowUV(vec3 rayDir, float shadowDepth)
+{
+	if (cloudDepth < 0.0 || isnan(cloudDepth) || isinf(cloudDepth))
+		return vec2(-1.0);
+	const vec3 curCloudPos = camera.pos + rayDir * cloudDepth;
+	const vec4 prevClip = trp.viewProj * vec4(curCloudPos, 1.0);
+	if (prevClip.w <= 0.0)
+		return vec2(-1.0);
+	const vec2 prevNDC = prevClip.xy / prevClip.w;
+	vec2 prevUV = prevNDC * 0.5 + 0.5;
+	prevUV.y = 1.0 - prevUV.y;
+	return prevUV;
+}
+
+void CurrentNeighborhood(ivec2 pixel, out vec4 mean, out vec4 stddev)
+{
+    const ivec2 size = textureSize(curCloudTex, 0);
+    vec4 m1 = vec4(0.0);
+    vec4 m2 = vec4(0.0);
+    for (int y = -1; y <= 1; ++y)
+	{
+    for (int x = -1; x <= 1; ++x)
+		{
+			const ivec2 coord = clamp(pixel + ivec2(x, y), ivec2(0), size - ivec2(1));
+			const vec4 c = texelFetch(curCloudTex, coord, 0);
+			m1 += c;
+			m2 += c * c;
+		}
+	}
+    mean = m1 / 9.0;
+    const vec4 variance = max(m2 / 9.0 - mean * mean, vec4(0.0));
+    stddev = sqrt(variance);
+}
+
+void main()
+{
+	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+	
+	const ivec2 size = imageSize(trOutput);
+	if (pixel.x >= size.x || pixel.y >= size.y)
+		return;
+	const vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+	const vec3 viewRay = PixelToViewPos(uv, 1.0);
+	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
+	uint accum = imageLoad(accumTex, pixel).r;
+	
+	const vec4 curCloud = texelFetch(curCloudTex, pixel, 0);
+	const float curDepth = texelFetch(curCloudDepthTex, pixel, 0).r;
+	imageStore(trDepth, pixel, vec4(curDepth));
+	if (curDepth < 0.0)
+	{
+		imageStore(accumTex, pixel, ivec4(0));
+		imageStore(trOutput, pixel, curCloud);
+		return;
+	}
+	if (trp.historyValid == 0)
+	{
+		imageStore(accumTex, pixel, ivec4(0));
+		imageStore(trOutput, pixel, curCloud);
+		return;
+	}
+	
+	float maxHistoryWeight = clamp(trp.historyWeight, 0.0, 0.99);
+	vec2 historyUV = vec2(1.0);
+	if (trp.historyValid == 1)
+		historyUV = PreviousCloudUV(rayDir, curDepth);
+	else if (trp.historyValid == 2) // 정지 상태 가정
+		historyUV = uv;
+
+	if (historyUV.x < 0.0 || historyUV.x >= 1.0 || historyUV.y < 0.0 || historyUV.y >= 1.0)
+	{
+		imageStore(accumTex, pixel, ivec4(0));
+		imageStore(trOutput, pixel, curCloud);
+		return;
+	}
+	accum = min(accum + 1, 16);
+	
+	vec4 prevCloud = texture(prevCloudTex, historyUV);
+
+	float historyWeight = min(accum / float(accum + 1), maxHistoryWeight);
+	
+	vec4 mean, stddev;
+	CurrentNeighborhood(pixel, mean, stddev);
+	const vec4 gamma = 2.5 * stddev;
+	vec4 boxMin = max(mean - gamma, vec4(0.0));
+	vec4 boxMax = mean + gamma;
+	boxMax.a = min(boxMax.a, 1.0);
+	
+	const vec3 clippedS = clamp(prevCloud.rgb, boxMin.rgb, boxMax.rgb);
+	const float clippedT = clamp(prevCloud.a, boxMin.a, boxMax.a);
+	prevCloud = vec4(clippedS, clippedT);
+	
+	const vec3 inScattering = mix(curCloud.rgb, prevCloud.rgb, historyWeight);
+	const float transmittance = mix(curCloud.a, prevCloud.a, historyWeight);
+	
+	imageStore(accumTex, pixel, ivec4(accum));
+	imageStore(trOutput, pixel, vec4(inScattering, transmittance));
+}

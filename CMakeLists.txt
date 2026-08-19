@@ -36,7 +36,7 @@ set(PASS_HEADERS
 "include/pass/CloudTRPass.h"
 "include/pass/LowDepthPass.h"
 "include/pass/CloudPaintPass.h"
- )
+  "include/pass/AerialShadowTRPass.h")
 set(PASS_CPPS 
 "src/pass/APass.cpp"
 "src/pass/PostProcessPass.cpp"
@@ -50,7 +50,7 @@ set(PASS_CPPS
 "src/pass/CloudTRPass.cpp"
 "src/pass/LowDepthPass.cpp"
 "src/pass/CloudPaintPass.cpp"
-)
+ "src/pass/AerialShadowTRPass.cpp")
 set(WEATHER_HEADERS
 "include/weather/Setting.h"
 "include/weather/AtmosphereRMSEMeasurement.h"
