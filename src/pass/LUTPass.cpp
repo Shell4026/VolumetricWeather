@@ -303,7 +303,7 @@ void LUTPass::ReCreateShadowLUT(uint32_t width, uint32_t height)
 	aerialShadow.lut = std::make_unique<VulkanImage>(*ctx, imageCI, VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT, VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	imageCI.format = VkFormat::VK_FORMAT_R32_SFLOAT;
 
-	aerialShadow.material->UpdateBindingData(1, *aerialShadow.lut, VK_NULL_HANDLE);
+	aerialShadow.material->UpdateBindingData(3, *aerialShadow.lut, VK_NULL_HANDLE);
 }
 
 auto LUTPass::GetLUTElpasedTimeMs(LUTType type) const -> double
