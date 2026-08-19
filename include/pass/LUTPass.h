@@ -21,7 +21,7 @@ public:
 		uint32_t transmittanceLUTSteps = 64;
 		uint32_t skyViewLUTSteps = 64;
 		uint32_t aerialPerspectiveLUTSteps = 5;
-		uint32_t aerialShadowSteps = 64;
+		uint32_t aerialShadowSteps = 128;
 		uint32_t msLUTSteps = 64;
 		float apFactor = 3.2f;
 	};
