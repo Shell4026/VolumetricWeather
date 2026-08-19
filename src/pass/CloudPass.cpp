@@ -41,7 +41,7 @@ void CloudPass::BeginRecord(const FrameContext& frame, const std::vector<Barrier
 	APass::BeginRecord(frame, barrierInfos);
 
 	frameIdx = frameIdx + 1;
-	time += frame.dt;
+	time += timeSpeed * frame.dt;
 	setting.frame = frameIdx;
 	setting.time = time;
 	material->UpdateBindingData(0, setting);

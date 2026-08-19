@@ -85,11 +85,17 @@ void BasisScene::Update(double dt)
 
 	gui.RenderGUI();
 	const WeatherDirtyFlags artistSettingDirty = artistGUI.GetDirtyFlags();
-	if (artistSettingDirty != 0)
+	if (artistSetting.timeSpeed > 0.f || artistSettingDirty != 0)
 	{
+		if (artistSetting.timeSpeed > 0.f)
+		{
+			artistSetting.hour += artistSetting.timeSpeed * dt;
+			settingDirtyFlags |= WeatherDirtyFlag::Lighting;
+		}
 		setting = ParameterMapper::ConvertRenderSetting(artistSetting);
 		settingDirtyFlags |= artistSettingDirty;
 	}
+	cloudPass->SetTimeSpeed(artistSetting.timeSpeed);
 
 	DrawDebugGUI();
 	cloudEditor->Update();

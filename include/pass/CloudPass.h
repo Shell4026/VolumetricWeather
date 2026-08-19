@@ -34,8 +34,8 @@ public:
 		Bezier brightnessCurve;
 
 		float brightnessStrength = 1.0f;
-		float densityPMin = 0.3f;
-		float densityPFactor = 0.8f;
+		float densityPMin = 0.0f;
+		float densityPFactor = 1.25f;
 		char padding0[4];
 
 		glm::vec2 windVelKmh{ 1.f, 0.f };
@@ -55,6 +55,7 @@ public:
 	void BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo>* barrierInfos) override;
 	void Record(const FrameContext& frame) override;
 	
+	void SetTimeSpeed(float speed) { timeSpeed = speed; }
 	void SetSetting(const WeatherSetting::Atmosphere& atmosphereSetting) override;
 	void SetSetting(const WeatherSetting::Lighting& lightingSetting) override;
 	void SetSetting(const Setting& setting);
@@ -69,6 +70,7 @@ public:
 	auto GetSampler() const -> const VulkanSampler* { return sampler; }
 	auto GetSetting() const -> const Setting& { return setting; }
 	auto GetSettingRevision() const -> uint64_t { return settingRevision; }
+	auto GetTimeSpeed() const -> float { return timeSpeed; }
 protected:
 	void PrepareResource(const VulkanContext& ctx, VkDescriptorSetLayout cameraSetLayout) override;
 	void SetupDescriptors(const VulkanContext& ctx, VkDescriptorPool descPool) override;
@@ -101,4 +103,5 @@ private:
 
 	uint32_t frameIdx = 0;
 	float time = 0.f;
+	float timeSpeed = 1.f;
 };

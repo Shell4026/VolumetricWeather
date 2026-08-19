@@ -84,6 +84,8 @@ void ArtistGUI::RenderGUI()
 			bSunUpdate |=
 				ImGui::SliderFloat(U8("시간"), &setting.hour, 0.f, 24.f, U8("%.1f시"));
 			DrawTooltip(U8("현지 시각입니다. 12시는 정오이고 0시와 24시는 자정입니다."));
+			ImGui::InputFloat(U8("시간 배속"), &setting.timeSpeed);
+			DrawTooltip(U8("시간이 얼마나 빠르게 흐를지 나타냅니다. 0이면 시간이 흐르지 않습니다."));
 		}
 		if (menu == 1)
 		{
@@ -127,7 +129,7 @@ void ArtistGUI::RenderGUI()
 			DrawTooltip(U8("높이에 따른 구름의 밝기를 커브로 상세하게 설정합니다."));
 			bCloudUpdate |=
 				ImGui::SliderFloat(U8("파우더 효과"), &setting.cloudSoftness, 0.f, 1.f, "%.2f");
-			DrawTooltip(U8("구름 모서리 부분의 어두움을 나타냅니다. 태양의 반대 방향일수록 잘 보입니다."));
+			DrawTooltip(U8("구름 모서리 부분의 어두움을 나타냅니다. 태양과 반대 방향일수록 강해집니다."));
 
 			ImGui::SeparatorText(U8("바람"));
 			bCloudUpdate |=

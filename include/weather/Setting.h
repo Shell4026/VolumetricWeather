@@ -18,7 +18,8 @@ struct ArtistSetting : public ISerializable
 	float hour = 12.f;
 	float month = 6.f;
 	float sunIntensity = 1.f;
-	
+	float timeSpeed = 0.f;
+
 	float cloudAmount = 0.35f;
 	float cloudSizeKM = 100.f;
 	float cloudBrightness = 1.0f;

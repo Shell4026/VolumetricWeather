@@ -30,12 +30,14 @@ auto ParameterMapper::ConvertCloudSetting(const ArtistSetting& artistSetting) ->
 
 	result.coverage = glm::mix(0.f, 0.2f, amount);
 	result.tiling = sizeKM * 1'000.f;
-	result.tiling2 = glm::mix(10'000.f, 500.f, detail);
+	result.tiling2 = glm::mix(result.tiling / 10.f, result.tiling / 40.f, detail);
 	result.extinctionCoefficient = glm::mix(10.f, 500.f, density * density);
-	result.anvilBias = (artistSetting.cloudVerticalAmount + 1.f) / 2.f; // -1~1 -> 0~1
+	result.anvilBias = glm::mix(0.2, 0.8, (artistSetting.cloudVerticalAmount + 1.f) / 2.f); // -1~1 -> 0.2 ~ 0.8
 	result.brightnessStrength = glm::clamp(artistSetting.cloudBrightness, 0.f, 4.f);
 	result.brightnessCurve = artistSetting.cloudBrightnessBezier;
-	result.powderStrength = glm::clamp(artistSetting.cloudSoftness, 0.f, 1.f);
+	//result.powderStrength = glm::clamp(artistSetting.cloudSoftness, 0.f, 1.f);
+	result.densityPMin = glm::mix(0.f, 0.2f, artistSetting.cloudSoftness);
+	result.densityPFactor = glm::mix(0.f, 1.5f, artistSetting.cloudSoftness);
 	result.cloudColor = artistSetting.cloudColor;
 
 	const float directionRadians = glm::radians(artistSetting.windDirectionDegrees);

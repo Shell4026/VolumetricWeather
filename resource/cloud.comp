@@ -199,7 +199,7 @@ float BezierCurve(Bezier bezier, float t)
 
 vec2 GetCloudVelocity()
 {
-	const float delta = 0.2777777777; // km/h -> m/sec
+	const float delta = 1000.0; // km/h -> m/h
 	const vec2 vel = setting.windVelKmh * delta;
 	const float voxelSize = 1.0 / setting.tiling;
 	const vec2 offset = vel * voxelSize * setting.time;
@@ -435,10 +435,11 @@ void SegmentTransmittance(
 		depthSum += t * depthWeight;
 		weightSum += depthWeight;
 		
-		const float lightViewOpticalDepth = -log(max(lightViewT, 1e-4));
-		float powder = 1.0 - exp(-2.0 * lightViewOpticalDepth);
-		powder = mix(powder, 1.0, (mu + 1.0) * 0.5);
-		powder = mix(1.0, powder, setting.powderStrength);
+		//const float lightViewOpticalDepth = -log(max(lightViewT, 1e-4));
+		// float powder = 1.0 - exp(-2.0 * lightViewOpticalDepth);
+		// powder = mix(powder, 1.0, (mu + 1.0) * 0.5);
+		// powder = mix(1.0, powder, setting.powderStrength);
+		
 		
 		float lightingSource = lightViewT * phase * lighting.sun.w;
 		lightingSource += 0.2 * pow(max(lightViewT, 1e-4), 0.3) * isotropicPhase * lighting.sun.w;
@@ -446,7 +447,9 @@ void SegmentTransmittance(
 		const float heightRatio = GetSampleHeightRatio(cloudInner, cloudOuter, samplePos);
 		const float verticalP = setting.brightness * BezierCurve(setting.brightnessHeight, heightRatio);
 		const float densityP = setting.densityPMin + pow(density, setting.densityPFactor);
-		inScattering += transmittance * stepTransmittanceAlpha * powder * (cloudT * lightingSource * verticalP * densityP);
+		const float seeSun = (mu + 1.0) * 0.5;
+		float powder = mix(densityP, 1.0, mix(0.0, 0.8, seeSun));
+		inScattering += transmittance * stepTransmittanceAlpha * powder * (cloudT * lightingSource * verticalP);
 		transmittance *= stepTransmittance;
 	}
 }

@@ -51,11 +51,11 @@ void CloudTRPass::BeginRecord(const FrameContext& frame, const std::vector<Barri
 {
 	APass::BeginRecord(frame, barrierInfos);
 
-	if (cloudSettingRevision != cloudPass.GetSettingRevision())
-	{
-		InvalidateHistory();
-		cloudSettingRevision = cloudPass.GetSettingRevision();
-	}
+	//if (cloudSettingRevision != cloudPass.GetSettingRevision())
+	//{
+	//	InvalidateHistory();
+	//	cloudSettingRevision = cloudPass.GetSettingRevision();
+	//}
 
 	setting.frameIdx = cloudPass.GetSetting().frame;
 	material->UpdateBindingData(0, setting);
