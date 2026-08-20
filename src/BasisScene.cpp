@@ -9,6 +9,7 @@
 #include "render/Material.h"
 
 #include "pass/ShadowPass.h"
+#include "pass/CSMPass.h"
 #include "pass/OpaquePass.h"
 #include "pass/LowDepthPass.h"
 #include "pass/LUTPass.h"
@@ -29,6 +30,7 @@
 #include <queue>
 #include <string>
 #include <format>
+
 BasisScene::BasisScene(VulkanContext& ctx, const ImGUI& imgui, Window& window, SamplerManager& samplerManager) :
 	AScene(ctx, imgui, window, samplerManager),
 	gui("GUI", 400, 400),
@@ -274,13 +276,18 @@ void BasisScene::SetupPass()
 	const uint32_t height = ctx.GetSwapChainExtent().height;
 	shadowPass = std::make_unique<ShadowPass>();
 	shadowPass->Init(ctx, samplerManager, GetDescriptorPool(), VK_NULL_HANDLE);
-	mountain.material->UpdateBindingData(2, *shadowPass->GetShadowMap(), shadowPass->GetShadowSampler()->GetSampler());
+
+	csmPass = std::make_unique<CSMPass>();
+	csmPass->Init(ctx, samplerManager, GetDescriptorPool(), VK_NULL_HANDLE);
+	csmPass->UpdateCSM(*GetCamera(), setting.lighting.sun);
+	mountain.material->UpdateBindingData(2, *csmPass->GetShadowMap(), csmPass->GetShadowSampler()->GetSampler());
 	for (std::unique_ptr<Material>& matPtr : city.materials)
 	{
 		if (matPtr == nullptr)
 			continue;
-		matPtr->UpdateBindingData(2, *shadowPass->GetShadowMap(), shadowPass->GetShadowSampler()->GetSampler());
+		matPtr->UpdateBindingData(2, *csmPass->GetShadowMap(), csmPass->GetShadowSampler()->GetSampler());
 	}
+
 	opaquePass = std::make_unique<OpaquePass>();
 	opaquePass->SetShader(opaqueShader);
 	opaquePass->SetImageSize(width, height);
@@ -339,7 +346,7 @@ void BasisScene::SetupPass()
 	blitPass = std::make_unique<BlitPass>();
 	blitPass->Init(ctx, samplerManager, GetDescriptorPool(), GetCameraDescriptorSetLayout());
 
-	allPasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), cloudTRPass.get(), postProcessPass.get(), blitPass.get()};
+	allPasses = { shadowPass.get(), csmPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), atmospherePass.get(), hillairePass.get(), cloudPass.get(), cloudTRPass.get(), postProcessPass.get(), blitPass.get()};
 	SetAtmosphereModel(currentAtmospherePass == hillairePass.get());
 
 	UpdateCameraData();
@@ -363,6 +370,7 @@ void BasisScene::BeginBuildCommandBuffer()
 	{
 		opaquePass->PushDrawable(drawable);
 		shadowPass->PushDrawable(drawable);
+		csmPass->PushDrawable(drawable);
 	}
 }
 
@@ -798,9 +806,9 @@ void BasisScene::SetAtmosphereModel(bool useHillaire)
 		if (modeFlags & 0b10)
 			lutPass->EnablePass(LUTPass::LUTType::AerialShadow);
 		if (bCloudEnable)
-			activePasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), cloudPass.get(), cloudTRPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get()};
+			activePasses = { shadowPass.get(), csmPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), cloudPass.get(), cloudTRPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get()};
 		else
-			activePasses = { shadowPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
+			activePasses = { shadowPass.get(), csmPass.get(), opaquePass.get(), lowDepthPass.get(), lutPass.get(), hillairePass.get(), postProcessPass.get(), blitPass.get() };
 		postProcessPass->SetOutputImage(*hillairePass->GetOutputImage());
 	}
 	else
@@ -1005,23 +1013,43 @@ void BasisScene::UpdateSun()
 	const glm::mat4 sunViewProj = sunCamera.GetMatrixProj() * sunCamera.GetMatrixView();
 	setting.lighting.sunViewProj = sunViewProj;
 
-	mountain.data.viewProj = sunViewProj;
-	city.data.viewProj = sunViewProj;
+	csmPass->UpdateCSM(*GetCamera(), glm::vec3{ sun });
+	for (uint32_t i = 0; i < csmPass->GetCSM().GetSliceCount(); ++i)
+	{
+		mountain.data.sunViewProj[i] = csmPass->GetCSM().GetViewProjMatrix(i);
+		city.data.sunViewProj[i] = csmPass->GetCSM().GetViewProjMatrix(i);
+	}
+
 	UpdateOpaqueMaterialData();
 
 	shadowPass->SetCamera(sunCamera);
+	
 }
 
 void BasisScene::UpdateOpaqueMaterialData()
 {
+	const std::vector<float> sliceLength = csmPass->GetCSM().GetSliceLength();
+
 	mountain.data.sun = setting.lighting.sun;
 	mountain.data.atmosphereRadius = setting.atmosphere.atmosphereRadius;
 	mountain.data.groundRadius = setting.atmosphere.groundRadius;
+	
+	mountain.data.sliceLength.x = sliceLength.size() > 0 ? sliceLength[0] : 0xFFFFFFFF;
+	mountain.data.sliceLength.y = sliceLength.size() > 1 ? sliceLength[1] : 0xFFFFFFFF;
+	mountain.data.sliceLength.z = sliceLength.size() > 2 ? sliceLength[2] : 0xFFFFFFFF;
+	mountain.data.sliceLength.w = sliceLength.size() > 3 ? sliceLength[3] : 0xFFFFFFFF;
+
 	mountain.material->UpdateBindingData(0, mountain.data);
 
 	city.data.sun = setting.lighting.sun;
 	city.data.atmosphereRadius = setting.atmosphere.atmosphereRadius;
 	city.data.groundRadius = setting.atmosphere.groundRadius;
+
+	city.data.sliceLength.x = sliceLength.size() > 0 ? sliceLength[0] : 0xFFFFFFFF;
+	city.data.sliceLength.y = sliceLength.size() > 1 ? sliceLength[1] : 0xFFFFFFFF;
+	city.data.sliceLength.z = sliceLength.size() > 2 ? sliceLength[2] : 0xFFFFFFFF;
+	city.data.sliceLength.w = sliceLength.size() > 3 ? sliceLength[3] : 0xFFFFFFFF;
+
 	for (std::unique_ptr<Material>& matPtr : city.materials)
 		matPtr->UpdateBindingData(0, city.data);
 }
