@@ -76,6 +76,7 @@ set(RENDER_HEADERS
 "include/render/VulkanContext.h"
 "include/render/VulkanImage.h"
 "include/render/SamplerManager.h"
+"include/render/Camera.h"
 )
 set(RENDER_CPPS 
 "src/render/BarrierBuilder.cpp"
@@ -87,9 +88,9 @@ set(RENDER_CPPS
 "src/render/VulkanContext.cpp"
 "src/render/VulkanImage.cpp"
 "src/render/SamplerManager.cpp"
+"src/render/Camera.cpp"
 )
 set(HEADERS 
-"include/Camera.h"
 "include/FPSCamera.h"
 "include/Scene.h"
 "include/GLBLoader.h"
@@ -103,7 +104,6 @@ set(HEADERS
 "include/Bezier.hpp"
 )
 set(CPPS
-"src/Camera.cpp"
 "src/FPSCamera.cpp"
 "src/GLBLoader.cpp"
 "src/Scene.cpp"

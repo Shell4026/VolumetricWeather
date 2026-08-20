@@ -1,7 +1,7 @@
 ﻿#include "CloudEditor.h"
 #include "Scene.h"
-#include "Camera.h"
 
+#include "render/Camera.h"
 #include "render/VulkanImage.h"
 
 #include "pass/CloudPaintPass.h"

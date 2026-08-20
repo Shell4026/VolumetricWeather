@@ -4,8 +4,7 @@
 
 #include "render/Shader.h"
 #include "render/Drawable.hpp"
-
-#include "Camera.h"
+#include "render/Camera.h"
 
 #include <memory>
 #include <vector>

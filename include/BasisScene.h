@@ -1,12 +1,12 @@
 ﻿#pragma once
 #include "Scene.h"
 #include "GLBLoader.h"
-#include "Camera.h"
 #include "PresetManager.h"
 #include "GUIBase.h"
 
 #include "core/CircularQueue.hpp"
 
+#include "render/Camera.h"
 #include "render/VulkanContext.h"
 #include "render/Drawable.hpp"
 #include "render/Shader.h"

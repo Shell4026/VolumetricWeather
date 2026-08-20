@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "Camera.h"
+#include "render/Camera.h"
 
 #include "glm/gtc/quaternion.hpp"
 class FPSCamera : public Camera
