@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <map>
+#include <vector>
 class VulkanSampler
 {
 public:
@@ -43,12 +44,14 @@ public:
 	~VulkanImage();
 
 	void Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, VkImageAspectFlags aspect, VkMemoryPropertyFlags memProp);
-	void SetData(const uint8_t* dataPtr, std::size_t size, uint32_t mip = 0);
+	void SetData(const uint8_t* dataPtr, std::size_t size, uint32_t mip = 0, uint32_t arrayIdx = 0);
 
 	auto GetImage() const -> VkImage { return img; }
 	auto GetView() const -> VkImageView { return view; }
+	auto GetViews() const -> const std::vector<VkImageView>& { return views; }
 	auto GetMemory() const -> VkDeviceMemory { return mem; }
 	auto GetInfo() const -> const VkImageCreateInfo& { return info; }
+	auto IsArray() const -> bool { return !views.empty(); }
 
 	static auto GetCreateInfo() -> VkImageCreateInfo;
 	static auto GetVulkanImageUsingHandle(VkImage handle) -> VulkanImage*;
@@ -56,6 +59,7 @@ private:
 	const VulkanContext* ctx = nullptr;
 	VkImage img = VK_NULL_HANDLE;
 	VkImageView view = VK_NULL_HANDLE;
+	std::vector<VkImageView> views; // array전용
 	VkDeviceMemory mem = VK_NULL_HANDLE;
 	VkImageCreateInfo info{};
 

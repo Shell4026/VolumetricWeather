@@ -70,6 +70,9 @@ VulkanImage::~VulkanImage()
 
 	const VkDevice device = ctx->GetDevice();
 	vkDestroyImageView(device, view, nullptr);
+	for (VkImageView view : views)
+		vkDestroyImageView(device, view, nullptr);
+	views.clear();
 	vkFreeMemory(device, mem, nullptr);
 	vkDestroyImage(device, img, nullptr);
 }
@@ -95,16 +98,27 @@ void VulkanImage::Create(const VulkanContext& ctx, const VkImageCreateInfo& ci, 
 
 	VkImageViewCreateInfo viewCi{};
 	viewCi.sType = VkStructureType::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	viewCi.viewType = VkImageViewType::VK_IMAGE_VIEW_TYPE_2D;
+	viewCi.viewType = ci.arrayLayers == 1 ? VkImageViewType::VK_IMAGE_VIEW_TYPE_2D : VkImageViewType::VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 	viewCi.format = info.format;
-	viewCi.subresourceRange = { aspect, 0, 1, 0, 1 };
+	viewCi.subresourceRange = { aspect, 0, ci.mipLevels, 0, ci.arrayLayers };
 	viewCi.image = img;
 	if (ci.imageType == VkImageType::VK_IMAGE_TYPE_3D)
 		viewCi.viewType = VkImageViewType::VK_IMAGE_VIEW_TYPE_3D;
 	VK_RESULT_CHECK(vkCreateImageView(device, &viewCi, nullptr, &view));
+
+	if (ci.arrayLayers > 1)
+	{
+		views.resize(ci.arrayLayers);
+		for (uint32_t i = 0; i < ci.arrayLayers; ++i)
+		{
+			viewCi.viewType = ci.imageType == VkImageType::VK_IMAGE_TYPE_3D ? VkImageViewType::VK_IMAGE_VIEW_TYPE_3D : VkImageViewType::VK_IMAGE_VIEW_TYPE_2D;
+			viewCi.subresourceRange = { aspect, 0, ci.mipLevels, i, 1 };
+			VK_RESULT_CHECK(vkCreateImageView(device, &viewCi, nullptr, &views[i]));
+		}
+	}
 }
 
-void VulkanImage::SetData(const uint8_t* dataPtr, std::size_t size, uint32_t mip)
+void VulkanImage::SetData(const uint8_t* dataPtr, std::size_t size, uint32_t mip, uint32_t arrayIdx)
 {
 	if (ctx == nullptr)
 		return;
@@ -144,7 +158,7 @@ void VulkanImage::SetData(const uint8_t* dataPtr, std::size_t size, uint32_t mip
 
 	region.imageSubresource.aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT;
 	region.imageSubresource.mipLevel = mip;
-	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.baseArrayLayer = arrayIdx;
 	region.imageSubresource.layerCount = 1;
 
 	region.imageOffset = { 0, 0, 0 };

@@ -25,4 +25,5 @@ struct BarrierInfo
 	VkAccessFlags dstAccess = VkAccessFlagBits::VK_ACCESS_NONE;
 
 	uint32_t mipCount = 1;
+	uint32_t arrayCount = 1;
 };

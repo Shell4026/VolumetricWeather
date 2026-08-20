@@ -48,7 +48,10 @@ auto BarrierBuilder::BuildBarrier(const std::vector<APass*>& passes) -> std::vec
 			barrier.dstLayout = usagePtr->layout;
 			const VulkanImage* vulkanImage = VulkanImage::GetVulkanImageUsingHandle(img);
 			if (vulkanImage != nullptr)
+			{
 				barrier.mipCount = vulkanImage->GetInfo().mipLevels;
+				barrier.arrayCount = vulkanImage->GetInfo().arrayLayers;
+			}
 			if (lastUsagePtr == nullptr)
 			{
 				barrier.srcStage = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;;
