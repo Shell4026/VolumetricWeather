@@ -7,7 +7,8 @@ layout(location = 2) in vec3 normal;
 layout(location = 0) out vec2 fragUVs;
 layout(location = 1) out vec3 worldPos;
 layout(location = 2) out vec3 worldNormal;
-layout(location = 3) out vec4 lightProjPos;
+layout(location = 3) out vec3 viewPos;
+layout(location = 4) out vec4 lightProjPos[4];
 
 layout(set = 0, binding = 0) uniform Camera
 {
@@ -20,7 +21,13 @@ layout(set = 0, binding = 0) uniform Camera
 layout(set = 1, binding = 0) uniform UBO
 {
 	vec4 sun; // dir, illuminance
-	mat4 sunViewProj;
+	
+	float atmosphereRadius;
+	float groundRadius;
+	uint cascade;
+	
+	vec4 sliceLength;
+	mat4 sunViewProj[4];
 } ubo;
 layout(push_constant) uniform PushConstants
 {
@@ -30,9 +37,11 @@ layout(push_constant) uniform PushConstants
 void main() 
 {
 	worldPos = (pc.model * vec4(verts, 1.0)).xyz;
-    gl_Position = camera.proj * camera.view * vec4(worldPos, 1.0);
+	viewPos = (camera.view * vec4(worldPos, 1.0)).xyz;
+    gl_Position = camera.proj * vec4(viewPos, 1.0);
 	fragUVs = uvs;
 	worldNormal = (transpose(inverse(pc.model)) * vec4(normal, 0.0)).xyz;
 	
-	lightProjPos = ubo.sunViewProj * vec4(worldPos, 1.0);
+	for (uint i = 0; i < ubo.cascade; ++i)
+		lightProjPos[i] = ubo.sunViewProj[i] * vec4(worldPos, 1.0);
 }

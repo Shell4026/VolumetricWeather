@@ -5,8 +5,8 @@ layout(location = 0) out vec4 outColor;
 layout(location = 0) in vec2 uvs;
 layout(location = 1) in vec3 worldPos;
 layout(location = 2) in vec3 worldNormal;
-layout(location = 3) in vec4 lightProjPos;
-
+layout(location = 3) in vec3 viewPos;
+layout(location = 4) in vec4 lightProjPos[4];
 layout(set = 0, binding = 0) uniform Camera
 {
 	vec3 pos;
@@ -16,12 +16,16 @@ layout(set = 0, binding = 0) uniform Camera
 layout(set = 1, binding = 0) uniform UBO
 {
 	vec4 sun; // dir, illuminance
-	mat4 sunViewProj;
+	
 	float atmosphereRadius;
 	float groundRadius;
+	uint cascade;
+	
+	vec4 sliceLength;
+	mat4 sunViewProj[4];
 } ubo;
 layout(set = 1, binding = 1) uniform sampler2D tex;
-layout(set = 1, binding = 2) uniform sampler2DShadow shadowMap;
+layout(set = 1, binding = 2) uniform sampler2DArrayShadow shadowMap;
 layout(set = 1, binding = 3) uniform sampler2D transmittanceLUT;
 
 vec2 GetTransmittanceUV(vec3 samplePos, vec3 toSunDir)
@@ -61,12 +65,55 @@ vec3 TransmittanceUsingLUT(vec3 samplePos, vec3 dir)
 	return texture(transmittanceLUT, uv).rgb;
 }
 
+float PCF(vec2 uv, uint cascade, float z, float bias)
+{
+	float shadow = 0.0;
+
+	vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0).xy);
+
+	const int radius = 2;
+
+	int samples = 0;
+
+	for (int x = -radius; x <= radius; ++x)
+	{
+		for (int y = -radius; y <= radius; ++y)
+		{
+			vec2 offset = vec2(x, y) * texelSize;
+
+			shadow += texture(shadowMap, vec4(uv + offset, float(cascade), z - bias));
+
+			++samples;
+		}
+	}
+
+	return shadow / float(samples);
+}
+
+float SampleCascadeShadow(uint cascade, vec3 normal)
+{
+	const vec3 projCoord = lightProjPos[cascade].xyz / lightProjPos[cascade].w;
+
+	vec2 uv = projCoord.xy * 0.5 + 0.5;
+	uv.y = 1.0 - uv.y;
+
+	if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || projCoord.z < 0.0 || projCoord.z > 1.0)
+	{
+		return 1.0;
+	}
+
+	float NdotL = max(dot(normal, -ubo.sun.xyz), 0.0);
+
+	float bias = max(0.005 * (1.0 - NdotL), 0.0005);
+
+	return PCF(uv, cascade, projCoord.z, bias);
+}
+
 void main() 
 {
 	const vec3 normal = normalize(worldNormal);
-	
-	vec3 diffuse = texture(tex, uvs).rgb * ubo.sun.w;
-	float diff = max(0.0, dot(normal, -ubo.sun.xyz));
+	const vec3 diffuse = texture(tex, uvs).rgb * ubo.sun.w;
+	const float diff = max(0.0, dot(normal, -ubo.sun.xyz));
 	const vec3 up = vec3(0.0, 1.0, 0.0);
 	if (dot(up, -ubo.sun.xyz) < 0.0)
 	{
@@ -74,17 +121,33 @@ void main()
 		return;
 	}
 	
-	vec3 lightProjCoord = lightProjPos.xyz / lightProjPos.w;
-	vec2 lightProjUV = (lightProjCoord.xy + 1.0) * 0.5;
-	lightProjUV.y = 1.0 - lightProjUV.y;
+	const float viewDepth = -viewPos.z;
 	
-	const float bias = max(
-		0.005 * (1.0 - dot(normal, -ubo.sun.xyz)),
-		0.0005
-	); // 수직일수록 bias를 크게
-	
-	float shadow = texture(shadowMap, vec3(lightProjUV, lightProjCoord.z - bias));
+	float shadow = 1.f;
+	if (viewDepth < ubo.sliceLength[ubo.cascade - 1])
+	{
+		uint cascade = 0;
+		for (uint i = 0; i < ubo.cascade; ++i)
+		{
+			if (viewDepth > ubo.sliceLength[i])
+				cascade = i + 1;	
+		}
+		shadow = SampleCascadeShadow(cascade, normal);
+		if (cascade + 1 < ubo.cascade)
+		{
+			const float splitEnd = ubo.sliceLength[cascade];
+			const float splitStart = (cascade == 0) ? 0.0 : ubo.sliceLength[cascade - 1];
+			const float cascadeLength = splitEnd - splitStart;
+			const float blendWidth = cascadeLength * 0.1;
+			const float blendStart = splitEnd - blendWidth;
+			if (viewDepth > blendStart)
+			{
+				const float blend = smoothstep(blendStart, splitEnd, viewDepth);
+				const float nextShadow = SampleCascadeShadow(cascade + 1, normal);
+				shadow = mix(shadow, nextShadow, blend);
+			}
+		}
+	}
 	const vec3 sunTransmittance = TransmittanceUsingLUT(worldPos, -ubo.sun.xyz);
-	
 	outColor = vec4((shadow * diff) * diffuse * sunTransmittance, 1.0);
 }

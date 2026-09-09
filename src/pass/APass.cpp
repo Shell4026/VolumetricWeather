@@ -71,7 +71,7 @@ void APass::BeginRecord(const FrameContext& frame, const std::vector<BarrierInfo
 			barrier.newLayout = info.dstLayout;
 			barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 			barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			barrier.subresourceRange = { info.aspect, 0, info.mipCount, 0, 1 };
+			barrier.subresourceRange = { info.aspect, 0, info.mipCount, 0, info.arrayCount };
 			barrier.image = info.image;
 
 			vkCmdPipelineBarrier(

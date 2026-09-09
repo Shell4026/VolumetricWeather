@@ -31,6 +31,7 @@ class BlitPass;
 class CloudPass;
 class CloudTRPass;
 class CloudEditor;
+class CSMPass;
 
 class Material;
 class VulkanImage;
@@ -68,6 +69,7 @@ private:
 	VkSampler sampler = VK_NULL_HANDLE;
 
 	std::unique_ptr<ShadowPass> shadowPass;
+	std::unique_ptr<CSMPass> csmPass;
 	std::unique_ptr<OpaquePass> opaquePass;
 	std::unique_ptr<LowDepthPass> lowDepthPass;
 	std::unique_ptr<LUTPass> lutPass;
@@ -86,12 +88,17 @@ private:
 	struct Mountain
 	{
 		GLBLoader::Model model;
-		struct MaterialData
+		struct alignas(16) MaterialData
 		{
-			alignas(16) glm::vec4 sun;
-			alignas(16) glm::mat4 viewProj;
+			 glm::vec4 sun;
+			
 			float atmosphereRadius = 6'460'000.f;
 			float groundRadius = 6'360'000.f;
+			uint32_t cascade = 3;
+			char padding0[4];
+
+			glm::vec4 sliceLength;
+			glm::mat4 sunViewProj[4];
 		} data;
 		std::unique_ptr<Material> material;
 	} mountain;
@@ -100,10 +107,15 @@ private:
 		GLBLoader::Model model;
 		struct MaterialData
 		{
-			alignas(16) glm::vec4 sun;
-			alignas(16) glm::mat4 viewProj;
+			glm::vec4 sun;
+
 			float atmosphereRadius = 6'460'000.f;
 			float groundRadius = 6'360'000.f;
+			uint32_t cascade = 3;
+			char padding0[4];
+
+			glm::vec4 sliceLength;
+			glm::mat4 sunViewProj[4];
 		} data;
 		std::vector<std::unique_ptr<Material>> materials;
 	} city;
