@@ -1,4 +1,4 @@
-# Volumetric Weather
+﻿# Volumetric Weather
 ### Real-time Atmosphere & Volumetric Cloud Rendering
 
 **Vulkan 1.2 / C++20 / Physically Based Atmosphere / Volumetric Cloud**
@@ -21,6 +21,12 @@ https://github.com/user-attachments/assets/3f022400-1da7-4bb3-b4da-c28a405c3c86
 | Weather Rendering | **< 1 ms**                     |
 
 > 성능은 장면 및 렌더링 설정에 따라 달라질 수 있습니다.
+
+## 개발 기록
+
+[8주간의 개발 기록](docs/DEVELOPMENT.md)
+
+대기와 구름 렌더링의 구현 구조, 최적화 과정과 성능, 아티스트 파라미터의 설계 판단을 정리한 기술 문서입니다.
 
 ## 특징
 ### Physically Based Atmosphere
