@@ -4,6 +4,8 @@ include(FetchContent)
 
 project ("VolumetricWeather" LANGUAGES CXX)
 
+include(cmake/MSVCNinjaDependencies.cmake)
+
 file(GLOB spvFiles "${CMAKE_SOURCE_DIR}/resource/*.spv")
 file(COPY ${spvFiles} DESTINATION ${CMAKE_BINARY_DIR}/shaders)
 file(GLOB glbFiles "${CMAKE_SOURCE_DIR}/resource/*.glb")
