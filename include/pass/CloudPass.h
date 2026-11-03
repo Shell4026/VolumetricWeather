@@ -42,6 +42,9 @@ public:
 		char padding1[8];
 
 		glm::vec4 cloudColor{ 1.f, 1.f, 1.f, 1.f };
+
+		float maxMarchDistance = 50'000.f; // 50km
+		char padding2[12];
 	};
 	enum ModeFlag
 	{

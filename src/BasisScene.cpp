@@ -621,6 +621,12 @@ void BasisScene::DrawDebugGUI()
 				cloudPass->SetSetting(setting);
 			if (ImGui::SliderInt("MaxSteps", reinterpret_cast<int*>(&setting.maxSteps), setting.minSteps, 128))
 				cloudPass->SetSetting(setting);
+			float maxMarchKm = setting.maxMarchDistance / 1000.f;
+			if (ImGui::SliderFloat("Max March Distance (km)", &maxMarchKm, 5.f, 300.f, "%.0f"))
+			{
+				setting.maxMarchDistance = maxMarchKm * 1000.f;
+				cloudPass->SetSetting(setting);
+			}
 			if (ImGui::SliderInt("LightView Steps", reinterpret_cast<int*>(&setting.lightViewSteps), 1, 128))
 			{
 				setting.lightViewSteps = std::max(static_cast<int>(setting.lightViewSteps), 1);

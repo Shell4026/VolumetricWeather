@@ -45,6 +45,8 @@ layout(set = 1, binding = 0) uniform Setting
 	vec2 windVelKmh;
 	
 	vec4 cloudColor;
+
+	float maxMarchDistance;
 } setting;
 layout(set = 1, binding = 1) uniform Atmosphere
 {
@@ -469,6 +471,19 @@ int ClipCloudSegments(float maxDistance, inout vec2 segment0, inout vec2 segment
 	return 2;
 }
 
+// 구간 길이의 합을 maxLength로 제한 (지평선 방향은 구간이 수백 km라 스텝이 너무 커짐)
+int LimitMarchLength(float maxLength, inout vec2 segment0, inout vec2 segment1, int segmentCount)
+{
+	if (segmentCount <= 0)
+		return 0;
+	segment0.y = min(segment0.y, segment0.x + maxLength);
+	const float remain = maxLength - (segment0.y - segment0.x);
+	if (segmentCount == 1 || remain <= 0.0)
+		return 1;
+	segment1.y = min(segment1.y, segment1.x + remain);
+	return 2;
+}
+
 void main()
 {
 	// const ivec2 bayer44[16] = ivec2[]
@@ -543,6 +558,7 @@ void main()
 	const float sceneDistance = length(viewPos);
 	if (z < 1.0)
 		cloudSegmentCount = ClipCloudSegments(sceneDistance, cloudSegment0, cloudSegment1, cloudSegmentCount);
+	cloudSegmentCount = LimitMarchLength(setting.maxMarchDistance, cloudSegment0, cloudSegment1, cloudSegmentCount);
 	if (cloudSegmentCount == 0)
 	{
 		imageStore(outImage, pixel, vec4(0.0, 0.0, 0.0, 1.0));
