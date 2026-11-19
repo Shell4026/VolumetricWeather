@@ -82,6 +82,14 @@ void CurrentNeighborhood(ivec2 pixel, out vec4 mean, out vec4 stddev)
     stddev = sqrt(variance);
 }
 
+// 같은 2x2 블록에서 이번 프레임에 새로 계산한 픽셀의 값
+vec4 FreshBlockCloud(ivec2 pixel, ivec2 size)
+{
+	// Pixel & ~1 : 현재 2x2블록의 원점
+	const ivec2 freshXY = min((pixel & ~1) + BAYER_22[trp.frameIdx % 4], size - 1);
+	return texelFetch(curCloudTex, freshXY, 0);
+}
+
 void main()
 {
 	const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -106,7 +114,7 @@ void main()
 	if (trp.historyValid == 0)
 	{
 		imageStore(accumTex, pixel, ivec4(0));
-		imageStore(trOutput, pixel, currentFramePixel ? curCloud : vec4(0.0, 0.0, 0.0, 1.0));
+		imageStore(trOutput, pixel, currentFramePixel ? curCloud : FreshBlockCloud(pixel, size));
 		return;
 	}
 	
@@ -118,20 +126,21 @@ void main()
 	if (historyUV.x < 0.0 || historyUV.x >= 1.0 || historyUV.y < 0.0 || historyUV.y >= 1.0)
 	{
 		imageStore(accumTex, pixel, ivec4(0));
-		imageStore(trOutput, pixel, currentFramePixel ? curCloud : vec4(0.0, 0.0, 0.0, 1.0));
+		imageStore(trOutput, pixel, currentFramePixel ? curCloud : FreshBlockCloud(pixel, size));
 		return;
 	}
 	
 	vec4 prevCloud = texture(prevCloudTex, historyUV);
-	if (!currentFramePixel)
+	if (!currentFramePixel) // 이번 프레임에 계산하지 않은 픽셀은 재투영 결과를 그대로
 	{
+        if (accum == 0)
+            prevCloud = FreshBlockCloud(pixel, size);
 		imageStore(trOutput, pixel, prevCloud);
 		return;
 	}
 
-	accum = min(accum + 1, 16);
-
 	float historyWeight = min(accum / float(accum + 1), maxHistoryWeight);
+	accum = min(accum + 1, 16);
 	
 	vec4 mean, stddev;
 	CurrentNeighborhood(pixel, mean, stddev);
