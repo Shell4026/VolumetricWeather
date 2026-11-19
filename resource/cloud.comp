@@ -74,6 +74,7 @@ layout(set = 1, binding = 9) uniform sampler2D cloudMaskTex;
 
 const float CLOUD_HEIGHT = 2000;
 const float CLOUD_THICKNESS = 5000;
+const float CLOUD_DEPTH_OCCLUDED = -2.0;
 const float PI = 3.14159265;
 
 vec3 PixelToViewPos(vec2 uv, float z)
@@ -562,7 +563,7 @@ void main()
 	if (cloudSegmentCount == 0)
 	{
 		imageStore(outImage, pixel, vec4(0.0, 0.0, 0.0, 1.0));
-		imageStore(outCloudDepth, pixel, vec4(-1.0));
+		imageStore(outCloudDepth, pixel, vec4(CLOUD_DEPTH_OCCLUDED));
 		return;
 	}
 	

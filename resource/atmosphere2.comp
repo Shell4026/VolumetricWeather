@@ -267,6 +267,31 @@ vec4 UpsampledCloud(vec2 uv, float ndcZ)
 		return bestCloud;
 	return cloudSum / weightSum;
 }
+float SampleCloudDepth(vec2 uv, float fallback)
+{
+	const ivec2 size = textureSize(cloudDepthTex, 0);
+    const vec2 texelPos = vec2(size) * uv - 0.5;
+    const ivec2 base = ivec2(floor(texelPos));
+    const vec2 fraction = fract(texelPos);
+
+    float sum = 0.0;
+    float weightSum = 0.0;
+    for (int y = 0; y <= 1; ++y)
+    {
+        for (int x = 0; x <= 1; ++x)
+        {
+            const ivec2 coord = clamp(base + ivec2(x, y), ivec2(0, 0), size - 1);
+            const float depth = texelFetch(cloudDepthTex, coord, 0).r;
+            if (depth < 0.0)
+                continue;
+            const float weightX = (x == 0) ? 1.0 - fraction.x : fraction.x;
+            const float weightY = (y == 0) ? 1.0 - fraction.y : fraction.y;
+            sum += depth * weightX * weightY;
+            weightSum += weightX * weightY;
+        }
+    }
+    return weightSum > 1e-5 ? sum / weightSum : fallback;
+}
 
 float GetAerialPerspectiveZ(float depth)
 {
@@ -350,7 +375,9 @@ void main()
 	// return;
 	
 	vec3 background = vec3(0.0);
-	if (z < 1.0)
+	
+	bool bIsSky = (z == 1.0);
+	if (!bIsSky)
 	{
 		const float lutZ = GetAerialPerspectiveZ(surfaceLength);
 		if ((setting.modeFlags & 1) == 1)
@@ -379,10 +406,10 @@ void main()
 		vec2 segment1;
 		vec3 cloudColor = vec3(0.0);
 		const float segCount = RayCloudShellIntersect(camera.pos, rayDir, planetCenter, cloudInnerRadius, cloudOuterRadius, segment0, segment1);
-		if (segCount >= 1)
+		if (segCount >= 1 && (bIsSky || surfaceLength > segment0.x))
 		{
 			const vec4 cloud = UpsampledCloud(uv, z);
-			const float cloudDepth = max(texture(cloudDepthTex, uv).r, 0.0);
+			const float cloudDepth = SampleCloudDepth(uv, mix(segment0.x, segment0.y, 0.3));
 
 			vec4 atmosphereToCloud = vec4(0.0, 0.0, 0.0, 1.0);
 

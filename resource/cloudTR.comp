@@ -41,6 +41,11 @@ bool IsCurrentFramePixel(ivec2 pixel)
 	return all(equal(pixel & ivec2(1), BAYER_22[trp.frameIdx % 4]));
 }
 
+bool IsCloudOccluded(float cloudDepth)
+{
+	return cloudDepth < -1.5;
+}
+
 vec3 PixelToViewPos(vec2 uv, float z)
 {
 	vec3 ndc = vec3(uv * 2.0 - 1.0, z);
@@ -62,32 +67,59 @@ vec2 PreviousUV(vec3 rayDir)
 	return prevUV;
 }
 
-void CurrentNeighborhood(ivec2 pixel, out vec4 mean, out vec4 stddev)
+bool CurrentNeighborhood(ivec2 pixel, out vec4 mean, out vec4 stddev)
 {
     const ivec2 size = textureSize(curCloudTex, 0);
     vec4 m1 = vec4(0.0);
     vec4 m2 = vec4(0.0);
+	float count = 0.0;
     for (int y = -1; y <= 1; ++y)
 	{
 		for (int x = -1; x <= 1; ++x)
 		{
 			const ivec2 coord = clamp(pixel + ivec2(x, y), ivec2(0), size - ivec2(1));
+			const float z = texelFetch(curCloudDepthTex, coord, 0).r;
+			if (IsCloudOccluded(z))
+                continue;
 			const vec4 c = texelFetch(curCloudTex, coord, 0);
 			m1 += c;
 			m2 += c * c;
+			count += 1.0;
 		}
 	}
-    mean = m1 / 9.0;
-    const vec4 variance = max(m2 / 9.0 - mean * mean, vec4(0.0));
-    stddev = sqrt(variance);
+    mean = vec4(0.0);
+    stddev = vec4(0.0);
+    if (count == 0.0)
+        return false;
+    mean = m1 / count;
+    stddev = sqrt(max(m2 / count - mean * mean, 0.0));
+    return true;
 }
 
-// 같은 2x2 블록에서 이번 프레임에 새로 계산한 픽셀의 값
-vec4 FreshBlockCloud(ivec2 pixel, ivec2 size)
+vec4 ClampToNeighborhood(vec4 history, ivec2 pixel, ivec2 size)
+{
+    vec4 mean, stddev;
+    if (!CurrentNeighborhood(pixel, mean, stddev))
+        return history;
+    const vec4 gamma = trp.nhGamma * stddev;
+    const vec4 boxMin = max(mean - gamma, 0.0);
+    vec4 boxMax = mean + gamma;
+    boxMax.a = min(boxMax.a, 1.0);
+    return clamp(history, boxMin, boxMax);
+}
+
+// 히스토리를 쓸 수 없을 때의 값. 같은 2x2 블록의 새 값, 그게 가려졌으면 가려지지 않은 이웃의 평균
+vec4 FallbackCloud(ivec2 pixel, ivec2 size)
 {
 	// Pixel & ~1 : 현재 2x2블록의 원점
 	const ivec2 freshXY = min((pixel & ~1) + BAYER_22[trp.frameIdx % 4], size - 1);
-	return texelFetch(curCloudTex, freshXY, 0);
+	const float z = texelFetch(curCloudDepthTex, freshXY, 0).r;
+	if (!IsCloudOccluded(z))
+        return texelFetch(curCloudTex, freshXY, 0);
+    vec4 mean, stddev;
+    if (CurrentNeighborhood(pixel, mean, stddev))
+        return mean;
+    return vec4(0.0, 0.0, 0.0, 1.0);
 }
 
 void main()
@@ -101,11 +133,14 @@ void main()
 	const vec3 viewRay = PixelToViewPos(uv, 1.0);
 	const vec3 rayDir = normalize((camera.invView * vec4(viewRay, 0.0)).xyz);
 	uint accum = imageLoad(accumTex, pixel).r;
-	const bool currentFramePixel = IsCurrentFramePixel(pixel);
 	
 	const vec4 curCloud = texelFetch(curCloudTex, pixel, 0);
 	const float curDepth = texelFetch(curCloudDepthTex, pixel, 0).r;
-	if (currentFramePixel && curDepth < 0.0)
+	
+	const bool bCurrentFramePixel = IsCurrentFramePixel(pixel);
+	const bool bOccluded = bCurrentFramePixel && IsCloudOccluded(curDepth);
+	
+	if (bCurrentFramePixel && !bOccluded && curDepth < 0.0)
 	{
 		imageStore(accumTex, pixel, ivec4(0));
 		imageStore(trOutput, pixel, curCloud);
@@ -114,7 +149,7 @@ void main()
 	if (trp.historyValid == 0)
 	{
 		imageStore(accumTex, pixel, ivec4(0));
-		imageStore(trOutput, pixel, currentFramePixel ? curCloud : FreshBlockCloud(pixel, size));
+		imageStore(trOutput, pixel, FallbackCloud(pixel, size));
 		return;
 	}
 	
@@ -126,33 +161,23 @@ void main()
 	if (historyUV.x < 0.0 || historyUV.x >= 1.0 || historyUV.y < 0.0 || historyUV.y >= 1.0)
 	{
 		imageStore(accumTex, pixel, ivec4(0));
-		imageStore(trOutput, pixel, currentFramePixel ? curCloud : FreshBlockCloud(pixel, size));
+		imageStore(trOutput, pixel, FallbackCloud(pixel, size));
 		return;
 	}
 	
 	vec4 prevCloud = texture(prevCloudTex, historyUV);
-	if (!currentFramePixel) // 이번 프레임에 계산하지 않은 픽셀은 재투영 결과를 그대로
+	if (!bCurrentFramePixel) // 이번 프레임에 계산하지 않은 픽셀은 재투영 결과를 그대로
 	{
         if (accum == 0)
-            prevCloud = FreshBlockCloud(pixel, size);
+            prevCloud = FallbackCloud(pixel, size);
 		imageStore(trOutput, pixel, prevCloud);
 		return;
 	}
 
 	float historyWeight = min(accum / float(accum + 1), maxHistoryWeight);
 	accum = min(accum + 1, 16);
-	
-	vec4 mean, stddev;
-	CurrentNeighborhood(pixel, mean, stddev);
-	const vec4 gamma = trp.nhGamma * stddev;
-	vec4 boxMin = max(mean - gamma, vec4(0.0));
-	vec4 boxMax = mean + gamma;
-	boxMax.a = min(boxMax.a, 1.0);
-	
-	const vec4 clipped = clamp(prevCloud, boxMin, boxMax);
-	const vec3 clippedS = clipped.rgb; //clamp(prevCloud.rgb, boxMin.rgb, boxMax.rgb);
-	const float clippedT = clipped.a; //clamp(prevCloud.a, boxMin.a, boxMax.a);
-	prevCloud = vec4(clippedS, clippedT);
+
+	prevCloud = ClampToNeighborhood(prevCloud, pixel, size);
 	
 	const vec3 inScattering = mix(curCloud.rgb, prevCloud.rgb, historyWeight);
 	const float transmittance = mix(curCloud.a, prevCloud.a, historyWeight);
