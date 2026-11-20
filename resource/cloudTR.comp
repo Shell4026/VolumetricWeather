@@ -138,7 +138,7 @@ void main()
 	const float curDepth = texelFetch(curCloudDepthTex, pixel, 0).r;
 	
 	const bool bCurrentFramePixel = IsCurrentFramePixel(pixel);
-	const bool bOccluded = bCurrentFramePixel && IsCloudOccluded(curDepth);
+	const bool bOccluded = IsCloudOccluded(curDepth);
 	
 	if (bCurrentFramePixel && !bOccluded && curDepth < 0.0)
 	{
@@ -169,8 +169,22 @@ void main()
 	if (!bCurrentFramePixel) // 이번 프레임에 계산하지 않은 픽셀은 재투영 결과를 그대로
 	{
         if (accum == 0)
-            prevCloud = FallbackCloud(pixel, size);
+		{
+			const ivec2 freshXY = min((pixel & ~1) + BAYER_22[trp.frameIdx % 4], size - 1);
+			const float freshDepth = texelFetch(curCloudDepthTex, freshXY, 0).r;
+			if (IsCloudOccluded(freshDepth))
+				prevCloud = ClampToNeighborhood(prevCloud, pixel, size);
+			else
+				prevCloud = texelFetch(curCloudTex, freshXY, 0);
+		}   
 		imageStore(trOutput, pixel, prevCloud);
+		return;
+	}
+	
+	if (bOccluded) // 가려져서 계산을 건너뛴 픽셀은 물체 뒤 구름을 히스토리로 유지
+	{
+		imageStore(accumTex, pixel, ivec4(0));
+		imageStore(trOutput, pixel, ClampToNeighborhood(prevCloud, pixel, size));
 		return;
 	}
 
